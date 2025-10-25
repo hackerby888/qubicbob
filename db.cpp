@@ -13,16 +13,6 @@
 // Global Redis client handle
 static std::unique_ptr<sw::redis::Redis> g_redis = nullptr;
 
-// Helper to convert byte array to hex string
-static std::string bytes_to_hex_string(const unsigned char* bytes, size_t size) {
-    std::stringstream ss;
-    ss << std::hex << std::setfill('0');
-    for (size_t i = 0; i < size; ++i) {
-        ss << std::setw(2) << static_cast<unsigned int>(bytes[i]);
-    }
-    return ss.str();
-}
-
 void db_connect(const std::string& connectionString) {
     if (g_redis) {
         Logger::get()->info("Database connection already open.\n");
@@ -758,7 +748,8 @@ bool db_has_tick_data(uint32_t tick) {
     if (!g_redis) return false;
     try {
         const std::string key = "tick_data:" + std::to_string(tick);
-        return g_redis->exists(key);
+        const std::string key2 = "vtick:" + std::to_string(tick);
+        return g_redis->exists(key) || g_redis->exists(key2);
     } catch (const sw::redis::Error &e) {
         Logger::get()->error("Redis error in db_has_tick_data: %s\n", e.what());
         return false;
@@ -788,108 +779,11 @@ std::vector<TickVote> db_get_tick_votes_from_vtick(uint32_t tick) {
 }
 
 std::vector<TickVote> db_try_to_get_votes(uint32_t tick) {
-    std::vector<TickVote> votes = db_get_tick_votes_from_vtick(tick);
+    auto votes = db_get_tick_votes(tick);
     if (votes.empty()) {
-        votes = db_get_tick_votes(tick);
+        votes = db_get_tick_votes_from_vtick(tick);
     }
     return votes;
-}
-
-struct VoteCluster {
-    m256i prevSpectrumDigest;
-    std::vector<TickVote> votes;
-};
-
-m256i db_getSpectrumDigest(uint32_t tick) {
-    std::vector<TickVote> votes = db_try_to_get_votes(tick + 1);
-    if (votes.empty()) {
-        return m256i{}; // Return zero digest if no votes
-    }
-
-    // Group votes by prevSpectrumDigest
-    std::vector<VoteCluster> clusters;
-    for (const auto &vote: votes) {
-        bool found = false;
-        for (auto &cluster: clusters) {
-            if (memcmp(&cluster.prevSpectrumDigest, &vote.prevSpectrumDigest, sizeof(m256i)) == 0) {
-                cluster.votes.push_back(vote);
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            clusters.push_back({vote.prevSpectrumDigest, {vote}});
-        }
-    }
-
-    // Find largest cluster
-    size_t maxSize = 0;
-    m256i result{};
-    m256i td;
-    for (const auto &cluster: clusters) {
-        if (cluster.votes.size() > maxSize) {
-            maxSize = cluster.votes.size();
-            result = cluster.prevSpectrumDigest;
-            td = cluster.votes[0].transactionDigest;
-        }
-    }
-
-    int threshold = 226;
-    if (td != m256i::zero())
-    {
-        threshold = 451;
-    }
-    return (maxSize >= threshold) ? result : m256i{};
-}
-
-m256i db_getUniverseDigest(uint32_t tick) {
-    std::vector<TickVote> votes = db_try_to_get_votes(tick + 1);
-    if (votes.empty()) {
-        return m256i{}; // Return zero digest if no votes
-    }
-
-    // Group votes by prevUniverseDigest
-    struct UCluster {
-        m256i prevUniverseDigest;
-        std::vector<TickVote> votes;
-    };
-
-    std::vector<UCluster> clusters;
-    for (const auto& vote : votes) {
-        bool found = false;
-        for (auto& cluster : clusters) {
-            if (memcmp(&cluster.prevUniverseDigest, &vote.prevUniverseDigest, sizeof(m256i)) == 0) {
-                cluster.votes.push_back(vote);
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            UCluster nc;
-            memcpy((void*)&nc.prevUniverseDigest, vote.prevUniverseDigest.m256i_u8, sizeof(m256i));
-            nc.votes.push_back(vote);
-            clusters.push_back(nc);
-        }
-    }
-
-    // Find largest cluster
-    size_t maxSize = 0;
-    m256i result{};
-    m256i td;
-    for (const auto& cluster : clusters) {
-        if (cluster.votes.size() > maxSize) {
-            maxSize = cluster.votes.size();
-            result = cluster.prevUniverseDigest;
-            td = cluster.votes[0].transactionDigest;
-        }
-    }
-    int threshold = 226;
-    if (td != m256i::zero())
-    {
-        threshold = 451;
-    }
-    // Return result only if largest cluster has at least threshold votes
-    return (maxSize >= threshold) ? result : m256i{};
 }
 
 // Store the whole Computors struct per epoch; key = "computor:<epoch>"

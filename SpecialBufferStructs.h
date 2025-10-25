@@ -144,6 +144,18 @@ public:
         return true;
     }
 
+    /**
+     * @brief Returns a string containing the current buffer usage information.
+     * @return String with buffer size, capacity, and usage percentage.
+     */
+    std::string GetBufferUsageString() {
+        std::lock_guard<std::mutex> lock(mtx_);
+        double usage_percent = (static_cast<double>(size_) / capacity_) * 100.0;
+        return "Buffer Usage: " + std::to_string(size_) + "/" +
+               std::to_string(capacity_) + " bytes (" +
+               std::to_string(usage_percent) + "%)";
+    }
+
 
 private:
     /**
@@ -245,6 +257,15 @@ public:
                 ++it;
             }
         }
+    }
+
+    /**
+     * @brief Returns a string containing the current map usage information.
+     * @return String with map size and entries count.
+     */
+    std::string GetMapUsageString() {
+        std::lock_guard<std::mutex> lock(mtx_);
+        return "Map Usage: " + std::to_string(mem.size()) + " entries";
     }
 
 private:

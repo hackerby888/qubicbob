@@ -23,6 +23,7 @@ void DataProcessorThread(std::atomic_bool& exitFlag);
 void RequestProcessorThread(std::atomic_bool& exitFlag);
 void verifyLoggingEvent(std::atomic_bool& stopFlag);
 void indexVerifiedTicks(std::atomic_bool& stopFlag);
+void cleanRawTick(uint32_t fromTick, uint32_t toTick);
 std::atomic_bool stopFlag{false};
 
 // Public helpers from QubicServer.cpp
@@ -110,7 +111,6 @@ int runBob(int argc, char *argv[])
     }
     // Collect endpoints from config
     std::vector<std::string> endpoints = cfg.trusted_nodes;
-
     // Try endpoints in order, connect to the first that works
     ConnectionPool conn_pool;
     ConnectionPool conn_pool_logging; // conn pool with passcode
@@ -237,6 +237,7 @@ int runBob(int argc, char *argv[])
         if (has_passcode) conn_pool_logging.add(conn);
     }
     stopFlag.store(false);
+    long long lastCleanTick = gCurrentFetchingTick - 1;
     auto request_thread = std::thread(
             [&](){
                 set_this_thread_name("io-req");
@@ -311,12 +312,20 @@ int runBob(int argc, char *argv[])
         prevLoggingEventTick = gCurrentLoggingEventTick.load();
         prevVerifyEventTick = gCurrentVerifyLoggingTick.load();
         prevIndexingTick = gCurrentIndexingTick.load();
-        Logger::get()->info("Current state: TickData: {} ({}) | LogEvent: {} ({}) | Indexing: {} ({}) | Verifying: {} ({})",
+        Logger::get()->info("Current state: FetchingTick: {} ({}) | FetchingLog: {} ({}) | Indexing: {} ({}) | Verifying: {} ({})",
                             gCurrentFetchingTick.load(), fetching_td_speed,
                             gCurrentLoggingEventTick.load(), fetching_le_speed,
                             gCurrentIndexingTick.load(), indexing_speed,
                             gCurrentVerifyLoggingTick.load(), verify_le_speed);
         requestMapperFrom.clean();
+        requestMapperTo.clean();
+        long long cleanToTick = (long long)(gCurrentVerifyLoggingTick.load()) - 5;
+        if (lastCleanTick < cleanToTick)
+        {
+            Logger::get()->trace("Cleaning from {} to {}", lastCleanTick + 1, cleanToTick);
+            cleanRawTick(lastCleanTick + 1, cleanToTick);
+            lastCleanTick = cleanToTick;
+        }
         int count = 0;
         while (count++ < sleep_time*10 && !stopFlag.load()) SLEEP(100);
     }

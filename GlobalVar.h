@@ -9,7 +9,7 @@
 #include <thread>
 
 struct GlobalState {
-    MutexRoundBuffer MRB_Data{512 * 1024u * 1024u};
+    MutexRoundBuffer MRB_Data{1024 * 1024u * 1024u};
     MutexRoundBuffer MRB_Request{128u * 1024u * 1024u};
     RequestMap requestMapperFrom;
     RequestMap requestMapperTo;
@@ -36,6 +36,9 @@ struct GlobalState {
     // Rescue mode range
     long long refetchFromId{-1};
     long long refetchToId{-1};
+
+    // Rescue mode votes
+    long long refetchTickVotes{-1};
 };
 
 // Safe, lazy singleton accessor avoids static init order issues.

@@ -137,7 +137,9 @@ void processQuTransfer(LogEvent& le)
     }
     else
     {
-        if (qt.sourcePublicKey != m256i::zero()) Logger::get()->critical("QUs transfer has invalid source index");
+        if (qt.sourcePublicKey != m256i::zero()){
+            Logger::get()->critical("QUs transfer has invalid source index");
+        }
     }
     increaseEnergy(qt.destinationPublicKey, qt.amount, le.getTick());
 }
@@ -343,8 +345,18 @@ void saveState(uint32_t& tracker, uint32_t lastVerified)
         std::filesystem::remove(tickSpectrum);
         std::filesystem::remove(tickUniverse);
     }
-    Logger::get()->info("Saved checkpoints. Deleted old verified universe/spectrum {}. ", tracker);
+    Logger::get()->info("Saved checkpoints. Deleted old verified universe/spectrum {}. ", lastVerified);
     tracker = lastVerified;
+}
+
+// Helper to convert byte array to hex string
+static std::string bytes_to_hex_string(const unsigned char* bytes, size_t size) {
+    std::stringstream ss;
+    ss << std::hex << std::setfill('0');
+    for (size_t i = 0; i < size; ++i) {
+        ss << std::setw(2) << static_cast<unsigned int>(bytes[i]);
+    }
+    return ss.str();
 }
 
 
@@ -387,7 +399,7 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
     }
     while (!stopFlag.load())
     {
-        while (gCurrentVerifyLoggingTick >= gCurrentLoggingEventTick && !stopFlag.load()) SLEEP(100);
+        while (gCurrentVerifyLoggingTick >= (gCurrentLoggingEventTick-1) && !stopFlag.load()) SLEEP(100);
         if (stopFlag.load()) return;
         uint32_t processFromTick = gCurrentVerifyLoggingTick;
         uint32_t processToTick = std::min(gCurrentVerifyLoggingTick + BATCH_VERIFICATION, gCurrentLoggingEventTick - 1);
@@ -537,38 +549,71 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
                 }
             }
         }
-        m256i db_spectrumDigest, spectrumDigest,  db_universeDigest, universeDigest;
+
+verifyNodeStateDigest:
+        m256i spectrumDigest, universeDigest;
+        std::vector<TickVote> votes;
+        int voteCount = 0;
+        bool hasTickData = false;
+        bool matchedQuorum = false;
         {
             PROFILE_SCOPE("computeDigests");
-            db_spectrumDigest = db_getSpectrumDigest(processToTick);
-            while (db_spectrumDigest == m256i::zero())
-            {
-                if (stopFlag.load()) return;
-                SLEEP(1000);
-                db_spectrumDigest = db_getSpectrumDigest(processToTick);
-            }
             computeSpectrumDigest(processFromTick, processToTick);
             spectrumDigest = spectrumDigests[(SPECTRUM_CAPACITY * 2 - 1) - 1];
-            if (spectrumDigest != db_spectrumDigest)
-            {
-                Logger::get()->warn("Failed spectrum digest at tick {} -> {}, please check!", processFromTick, processToTick);
-                exit(-1);
-            }
-
-            db_universeDigest = db_getUniverseDigest(processToTick);
-            while (db_universeDigest == m256i::zero())
-            {
-                if (stopFlag.load()) return;
-                SLEEP(1000);
-                db_universeDigest = db_getUniverseDigest(processToTick);
-            }
             universeDigest = getUniverseDigest(processFromTick, processToTick);
+
+            votes = db_try_to_get_votes(processToTick);
+            //verifying spectrum and universe state
+            voteCount = 0;
+            m256i saltedDataSpectrum[2];
+            m256i saltedDataUniverse[2];
+            saltedDataSpectrum[1] = spectrumDigest;
+            saltedDataUniverse[1] = universeDigest;
+            int nonEmptyTick = 0;
+            int emptyTick = 0;
+            for (auto& vote: votes)
+            {
+                if (vote.transactionDigest == m256i::zero()) emptyTick++;
+                else nonEmptyTick++;
+                saltedDataSpectrum[0] = computorsList.publicKeys[vote.computorIndex];
+                saltedDataUniverse[0] = computorsList.publicKeys[vote.computorIndex];
+                m256i salted;
+                KangarooTwelve64To32(saltedDataSpectrum->m256i_u8, salted.m256i_u8);
+                if (salted != vote.saltedSpectrumDigest) continue;
+                KangarooTwelve64To32(saltedDataUniverse->m256i_u8, salted.m256i_u8);
+                if (salted != vote.saltedUniverseDigest) continue;
+                voteCount++;
+            }
+            if (emptyTick >= 226)
+            {
+                hasTickData = false;
+            } else if (nonEmptyTick >= 451)
+            {
+                hasTickData = true;
+            } else {
+                Logger::get()->warn("Missing votes for tick {}. Trying to refetch it.", processToTick);
+                refetchTickVotes = processToTick;
+                SLEEP(1000);
+                goto verifyNodeStateDigest;
+            }
+            if (hasTickData)
+            {
+                if (voteCount >= 451) matchedQuorum = true;
+            }
+            else
+            {
+                if (voteCount >= 226) matchedQuorum = true;
+            }
         }
 
-        if (universeDigest != db_universeDigest)
+        if (!matchedQuorum)
         {
-            Logger::get()->warn("Failed universe digest at tick {} -> {}, please check!", processFromTick, processToTick);
-            exit(-1);
+            // TODO: very rare occasion, but it should enter rescue mode and fetch more votes here
+            Logger::get()->warn("Failed to verify digests at tick {} -> {}, please check!", processFromTick, processToTick);
+            Logger::get()->warn("Entering rescue mode to refetch votes for tick {}", processToTick);
+            refetchTickVotes = processToTick;
+            SLEEP(1000);
+            goto verifyNodeStateDigest;
         }
         else
         {

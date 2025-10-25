@@ -36,6 +36,7 @@ bool verifyQuorum(uint32_t tick, TickData& td, std::vector<TickVote>& votes)
     if (count < 225) {
         return false;
     }
+    // NOTE: this is not fully verification, state digest are not yet verified
     struct ConsensusData
     {
         unsigned int prevResourceTestingDigest;
@@ -58,7 +59,6 @@ bool verifyQuorum(uint32_t tick, TickData& td, std::vector<TickVote>& votes)
                 return memcmp(prevComputerDigest.m256i_u8, other.prevComputerDigest.m256i_u8, 32) < 0;
             return memcmp(transactionDigest.m256i_u8, other.transactionDigest.m256i_u8, 32) < 0;
         }
-
     };
     std::map<ConsensusData, int> digestCount;
     for (const auto &vote: votes) {
@@ -74,26 +74,26 @@ bool verifyQuorum(uint32_t tick, TickData& td, std::vector<TickVote>& votes)
 
     int maxCount = 0;
     m256i maxDigest;
+    bool reachConsensus = false;
     for (const auto &pair: digestCount) {
-        maxCount = std::max(maxCount, pair.second);
-        if (maxCount == pair.second)
+        if (pair.first.transactionDigest == m256i::zero() && pair.second >= 226) // empty case
         {
+            maxCount = pair.second;
             maxDigest = pair.first.transactionDigest;
+            reachConsensus = true;
+            break;
+        }
+        if (pair.first.transactionDigest != m256i::zero() && pair.second >= 451) // non-empty case
+        {
+            maxCount = pair.second;
+            maxDigest = pair.first.transactionDigest;
+            reachConsensus = true;
+            break;
         }
     }
+    if (!reachConsensus) return false;
+    if (maxDigest == m256i::zero()) return true;
 
-    if (isArrayZero(maxDigest.m256i_u8, 32))
-    {
-        if (maxCount > 225)
-        {
-            return true;
-        }
-        else
-        {
-            return false;
-        }
-    }
-    else if (maxCount < 451) return false; // not yet collect enough data for non empty tick
     if (td.tick != tick || td.epoch != gCurrentProcessingEpoch)
     {
         if (!db_get_tick_data(tick, td))
@@ -140,7 +140,33 @@ void IORequestThread(ConnectionPool& conn_pool, std::atomic_bool& stopFlag, std:
         try {
             /* Don't need to fetch too far if not yet verifying*/
             while (gCurrentFetchingTick > gCurrentVerifyLoggingTick + 1000 && !stopFlag.load(std::memory_order_relaxed)) SLEEP(100);
+            if (refetchTickVotes != -1)
+            {
+                struct {
+                    RequestResponseHeader header;
+                    unsigned int tick;
+                    unsigned char voteFlags[(NUMBER_OF_COMPUTORS + 7) / 8];
+                } pl{}; // type 14
+                pl.header.setSize(sizeof(pl));
+                pl.header.setType(14);
+                pl.header.randomizeDejavu();
+                pl.tick = refetchTickVotes;
+                memset(pl.voteFlags, 0, sizeof(pl.voteFlags));
+                int count = 0;
+                auto tvs = db_get_tick_votes(refetchTickVotes);
+                for (auto& tv: tvs) {
+                    int i = tv.computorIndex;
+                    pl.voteFlags[i >> 3] |= (1 << (i & 7)); // turn on the flag if the vote exists
+                    count++;
+                }
+                if (count < 676)
+                {
+                    conn_pool.sendToMany((uint8_t *) &pl, sizeof(pl), 6);
+                }
+                refetchTickVotes = -1;
+            }
             auto now = std::chrono::high_resolution_clock::now();
+            uint32_t currentTick = gCurrentFetchingTick;
             if (now - requestClock >= requestCycle)
             {
                 requestClock = now;
@@ -211,7 +237,6 @@ void IORequestThread(ConnectionPool& conn_pool, std::atomic_bool& stopFlag, std:
                                 char qhash[64] = {0};
                                 getIdentityFromPublicKey(td.transactionDigests[i], qhash, true);
                                 std::string hash_str(qhash);
-                                std::vector<uint8_t> tx_data;
                                 if (db_check_transaction_exist(hash_str)) {
                                     pl.flag[i >> 3] |= (1 << (i & 7)); // turn on the flag if the tx exists
                                 } else
@@ -235,7 +260,7 @@ void IORequestThread(ConnectionPool& conn_pool, std::atomic_bool& stopFlag, std:
 }
 
 // Compress a verified tick: pack TickData + up to 676 TickVotes into FullTickStruct,
-// store via db_insert_vtick, then delete raw TickData/TickVotes.
+// store via db_insert_vtick
 static void compressTick(uint32_t tick, TickData td, std::vector<TickVote> votes)
 {
     bool haveTickData = td.tick == tick && td.epoch == gCurrentProcessingEpoch;
@@ -257,25 +282,31 @@ static void compressTick(uint32_t tick, TickData td, std::vector<TickVote> votes
     if (!db_insert_vtick(tick, full))
     {
         Logger::get()->error("compressTick: Failed to insert vtick for tick {}", tick);
-        return; // Do not delete raw data if insertion fails
+        return;
     }
 
-    // Delete raw TickData
-    if (!db_delete_tick_data(tick))
-    {
-        Logger::get()->warn("compressTick: Failed to delete TickData for tick {}", tick);
-    }
+    Logger::get()->trace("compressTick: Compressed tick {}", tick);
+}
 
-    // Delete all TickVotes for this tick (attempt all indices; API treats missing as success)
-    for (uint16_t i = 0; i < 676; ++i)
+void cleanRawTick(uint32_t fromTick, uint32_t toTick)
+{
+    for (uint32_t tick = fromTick; tick <= toTick; tick++)
     {
-        if (!db_delete_tick_vote(tick, i))
+        // Delete raw TickData
+        if (!db_delete_tick_data(tick))
         {
-            Logger::get()->warn("compressTick: Failed to delete TickVote for tick {}, computor {}", tick, i);
+            Logger::get()->warn("compressTick: Failed to delete TickData for tick {}", tick);
+        }
+
+        // Delete all TickVotes for this tick (attempt all indices; API treats missing as success)
+        for (uint16_t i = 0; i < 676; ++i)
+        {
+            if (!db_delete_tick_vote(tick, i))
+            {
+                Logger::get()->warn("compressTick: Failed to delete TickVote for tick {}, computor {}", tick, i);
+            }
         }
     }
-
-    Logger::get()->trace("compressTick: Compressed and pruned raw data for tick {}", tick);
 }
 
 void IOVerifyThread(std::atomic_bool& stopFlag)
@@ -322,6 +353,10 @@ void connReceiver(QCPtr& conn, const bool isTrustedNode, std::atomic_bool& stopF
 
             if (packet.empty()) {
                 // Defensive check; shouldn't happen if receiveAFullPacket succeeds.
+                if (!conn->isReconnectable()) return;
+                Logger::get()->trace("connReceiver error on : {}. Disconnecting", conn->getNodeIp());
+                conn->disconnect();
+                conn->reconnect();
                 continue;
             }
             if (!isTrustedNode)
@@ -363,7 +398,7 @@ void connReceiver(QCPtr& conn, const bool isTrustedNode, std::atomic_bool& stopF
 
         } catch (const std::logic_error& ex) {
             if (!conn->isReconnectable()) return;
-            Logger::get()->trace("connReceiver Too many error on : {}. Disconnecting", conn->getNodeIp());
+            Logger::get()->trace("connReceiver error on : {}. Disconnecting", conn->getNodeIp());
             conn->disconnect();
             SLEEP(errorBackoff);
             conn->reconnect();
