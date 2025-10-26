@@ -393,16 +393,16 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
     gCurrentVerifyLoggingTick = lastVerifiedTick+1;
     computeSpectrumDigest(UINT32_MAX, UINT32_MAX);
     getUniverseDigest(UINT32_MAX, UINT32_MAX);
-    while (gCurrentLoggingEventTick == gInitialTick) {
+    while (gCurrentFetchingLogTick == gInitialTick) {
         if (stopFlag.load()) return;
         SLEEP(100);
     }
     while (!stopFlag.load())
     {
-        while (gCurrentVerifyLoggingTick >= (gCurrentLoggingEventTick-1) && !stopFlag.load()) SLEEP(100);
+        while (gCurrentVerifyLoggingTick >= (gCurrentFetchingLogTick - 1) && !stopFlag.load()) SLEEP(100);
         if (stopFlag.load()) return;
         uint32_t processFromTick = gCurrentVerifyLoggingTick;
-        uint32_t processToTick = std::min(gCurrentVerifyLoggingTick + BATCH_VERIFICATION, gCurrentLoggingEventTick - 1);
+        uint32_t processToTick = std::min(gCurrentVerifyLoggingTick + BATCH_VERIFICATION, gCurrentFetchingLogTick - 1);
         std::vector<LogEvent> vle;
         {
             PROFILE_SCOPE("db_get_logs_by_tick_range");
@@ -634,8 +634,6 @@ void LoggingEventRequestThread(ConnectionPool& conn, std::atomic_bool& stopFlag,
     auto idleBackoff = 10ms;
 
     while (!stopFlag.load(std::memory_order_relaxed)) {
-        bool advancedTick = false; // "working" if we managed to advance the tick this loop
-
         try {
             while (refetchFromId != -1 && refetchToId != -1 && !stopFlag.load(std::memory_order_relaxed))
             {
@@ -657,9 +655,9 @@ void LoggingEventRequestThread(ConnectionPool& conn, std::atomic_bool& stopFlag,
                 }
                 SLEEP(100);
             }
-            while (gCurrentLoggingEventTick >= gCurrentFetchingTick && !stopFlag.load(std::memory_order_relaxed)) SLEEP(100);
+            while (gCurrentFetchingLogTick > gCurrentFetchingTick && !stopFlag.load(std::memory_order_relaxed)) SLEEP(100);
             if (stopFlag.load(std::memory_order_relaxed)) break;
-            if (!db_check_log_range(gCurrentLoggingEventTick))
+            if (!db_check_log_range(gCurrentFetchingLogTick))
             {
                 struct {
                     RequestResponseHeader header;
@@ -670,15 +668,15 @@ void LoggingEventRequestThread(ConnectionPool& conn, std::atomic_bool& stopFlag,
                 packet.header.setSize(sizeof(packet));
                 packet.header.randomizeDejavu();
                 packet.header.setType(RequestAllLogIdRangesFromTick::type());
-                packet.tick = gCurrentLoggingEventTick;
+                packet.tick = gCurrentFetchingLogTick;
                 conn.sendWithPasscodeToRandom((uint8_t *) &packet, 8, packet.header.size());
             } else {
                 long long fromId, length;
-                db_get_log_range_for_tick(gCurrentLoggingEventTick, fromId, length);
+                db_get_log_range_for_tick(gCurrentFetchingLogTick, fromId, length);
                 if (fromId == -1 || length == -1)
                 {
-                    Logger::get()->trace("Tick {} doesn't generate any log. Advancing logEvent tick", gCurrentLoggingEventTick);
-                    gCurrentLoggingEventTick++;
+                    Logger::get()->trace("Tick {} doesn't generate any log. Advancing logEvent tick", gCurrentFetchingLogTick);
+                    gCurrentFetchingLogTick++;
                     continue;
                 }
                 long long endId = fromId + length - 1; // inclusive
@@ -701,15 +699,14 @@ void LoggingEventRequestThread(ConnectionPool& conn, std::atomic_bool& stopFlag,
                 }
                 if (fromId >= endId)
                 {
-                    Logger::get()->trace("Advancing logEvent tick {}", gCurrentLoggingEventTick);
-                    gCurrentLoggingEventTick++;
-                    db_update_latest_event_tick_and_epoch(gCurrentLoggingEventTick, gCurrentProcessingEpoch);
-                    advancedTick = true; // progressed with enough data
+                    Logger::get()->trace("Advancing logEvent tick {}", gCurrentFetchingLogTick);
+                    gCurrentFetchingLogTick++;
+                    db_update_latest_event_tick_and_epoch(gCurrentFetchingLogTick, gCurrentProcessingEpoch);
                 }
             }
             for (int i = 1; i < 5; i++)
             {
-                if (!db_check_log_range(gCurrentLoggingEventTick + i))
+                if (!db_check_log_range(gCurrentFetchingLogTick + i))
                 {
                     struct {
                         RequestResponseHeader header;
@@ -720,7 +717,7 @@ void LoggingEventRequestThread(ConnectionPool& conn, std::atomic_bool& stopFlag,
                     packet.header.setSize(sizeof(packet));
                     packet.header.randomizeDejavu();
                     packet.header.setType(RequestAllLogIdRangesFromTick::type());
-                    packet.tick = gCurrentLoggingEventTick + i;
+                    packet.tick = gCurrentFetchingLogTick + i;
                     conn.sendWithPasscodeToRandom((uint8_t *) &packet, 8, packet.header.size());
                 }
             }

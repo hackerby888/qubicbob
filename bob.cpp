@@ -105,9 +105,9 @@ int runBob(int argc, char *argv[])
         gCurrentProcessingEpoch = epoch;
         uint16_t event_epoch;
         db_get_latest_event_tick_and_epoch(tick, event_epoch);
-        gCurrentLoggingEventTick = tick;
+        gCurrentFetchingLogTick = tick;
         Logger::get()->info("Loaded DB. DATA: Tick: {} | epoch: {}", gCurrentFetchingTick.load(), gCurrentProcessingEpoch.load());
-        Logger::get()->info("Loaded DB. EVENT: Tick: {} | epoch: {}", gCurrentLoggingEventTick.load(), event_epoch);
+        Logger::get()->info("Loaded DB. EVENT: Tick: {} | epoch: {}", gCurrentFetchingLogTick.load(), event_epoch);
     }
     // Collect endpoints from config
     std::vector<std::string> endpoints = cfg.trusted_nodes;
@@ -196,9 +196,9 @@ int runBob(int argc, char *argv[])
                     Logger::get()->warn("Initial tick from node {} is greater than local leading tick: {} vs {}", ip, initTick, gCurrentFetchingTick.load());
                     gCurrentFetchingTick = initTick;
                 }
-                if (initTick > gCurrentLoggingEventTick.load())
+                if (initTick > gCurrentFetchingLogTick.load())
                 {
-                    gCurrentLoggingEventTick = initTick;
+                    gCurrentFetchingLogTick = initTick;
                 }
 
                 if (initEpoch > gCurrentProcessingEpoch.load())
@@ -305,16 +305,16 @@ int runBob(int argc, char *argv[])
     while (!stopFlag.load())
     {
         float fetching_td_speed = (prevFetchingTickData == 0) ? 0: float(gCurrentFetchingTick.load() - prevFetchingTickData) / sleep_time;
-        float fetching_le_speed = (prevLoggingEventTick == 0) ? 0: float(gCurrentLoggingEventTick.load() - prevLoggingEventTick) / sleep_time;
+        float fetching_le_speed = (prevLoggingEventTick == 0) ? 0: float(gCurrentFetchingLogTick.load() - prevLoggingEventTick) / sleep_time;
         float verify_le_speed = (prevVerifyEventTick == 0) ? 0: float(gCurrentVerifyLoggingTick.load() - prevVerifyEventTick) / sleep_time;
         float indexing_speed = (prevIndexingTick == 0) ? 0: float(gCurrentIndexingTick.load() - prevIndexingTick) / sleep_time;
         prevFetchingTickData = gCurrentFetchingTick.load();
-        prevLoggingEventTick = gCurrentLoggingEventTick.load();
+        prevLoggingEventTick = gCurrentFetchingLogTick.load();
         prevVerifyEventTick = gCurrentVerifyLoggingTick.load();
         prevIndexingTick = gCurrentIndexingTick.load();
         Logger::get()->info("Current state: FetchingTick: {} ({}) | FetchingLog: {} ({}) | Indexing: {} ({}) | Verifying: {} ({})",
                             gCurrentFetchingTick.load(), fetching_td_speed,
-                            gCurrentLoggingEventTick.load(), fetching_le_speed,
+                            gCurrentFetchingLogTick.load(), fetching_le_speed,
                             gCurrentIndexingTick.load(), indexing_speed,
                             gCurrentVerifyLoggingTick.load(), verify_le_speed);
         requestMapperFrom.clean();

@@ -8,7 +8,7 @@
 #define gCurrentFetchingTick     (GS().gCurrentProcessingTick)
 #define gCurrentProcessingEpoch    (GS().gCurrentProcessingEpoch)
 #define gInitialTick               (GS().gInitialTick)
-#define gCurrentLoggingEventTick   (GS().gCurrentLoggingEventTick)
+#define gCurrentFetchingLogTick   (GS().gCurrentLoggingEventTick)
 #define gCurrentVerifyLoggingTick  (GS().gCurrentVerifyLoggingTick)
 #define gCurrentIndexingTick       (GS().gCurrentIndexingTick)
 #define computorsList              (GS().computorsList)
