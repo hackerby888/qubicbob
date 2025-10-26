@@ -8,6 +8,13 @@ static void byteToHex(const uint8_t* byte, char* hex, const int sizeInByte)
         sprintf(hex+i*2, "%02x", byte[i]);
     }
 }
+static std::string byteToHexStr(const uint8_t* byte, const int sizeInByte)
+{
+    std::string result;
+    result.resize(sizeInByte*2);
+    byteToHex(byte, result.data(), sizeInByte);
+    return result;
+}
 static void hexToByte(const char* hex, uint8_t* byte, const int sizeInByte)
 {
     for (int i = 0; i < sizeInByte; i++){

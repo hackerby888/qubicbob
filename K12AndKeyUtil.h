@@ -2521,11 +2521,11 @@ static void signData(const char* seed, const uint8_t* data, const size_t dataLen
 }
 
 // return a hash with length 60 in qubic style
-static void getQubicHash(const uint8_t* input, size_t inputSize, char* hash)
+static void getQubicHash(const uint8_t* input, size_t inputSize, char* hash, bool toLowerCap = true)
 {
     uint8_t out[32];
     KangarooTwelve(input, inputSize, out, 32);
-    getIdentityFromPublicKey(out, hash, true);
+    getIdentityFromPublicKey(out, hash, toLowerCap);
 }
 
 #undef C1

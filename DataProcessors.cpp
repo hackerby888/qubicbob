@@ -201,7 +201,7 @@ void replyTransaction(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
             if (!(request->transactionFlags[i >> 3] & (1 << (i & 7))))
             {
                 char hash[64] = {0};
-                getIdentityFromPublicKey(td.transactionDigests[i], hash, true);
+                getIdentityFromPublicKey(td.transactionDigests[i].m256i_u8, hash, true);
                 std::string strHash(hash);
                 std::vector<uint8_t> txData;
                 if (db_get_transaction(strHash, txData))

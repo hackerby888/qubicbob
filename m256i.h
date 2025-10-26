@@ -2,7 +2,7 @@
 #include <string>
 #include <immintrin.h>
 #include <stdint.h>
-
+#include "K12AndKeyUtil.h"
 // Used for all kinds of IDs, including in QPI and contracts.
 // Existing interface and behavior should never be changed! (However, it may be extended.)
 union m256i
@@ -190,6 +190,29 @@ union m256i
     {
         return _mm256_setzero_si256();
     }
+
+    std::string toHex() const {
+        static const char hex[] = "0123456789abcdef";
+        std::string result;
+        result.reserve(64); // Pre-allocate space for efficiency
+        for (int i = 0; i < 32; ++i) {
+            uint8_t byte = m256i_u8[i];
+            result.push_back(hex[byte >> 4]);   // High nibble
+            result.push_back(hex[byte & 0x0F]); // Low nibble
+        }
+        return result;
+    }
+    std::string toQubicHash() const {
+        char hash[64] = {0};
+        getIdentityFromPublicKey(m256i_u8, hash, true);
+        return std::string(hash);
+    };
+
+    std::string toQubicHashUpperCase() const {
+        char hash[64] = {0};
+        getIdentityFromPublicKey(m256i_u8, hash, false);
+        return std::string(hash);
+    };
 };
 
 static_assert(sizeof(m256i) == 32, "m256 has unexpected size!");

@@ -107,10 +107,10 @@ bool verifyQuorum(uint32_t tick, TickData& td, std::vector<TickVote>& votes)
     }
     for (int i= 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK; i++)
     {
-        if (!isArrayZero(td.transactionDigests[i], 32))
+        if (!(td.transactionDigests[i] == m256i::zero()))
         {
             char qhash[64] = {0};
-            getIdentityFromPublicKey(td.transactionDigests[i], qhash, true);
+            getIdentityFromPublicKey(td.transactionDigests[i].m256i_u8, qhash, true);
             std::string hash_str(qhash);
             if (!db_check_transaction_exist(hash_str))
             {
@@ -233,9 +233,9 @@ void IORequestThread(ConnectionPool& conn_pool, std::atomic_bool& stopFlag, std:
                             memset(pl.flag, 0, sizeof(pl.flag));
                             int count = 0;
                             for (unsigned int i = 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK; i++) {
-                                if (isArrayZero(td.transactionDigests[i], 32)) continue;
+                                if (td.transactionDigests[i] == m256i::zero()) continue;
                                 char qhash[64] = {0};
-                                getIdentityFromPublicKey(td.transactionDigests[i], qhash, true);
+                                getIdentityFromPublicKey(td.transactionDigests[i].m256i_u8, qhash, true);
                                 std::string hash_str(qhash);
                                 if (db_check_transaction_exist(hash_str)) {
                                     pl.flag[i >> 3] |= (1 << (i & 7)); // turn on the flag if the tx exists

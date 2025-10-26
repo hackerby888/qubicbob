@@ -4,6 +4,7 @@
 #include "shim.h"
 #include "Entity.h"
 #include "db.h"
+#include <json/json.h>
 #include <vector>
 #include <sstream>
 #include <iomanip>
@@ -33,7 +34,7 @@ std::string bobGetBalance(const char* identity)
 
 std::string bobGetAsset(const char* identity)
 {
-    return "NOT YET IMPLEMENTED";
+    return "{\"error\": \"Not yet implemented\"}";
 }
 
 std::string bobGetTransaction(const char* txHash)
@@ -94,25 +95,176 @@ std::string bobGetTransaction(const char* txHash)
     }
 }
 
-std::string bobGetLog(long long start, long long end)
+std::string bobGetLog(uint16_t epoch, int64_t start, int64_t end)
 {
-    (void)start;
-    (void)end;
-    return "NOT YET IMPLEMENTED";
+
+    if (start < 0 || end < 0 || end < start) {
+        return "{\"error\":\"Wrong range\"}";
+    }
+
+    std::string result;
+    result.push_back('[');
+    bool first = true;
+
+    for (int64_t id = start; id <= end; ++id) {
+        LogEvent log;
+        if (db_get_log(epoch, static_cast<uint64_t>(id), log)) {
+            std::string js = log.parseToJson();
+            if (!first) result.push_back(',');
+            result += js;
+            first = false;
+        } else {
+            Json::Value err(Json::objectValue);
+            err["ok"] = false;
+            err["error"] = "not_found";
+            err["epoch"] = epoch;
+            err["logId"] = Json::UInt64(static_cast<uint64_t>(id));
+            Json::StreamWriterBuilder wb;
+            wb["indentation"] = "";
+            std::string js = Json::writeString(wb, err);
+            if (!first) result.push_back(',');
+            result += js;
+            first = false;
+        }
+    }
+
+    result.push_back(']');
+    return result;
+
 }
 
-std::string bobGetTick(const uint32_t tick)
-{
-    (void)tick;
-    return "NOT YET IMPLEMENTED";
+
+std::string bobGetTick(const uint32_t tick) {
+    FullTickStruct fts;
+    db_get_vtick(tick, fts);
+
+    Json::Value root;
+    root["tick"] = tick;
+
+    // Set TickData -> root["tickdata"]
+    const TickData& td = fts.td;
+    Json::Value tdJson;
+    tdJson["computorIndex"] = td.computorIndex;
+    tdJson["epoch"] = td.epoch;
+    tdJson["tick"] = td.tick;
+
+    tdJson["millisecond"] = td.millisecond;
+    tdJson["second"] = td.second;
+    tdJson["minute"] = td.minute;
+    tdJson["hour"] = td.hour;
+    tdJson["day"] = td.day;
+    tdJson["month"] = td.month;
+    tdJson["year"] = td.year;
+
+    // m256i fields as hex
+    tdJson["timelock"] = td.timelock.toQubicHash();
+
+    // transactionDigests[1024] as hex array
+    {
+        Json::Value digests(Json::arrayValue);
+        for (int i = 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK; ++i) {
+            if (td.transactionDigests[i] != m256i::zero())
+                digests.append(td.transactionDigests[i].toQubicHash());
+        }
+        tdJson["transactionDigests"] = digests;
+    }
+
+    // contractFees[1024] as numeric array
+    {
+        bool nonZero = false;
+        Json::Value fees(Json::arrayValue);
+        for (int i = 0; i < 1024; ++i) {
+            fees.append(static_cast<Json::Int64>(td.contractFees[i]));
+            if (td.contractFees[i]) nonZero = true;
+        }
+        if (nonZero) tdJson["contractFees"] = fees;
+        else tdJson["contractFees"] = 0;
+    }
+
+    // signature as hex
+    tdJson["signature"] = byteToHexStr(td.signature, 64);
+
+    root["tickdata"] = tdJson;
+
+    // Add TickVote array (minimal fields, keep signatures as hex)
+    Json::Value votes(Json::arrayValue);
+    for (const auto &vote : fts.tv) {
+        Json::Value voteObj;
+        // Basic info
+        voteObj["computorIndex"] = vote.computorIndex;
+        voteObj["epoch"] = vote.epoch;
+        voteObj["tick"] = vote.tick;
+
+        // Timestamp fields
+        voteObj["millisecond"] = vote.millisecond;
+        voteObj["second"] = vote.second;
+        voteObj["minute"] = vote.minute;
+        voteObj["hour"] = vote.hour;
+        voteObj["day"] = vote.day;
+        voteObj["month"] = vote.month;
+        voteObj["year"] = vote.year;
+
+        // Digest integers
+        voteObj["prevResourceTestingDigest"] = vote.prevResourceTestingDigest;
+        voteObj["saltedResourceTestingDigest"] = vote.saltedResourceTestingDigest;
+        voteObj["prevTransactionBodyDigest"] = vote.prevTransactionBodyDigest;
+        voteObj["saltedTransactionBodyDigest"] = vote.saltedTransactionBodyDigest;
+
+        // m256i digests (use toQubicHash())
+        voteObj["prevSpectrumDigest"] = vote.prevSpectrumDigest.toQubicHash();
+        voteObj["prevUniverseDigest"] = vote.prevUniverseDigest.toQubicHash();
+        voteObj["prevComputerDigest"] = vote.prevComputerDigest.toQubicHash();
+        voteObj["saltedSpectrumDigest"] = vote.saltedSpectrumDigest.toQubicHash();
+        voteObj["saltedUniverseDigest"] = vote.saltedUniverseDigest.toQubicHash();
+        voteObj["saltedComputerDigest"] = vote.saltedComputerDigest.toQubicHash();
+
+        voteObj["transactionDigest"] = vote.transactionDigest.toQubicHash();
+        voteObj["expectedNextTickTransactionDigest"] = vote.expectedNextTickTransactionDigest.toQubicHash();
+
+        // Signature as hex
+        voteObj["signature"] = byteToHexStr(vote.signature, SIGNATURE_SIZE);
+
+        votes.append(voteObj);
+    }
+    root["votes"] = votes;
+
+    // Convert to string
+    Json::FastWriter writer;
+    return writer.write(root);
 }
 
-std::string bobFindLog(uint32_t scIndex, uint32_t logType, const char* topic1, const char* topic2, const char* topic3)
+
+std::string bobFindLog(uint32_t scIndex, uint32_t logType,
+                       const std::string& t1, const std::string& t2, const std::string& t3,
+                       uint32_t fromTick, uint32_t toTick)
 {
-    (void)scIndex;
-    (void)logType;
-    (void)topic1;
-    (void)topic2;
-    (void)topic3;
-    return "NOT YET IMPLEMENTED";
+    if (fromTick > toTick) {
+        return "{\"error\":\"Wrong range\"}";
+    }
+
+    if (!t1.empty() && t1.length() != 60) {
+        return "{\"error\":\"Invalid length topic1\"}";
+    }
+    if (!t2.empty() && t2.length() != 60) {
+        return "{\"error\":\"Invalid length topic2\"}";
+    }
+    if (!t3.empty() && t3.length() != 60) {
+        return "{\"error\":\"Invalid length topic3\"}";
+    }
+    std::string st1 = t1,st2 = t2,st3 = t3;
+    std::transform(t1.begin(), t1.end(), st1.begin(), ::tolower);
+    std::transform(t2.begin(), t2.end(), st2.begin(), ::tolower);
+    std::transform(t3.begin(), t3.end(), st3.begin(), ::tolower);
+
+    std::vector<uint32_t> ids = db_search_log(scIndex, logType, fromTick, toTick, st1, st2, st3);
+
+    // Return as a compact JSON array
+    std::string result;
+    result.push_back('[');
+    for (size_t i = 0; i < ids.size(); ++i) {
+        if (i) result.push_back(',');
+        result += std::to_string(ids[i]);
+    }
+    result.push_back(']');
+    return result;
 }

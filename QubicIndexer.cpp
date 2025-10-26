@@ -39,7 +39,7 @@ static void indexTick(uint32_t tick, const TickData &td) {
     {
         for (int i = 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK; i++) {
             if (td.transactionDigests[i] == m256i::zero()) continue;
-            std::string txHash = getTransactionHash(td.transactionDigests[i]);
+            std::string txHash = getTransactionHash(td.transactionDigests[i].m256i_u8);
             std::string key = "itx:" + txHash;
 
             LogEvent firstEvent;

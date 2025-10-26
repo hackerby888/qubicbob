@@ -44,6 +44,7 @@
 #include <immintrin.h> // For m256i
 #include "structs.h"
 #include "Logger.h"
+#include "LogEvent.h"
 // Forward declaration for the Redis client
 namespace sw { namespace redis { class Redis; }}
 
@@ -85,161 +86,6 @@ struct TickVote
     m256i expectedNextTickTransactionDigest;
 
     unsigned char signature[SIGNATURE_SIZE];
-};
-
-// ---- Data Structures to be Stored ----
-
-struct LogEvent {
-    // Packed header layout (little-endian) at the beginning of content:
-    //   offset 0..1   epoch (uint16_t)
-    //   offset 2..5   tick  (uint32_t)
-    //   offset 6..9   size/type combo (uint32_t): lower 24 bits = body size, upper 8 bits = type
-    //   offset 10..17 logId (uint64_t)
-    //   offset 18..25 logDigest (uint64_t)
-    //
-    // The body immediately follows the 26-byte header. Use getLogBodyPtr() to access it safely.
-private:
-    std::vector<uint8_t> content;
-public:
-    // Returns a pointer to the start of the log body (after the packed header).
-    // Requires hasPackedHeader() == true.
-    const uint8_t* getLogBodyPtr(){ return content.data() + PackedHeaderSize;}
-    uint8_t* getRawPtr(){return content.data();}
-    // Replaces internal content with [ptr, ptr+size).
-    void updateContent(const uint8_t* ptr, const int size)
-    {
-        content.resize(size);
-        if (size) memcpy(content.data(), ptr, size);
-    }
-    // Clears the content to an empty vector.
-    void clear()
-    {
-        content.resize(0);
-    }
-    // Accessors reading from content.data()
-    static constexpr size_t PackedHeaderSize = 26;
-
-    bool hasPackedHeader() const {
-        return content.size() >= PackedHeaderSize;
-    }
-
-    uint16_t getEpoch() const {
-        if (!hasPackedHeader()) return 0;
-        uint16_t v;
-        memcpy(&v, content.data() + 0, sizeof(v));
-        return v;
-    }
-
-    uint32_t getTick() const {
-        if (!hasPackedHeader()) return 0;
-        uint32_t v;
-        memcpy(&v, content.data() + 2, sizeof(v));
-        return v;
-    }
-
-    // Returns the 8-bit log type encoded in the header.
-    uint32_t getType() const {
-        if (!hasPackedHeader()) return 0;
-        uint32_t combo;
-        memcpy(&combo, content.data() + 6, sizeof(combo));
-        return (combo >> 24) & 0xFFu;
-    }
-    template <typename T>
-    const T* getStruct()
-    {
-        return (T*)getLogBodyPtr();
-    }
-
-    // Returns the 24-bit body size encoded in the header (excluding the 26-byte header).
-    uint32_t getLogSize() const {
-        if (!hasPackedHeader()) return 0;
-        uint32_t combo;
-        memcpy(&combo, content.data() + 6, sizeof(combo));
-        return combo & 0x00FFFFFFu;
-    }
-
-    uint64_t getLogId() const {
-        if (!hasPackedHeader()) return 0;
-        uint64_t v;
-        memcpy(&v, content.data() + 10, sizeof(v));
-        return v;
-    }
-
-    // Optional per-event integrity value; interpretation depends on producer.
-    uint64_t getLogDigest() const {
-        if (!hasPackedHeader()) return 0;
-        uint64_t v;
-        memcpy(&v, content.data() + 18, sizeof(v));
-        return v;
-    }
-
-    // Validates basic invariants against expected epoch/tick and size consistency.
-    bool selfCheck(uint16_t epoch_) const
-    {
-        if (content.size() < 8 + PackedHeaderSize)
-        {
-            Logger::get()->critical("One Logging Event record is broken, expect >{} get {}", 8+PackedHeaderSize, content.size());
-            return false;
-        }
-        // Basic invariants:
-        if (getEpoch() != epoch_) {
-            Logger::get()->critical
-            ("One Logging Event record is broken: expect epoch {} get {}", epoch_, getEpoch());
-            return false;
-        }
-        const auto sz = getLogSize();
-        if (content.size() != PackedHeaderSize + static_cast<size_t>(sz)) {
-            // Allow zero-size content only if header says so.
-            Logger::get()->critical
-                    ("One Logging Event record is broken: expect size {} get {}",
-                     PackedHeaderSize + static_cast<size_t>(sz), content.size());
-            return sz == 0 && content.size() == PackedHeaderSize;
-        }
-        // Enforce minimum body size based on known event types to prevent OOB reads later.
-        // Returns 0 for unknown types (no extra constraint).
-        auto min_needed = expectedMinBodySizeForType(getType());
-        if (min_needed > 0 && sz < min_needed) {
-            Logger::get()->critical("LogEvent body too small for type {}: need >= {}, got {} (epoch {}, tick {}, logId {})",
-                                    getType(), min_needed, sz, getEpoch(), getTick(), getLogId());
-            return false;
-        }
-        return true;
-    }
-
-    // Convenience: interprets a special “custom message” event with type=255 and 8-byte payload.
-    uint64_t getCustomMessage()
-    {
-        if (getType() == 255 && getLogSize() == 8 && hasPackedHeader())
-        {
-            uint64_t r;
-            memcpy(&r, content.data() + PackedHeaderSize, 8);
-            return r;
-        }
-        return 0;
-    }
-private:
-    // Map known event types to the minimum body size we expect for safe decoding.
-    // Unknown types return 0 (no constraint here; callers should still be defensive).
-    static constexpr uint32_t expectedMinBodySizeForType(uint32_t t) {
-        // Type codes must match the producer’s specification.
-        switch (t) {
-            case 0:   /* QU_TRANSFER */                          return sizeof(QuTransfer);
-            case 8:   /* BURNING */                              return sizeof(Burning);
-            case 1:   /* ASSET_ISSUANCE */                       return sizeof(AssetIssuance);
-            case 2:   /* ASSET_OWNERSHIP_CHANGE */               return sizeof(AssetOwnershipChange);
-            case 3:   /* ASSET_POSSESSION_CHANGE */              return sizeof(AssetPossessionChange);
-            case 11:  /* ASSET_OWNERSHIP_MANAGING_CONTRACT_CHANGE */ return sizeof(AssetOwnershipManagingContractChange);
-            case 12:  /* ASSET_POSSESSION_MANAGING_CONTRACT_CHANGE */ return sizeof(AssetPossessionManagingContractChange);
-            case 10:  /* SPECTRUM_STATS (not decoded here) */    return 0;
-            case 4:   /* CONTRACT_ERROR_MESSAGE */               return 0;
-            case 5:   /* CONTRACT_WARNING_MESSAGE */             return 0;
-            case 6:   /* CONTRACT_INFORMATION_MESSAGE */         return 0;
-            case 7:   /* CONTRACT_DEBUG_MESSAGE */               return 0;
-            case 255: /* CUSTOM_MESSAGE */                       return 8; // by convention
-            default:                                             return 0;
-        }
-    }
-
 };
 
 struct FullTickStruct
@@ -508,3 +354,6 @@ bool db_add_indexer(const std::string &key, uint32_t tickNumber);
 bool db_get_combined_log_range_for_ticks(uint32_t startTick, uint32_t endTick, long long &fromLogId, long long &length);
 
 std::vector<TickVote> db_try_to_get_votes(uint32_t tick);
+
+std::vector<uint32_t> db_search_log(uint32_t scIndex, uint32_t scLogType, uint32_t fromTick, uint32_t toTick,
+                                    std::string topic1, std::string topic2, std::string topic3);

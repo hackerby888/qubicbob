@@ -15,6 +15,8 @@
 #include "K12AndKeyUtil.h"
 #include <pthread.h> // thread naming on POSIX
 #include "shim.h"
+#include "bob.h"
+
 void IOVerifyThread(std::atomic_bool& stopFlag);
 void IORequestThread(ConnectionPool& conn_pool, std::atomic_bool& stopFlag, std::chrono::milliseconds requestCycle, uint32_t futureOffset);
 void LoggingEventRequestThread(ConnectionPool& conn, std::atomic_bool& stopFlag, std::chrono::milliseconds requestCycle, uint32_t futureOffset);
@@ -297,6 +299,8 @@ int runBob(int argc, char *argv[])
             verifyLoggingEvent(std::ref(stopFlag));
         });
     }
+    startRESTServer();
+
     uint32_t prevFetchingTickData = 0;
     uint32_t prevLoggingEventTick = 0;
     uint32_t prevVerifyEventTick = 0;
@@ -371,6 +375,7 @@ int runBob(int argc, char *argv[])
 
     // Stop embedded server (if it was started) before shutting down logger
     StopQubicServer();
+    stopRESTServer();
     ProfilerRegistry::instance().printSummary();
     Logger::get()->info("Shutting down logger");
     spdlog::shutdown();

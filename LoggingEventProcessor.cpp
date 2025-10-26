@@ -608,7 +608,6 @@ verifyNodeStateDigest:
 
         if (!matchedQuorum)
         {
-            // TODO: very rare occasion, but it should enter rescue mode and fetch more votes here
             Logger::get()->warn("Failed to verify digests at tick {} -> {}, please check!", processFromTick, processToTick);
             Logger::get()->warn("Entering rescue mode to refetch votes for tick {}", processToTick);
             refetchTickVotes = processToTick;

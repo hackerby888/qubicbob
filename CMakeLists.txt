@@ -76,17 +76,25 @@ else()
   message(FATAL_ERROR "zstd target not found; expected libzstd_static or zstd::libzstd_static")
 endif()
 
-# rapidjson
+find_package(JsonCpp CONFIG QUIET)
+if (JsonCpp_FOUND)
+	set(JSONCPP_TARGET JsonCpp::JsonCpp)
+else()
+endif()
+
+# drogon
 FetchContent_Declare(
-		rapidjson
-		GIT_REPOSITORY https://github.com/Tencent/rapidjson.git
-		GIT_TAG v1.1.0
+		drogon
+		GIT_REPOSITORY https://github.com/drogonframework/drogon.git
+		GIT_TAG v1.8.7
 )
-set(RAPIDJSON_BUILD_DOC OFF CACHE BOOL "" FORCE)
-set(RAPIDJSON_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-set(RAPIDJSON_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(rapidjson)
-include_directories(${rapidjson_SOURCE_DIR}/include)
+set(BUILD_EXAMPLES OFF CACHE BOOL "Build Drogon examples" FORCE)
+set(BUILD_CTL OFF CACHE BOOL "Build drogon_ctl" FORCE)
+set(BUILD_TESTING OFF CACHE BOOL "Build Drogon tests" FORCE)
+set(BUILD_DOC OFF CACHE BOOL "Build Drogon documentation" FORCE)
+FetchContent_MakeAvailable(drogon)
+include_directories(${drogon_SOURCE_DIR}/lib/inc)
+
 
 # Check for AVX2 support
 include(CheckCXXCompilerFlag)
@@ -109,6 +117,8 @@ SET(FILES ${CMAKE_SOURCE_DIR}/connection.cpp
 		  ${CMAKE_SOURCE_DIR}/bob.cpp
 		  ${CMAKE_SOURCE_DIR}/bobAPI.cpp
 		  ${CMAKE_SOURCE_DIR}/GlobalVar.cpp
+		  ${CMAKE_SOURCE_DIR}/RESTServer.cpp
+		  ${CMAKE_SOURCE_DIR}/LogEvent.cpp
 )
 
 add_library(XKCP_avx2 STATIC XKCP/KangarooTwelve.c
@@ -119,7 +129,8 @@ add_library(XKCP_avx2 STATIC XKCP/KangarooTwelve.c
 
 # Create a library from the source files to be shared between the main executable and tests
 add_library(bob_lib STATIC ${FILES})
-target_link_libraries(bob_lib PRIVATE redis++_static hiredis spdlog::spdlog cxxopts::cxxopts ${ZSTD_TARGET} XKCP_avx2)
+target_link_libraries(bob_lib PRIVATE redis++_static hiredis spdlog::spdlog cxxopts::cxxopts
+		${ZSTD_TARGET} XKCP_avx2 drogon ${JSONCPP_TARGET})
 
 
 # --- Executable and Linking ---

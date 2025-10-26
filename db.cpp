@@ -1030,6 +1030,10 @@ bool db_get_indexed_tx(const char* tx_hash,
         g_redis->hmget(key, {"tx_index", "from_log_id", "to_log_id", "executed"}, std::back_inserter(vals));
 
         if (vals.size() != 4 || !vals[0] || !vals[1] || !vals[2] || !vals[3]) {
+            tx_index = -1;
+            from_log_id = -1;
+            to_log_id = -1;
+            executed = false;
             return false;
         }
 
@@ -1047,4 +1051,47 @@ bool db_get_indexed_tx(const char* tx_hash,
         Logger::get()->error("Redis error in db_get_indexed_tx: %s\n", e.what());
         return false;
     }
+}
+
+std::vector<uint32_t> db_search_log(uint32_t scIndex, uint32_t scLogType, uint32_t fromTick, uint32_t toTick,
+                                    std::string topic1, std::string topic2, std::string topic3)
+{
+    std::vector<uint32_t> result;
+    if (!g_redis) return result;
+
+    try {
+        auto toPart = [](const std::string& t) -> std::string {
+            return (t == "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaafxib") ? std::string("ANY") : t;
+        };
+
+        const std::string key =
+                std::string("indexed:") +
+                std::to_string(scIndex) + ":" +
+                std::to_string(scLogType) + ":" +
+                toPart(topic1) + ":" +
+                toPart(topic2) + ":" +
+                toPart(topic3);
+
+        std::vector<std::string> members;
+        sw::redis::BoundedInterval<double> range(fromTick, toTick,
+                                                 sw::redis::BoundType::CLOSED);
+
+        g_redis->zrangebyscore(key,
+                               range,
+                               std::back_inserter(members));
+
+        result.reserve(members.size());
+        for (const auto& m : members) {
+            try {
+                result.push_back(static_cast<uint32_t>(std::stoul(m)));
+            } catch (const std::exception&) {
+                // Skip malformed members
+            }
+        }
+    } catch (const sw::redis::Error& e) {
+        Logger::get()->error("Redis error in db_search_log: {}\n", e.what());
+        result.clear();
+    }
+
+    return result;
 }

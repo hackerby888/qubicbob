@@ -121,8 +121,8 @@ struct TickData
     unsigned char month;
     unsigned char year;
 
-    unsigned char timelock[32];
-    unsigned char transactionDigests[NUMBER_OF_TRANSACTIONS_PER_TICK][32];
+    m256i timelock;
+    m256i transactionDigests[NUMBER_OF_TRANSACTIONS_PER_TICK];
     long long contractFees[NUMBER_OF_TRANSACTIONS_PER_TICK];
 
     unsigned char signature[SIGNATURE_SIZE];
@@ -311,8 +311,6 @@ struct AssetIssuance
     char name[7];
     char numberOfDecimalPlaces;
     char unitOfMeasurement[7];
-
-    
 };
 struct AssetOwnershipChange
 {
