@@ -321,6 +321,33 @@ void replyLogRange(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
     conn->sendEndPacket(dejavu);
 }
 
+void replyCurrentTickInfo(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
+{
+    struct
+    {
+        RequestResponseHeader header;
+        CurrentTickInfo currentTickInfo;
+    } pl;
+
+    pl.header.setType(RESPOND_CURRENT_TICK_INFO);
+    pl.header.setSize(sizeof(pl));
+    pl.header.setDejavu(dejavu);
+    if (computorsList.epoch)
+    {
+        pl.currentTickInfo.tickDuration = 0;
+        pl.currentTickInfo.epoch = gCurrentProcessingEpoch;
+        pl.currentTickInfo.tick = gCurrentVerifyLoggingTick - 1;
+        pl.currentTickInfo.numberOfAlignedVotes = 0;
+        pl.currentTickInfo.numberOfMisalignedVotes = 0;
+        pl.currentTickInfo.initialTick = gInitialTick;
+    }
+    else
+    {
+        setMem(&pl.currentTickInfo, sizeof(CurrentTickInfo), 0);
+    }
+    conn->sendData((uint8_t*)&pl, sizeof(pl));
+}
+
 void RequestProcessorThread(std::atomic_bool& exitFlag)
 {
     std::vector<uint8_t> buf;
@@ -354,6 +381,10 @@ void RequestProcessorThread(std::atomic_bool& exitFlag)
                 break;
             case RequestTickData::type: // TickData
                 replyTickData(conn, header.getDejavu(), ptr);
+                break;
+                //if (type == 27) return true; //REQUEST_CURRENT_TICK_INFO
+            case REQUEST_CURRENT_TICK_INFO:
+                replyCurrentTickInfo(conn, header.getDejavu(), ptr);
                 break;
             case REQUEST_TICK_TRANSACTIONS: // Transaction
                 replyTransaction(conn, header.getDejavu(), ptr);

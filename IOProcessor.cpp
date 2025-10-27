@@ -380,10 +380,6 @@ void connReceiver(QCPtr& conn, const bool isTrustedNode, std::atomic_bool& stopF
 
             if (isRequestType(hdr.type()))
             {
-                if (!isTrustedNode)
-                {
-                    Logger::get()->info("Get a {} request", hdr.type());
-                }
                 bool ok = MRB_Request.EnqueuePacket(packet.data());
                 if (!ok) {
                     Logger::get()->warn("connReceiver: failed to enqueue packet (size={}, type={}). Dropped.",

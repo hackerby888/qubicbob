@@ -72,9 +72,10 @@ static bool checkAllowedTypeForNonTrusted(int type)
 
 static bool isRequestType(int type)
 {
-    if (type == 11) return true; //request vote
+    if (type == 11) return true; //request computor list
     if (type == 14) return true; //request vote
     if (type == 16) return true; //request tickdata
+    if (type == 27) return true; //REQUEST_CURRENT_TICK_INFO
     if (type == 29) return true; // request tx
     if (type == 44) return true; // request log
     if (type == 50) return true; // request log range
