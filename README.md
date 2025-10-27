@@ -1,10 +1,15 @@
 ### System Requirements:
 - cmake and clang (or gcc)
-- KeyDB Engine (Check installation guide: https://github.com/krypdkat/qubicbob/blob/master/KEYDB_INSTALL.md)
+- KeyDB Engine [Check installation guide](KEYDB_INSTALL.md)
 - Memory (RAM): 16 GB
 - Processor (CPU): 4 Cores (with AVX2 support)
 - Storage (Disk): 100 GB Fast SSD / NVMe
 
+Install lib `libjsoncpp-dev`
+```
+sudo apt-get update;
+sudo apt-get install libjsoncpp-dev build-essential cmake -y;
+```
 
 ### BUILD
 
@@ -36,6 +41,10 @@ For the trusted-node field, the expected format is `NODE_IP:NODE_PORT:PASSCODE_L
   "arbitrator-identity": "AFZPUAIYVPNUYGJRQVLUKOPPVLHAZQTGLYAAUUNBXFTVTAMSBKQBLEIEPCVJ"
 }
 ```
+
+### EXTRA NOTES
+
+- Increase kernel buffer size to [improve the stability of lite node](KERN_BUF_SIZE.MD)
 
 ### USAGE
 `./bob <config_path>`
