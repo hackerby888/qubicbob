@@ -66,7 +66,7 @@ std::string LogEvent::parseToJson()
                 root["logTypename"] = "QU_TRANSFER";
                 body["from"] = t->sourcePublicKey.toQubicHashUpperCase();
                 body["to"] = t->destinationPublicKey.toQubicHashUpperCase();
-                body["amount"] = t->amount;
+                body["amount"] = Json::Int64(t->amount);
                 filled = true;
             }
             break;
@@ -136,7 +136,7 @@ std::string LogEvent::parseToJson()
                 const Burning *b = getStruct<Burning>();
                 root["logTypename"] = "BURNING";
                 body["publicKey"] = b->sourcePublicKey.toQubicHashUpperCase();
-                body["amount"] = b->amount;
+                body["amount"] = Json::Int64(b->amount);
                 filled = true;
             }
             break;
