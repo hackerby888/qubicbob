@@ -5,10 +5,10 @@
 - Processor (CPU): 4 Cores (with AVX2 support)
 - Storage (Disk): 100 GB Fast SSD / NVMe
 
-Install lib `libjsoncpp-dev`
+Install dependencies:
 ```
 sudo apt-get update;
-sudo apt-get install libjsoncpp-dev build-essential cmake -y;
+sudo apt-get install libjsoncpp-dev build-essential cmake uuid-dev libhiredis-dev -y;
 ```
 
 ### BUILD

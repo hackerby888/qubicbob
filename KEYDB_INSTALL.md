@@ -16,9 +16,9 @@ This is the recommended method for a production server.
 
 1.  **Add the KeyDB PPA (Personal Package Archive):**
     ```bash
-    curl -s --compressed "[https://download.keydb.dev/keydb-ppa/KEY.gpg](https://download.keydb.dev/keydb-ppa/KEY.gpg)" | sudo apt-key add -
+    curl -fsSL https://download.keydb.dev/open-source-dist/keyring.gpg | sudo gpg --dearmor -o /usr/share/keyrings/keydb-archive-keyring.gpg
     
-    echo "deb [https://download.keydb.dev/open-source-dist](https://download.keydb.dev/open-source-dist) $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/keydb.list
+    echo "deb [signed-by=/usr/share/keyrings/keydb-archive-keyring.gpg] https://download.keydb.dev/open-source-dist jammy main" | sudo tee /etc/apt/sources.list.d/keydb.list
     ```
 
 2.  **Update and Install KeyDB:**
