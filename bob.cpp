@@ -338,11 +338,12 @@ int runBob(int argc, char *argv[])
         prevLoggingEventTick = gCurrentFetchingLogTick.load();
         prevVerifyEventTick = gCurrentVerifyLoggingTick.load();
         prevIndexingTick = gCurrentIndexingTick.load();
-        Logger::get()->info("Current state: FetchingTick: {} ({}) | FetchingLog: {} ({}) | Indexing: {} ({}) | Verifying: {} ({})",
-                            gCurrentFetchingTick.load(), fetching_td_speed,
-                            gCurrentFetchingLogTick.load(), fetching_le_speed,
-                            gCurrentIndexingTick.load(), indexing_speed,
-                            gCurrentVerifyLoggingTick.load(), verify_le_speed);
+        Logger::get()->info(
+                "Current state: FetchingTick: {} ({:.1f}) | FetchingLog: {} ({:.1f}) | Indexing: {} ({:.1f}) | Verifying: {} ({:.1f})",
+                gCurrentFetchingTick.load(), fetching_td_speed,
+                gCurrentFetchingLogTick.load(), fetching_le_speed,
+                gCurrentIndexingTick.load(), indexing_speed,
+                gCurrentVerifyLoggingTick.load(), verify_le_speed);
         requestMapperFrom.clean();
         requestMapperTo.clean();
 
