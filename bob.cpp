@@ -50,7 +50,8 @@ void garbageCleaner()
     long long lastCleanTick = gCurrentFetchingTick - 1;
     while (!stopFlag.load())
     {
-        SLEEP(10000); // clean every 10s
+        int count = 0;
+        while (!stopFlag.load() && count++ < 100) SLEEP(100); // clean every 10s
         long long cleanToTick = (long long)(gCurrentVerifyLoggingTick.load()) - 5;
         if (lastCleanTick < cleanToTick)
         {
