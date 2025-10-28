@@ -852,10 +852,15 @@ bool db_delete_tick_vote(uint32_t tick) {
     try {
         // Delete all tick vote records for computor indices 0-675
         constexpr int MAX_COMPUTORS = 676;
-        const std::string pattern = "tick_vote:" + std::to_string(tick) + ":*";
+        const std::string prefix = "tick_vote:" + std::to_string(tick) + ":";
 
         std::vector<std::string> keys;
-        g_redis->keys(pattern, std::back_inserter(keys));
+        keys.reserve(MAX_COMPUTORS);
+
+        // Build deterministic set of keys to delete
+        for (int i = 0; i < MAX_COMPUTORS; i++) {
+            keys.push_back(prefix + std::to_string(i));
+        }
 
         if (!keys.empty()) {
             g_redis->del(keys.begin(), keys.end());
