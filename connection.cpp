@@ -67,7 +67,7 @@ static int do_connect(const char* nodeIp, int nodePort)
     } while (rc < 0 && errno == EINTR);
 
     if (rc < 0) {
-        Logger::get()->error("Failed to connect {}:{} | errno {} ({})", nodeIp, nodePort, errno, strerror(errno));
+//        Logger::get()->error("Failed to connect {}:{} | errno {} ({})", nodeIp, nodePort, errno, strerror(errno));
         close(serverSocket);
         return -1;
     }
@@ -286,7 +286,7 @@ bool QubicConnection::reconnect()
     // Attempt to re-establish connection
     int newSocket = do_connect(mNodeIp, mNodePort);
     if (newSocket < 0) {
-        Logger::get()->error("Failed to reconnect {}:{}", mNodeIp, mNodePort);
+        Logger::get()->trace("Failed to reconnect {}:{}", mNodeIp, mNodePort);
         return false;
     }
 

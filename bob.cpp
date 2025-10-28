@@ -52,6 +52,7 @@ void garbageCleaner()
     {
         int count = 0;
         while (!stopFlag.load() && count++ < 100) SLEEP(100); // clean every 10s
+        if (stopFlag.load()) break;
         long long cleanToTick = (long long)(gCurrentVerifyLoggingTick.load()) - 5;
         if (lastCleanTick < cleanToTick)
         {
