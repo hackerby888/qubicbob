@@ -44,6 +44,23 @@ void requestToExitBob()
     stopFlag = true;
 }
 
+void garbageCleaner()
+{
+    Logger::get()->info("Start garbage cleaner");
+    long long lastCleanTick = gCurrentFetchingTick - 1;
+    while (!stopFlag.load())
+    {
+        SLEEP(10000); // clean every 10s
+        long long cleanToTick = (long long)(gCurrentVerifyLoggingTick.load()) - 5;
+        if (lastCleanTick < cleanToTick)
+        {
+            cleanRawTick(lastCleanTick + 1, cleanToTick);
+            lastCleanTick = cleanToTick;
+        }
+    }
+    Logger::get()->info("Exited garbage cleaner");
+}
+
 int runBob(int argc, char *argv[])
 {
     // Ignore SIGPIPE so write/send on a closed socket doesn't terminate the process.
@@ -239,7 +256,6 @@ int runBob(int argc, char *argv[])
         if (has_passcode) conn_pool_logging.add(conn);
     }
     stopFlag.store(false);
-    long long lastCleanTick = gCurrentFetchingTick - 1;
     auto request_thread = std::thread(
             [&](){
                 set_this_thread_name("io-req");
@@ -300,6 +316,7 @@ int runBob(int argc, char *argv[])
         });
     }
     startRESTServer();
+    auto garbage_thread = std::thread(garbageCleaner);
 
     uint32_t prevFetchingTickData = 0;
     uint32_t prevLoggingEventTick = 0;
@@ -328,12 +345,7 @@ int runBob(int argc, char *argv[])
                             gCurrentVerifyLoggingTick.load(), verify_le_speed);
         requestMapperFrom.clean();
         requestMapperTo.clean();
-        long long cleanToTick = (long long)(gCurrentVerifyLoggingTick.load()) - 5;
-        if (lastCleanTick < cleanToTick)
-        {
-            cleanRawTick(lastCleanTick + 1, cleanToTick);
-            lastCleanTick = cleanToTick;
-        }
+
         int count = 0;
         while (count++ < sleep_time*10 && !stopFlag.load()) SLEEP(100);
     }
@@ -380,6 +392,7 @@ int runBob(int argc, char *argv[])
     // Stop embedded server (if it was started) before shutting down logger
     StopQubicServer();
     stopRESTServer();
+    garbage_thread.join();
     ProfilerRegistry::instance().printSummary();
     Logger::get()->info("Shutting down logger");
     spdlog::shutdown();
