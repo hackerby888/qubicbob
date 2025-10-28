@@ -9,8 +9,8 @@
 #include <thread>
 
 struct GlobalState {
-    MutexRoundBuffer MRB_Data{1024 * 1024u * 1024u};
-    MutexRoundBuffer MRB_Request{128u * 1024u * 1024u};
+    MutexRoundBuffer MRB_Data{128 * 1024u * 1024u};
+    MutexRoundBuffer MRB_Request{64u * 1024u * 1024u};
     RequestMap requestMapperFrom;
     RequestMap requestMapperTo;
 
