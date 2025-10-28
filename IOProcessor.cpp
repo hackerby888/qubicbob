@@ -289,6 +289,7 @@ static void compressTick(uint32_t tick, TickData td, std::vector<TickVote> votes
 
 void cleanRawTick(uint32_t fromTick, uint32_t toTick)
 {
+    Logger::get()->info("Start cleaning raw tick data from {} to {}", fromTick, toTick);
     for (uint32_t tick = fromTick; tick <= toTick; tick++)
     {
         // Delete raw TickData

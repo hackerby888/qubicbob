@@ -10,6 +10,7 @@
 #include <cstdint>
 
 #include "bob.h"
+#include "Logger.h"
 
 namespace {
     std::once_flag g_startOnce;
@@ -188,10 +189,12 @@ namespace {
 
 // Optional explicit control APIs (in case another part of the program wants to manage lifecycle)
 void startRESTServer() {
+    Logger::get()->info("Start REST API server");
     startServerIfNeeded();
 }
 
 void stopRESTServer() {
     // This will trigger a graceful shutdown; if the app isn't running, it's a no-op.
     drogon::app().quit();
+    Logger::get()->info("Stop REST API server");
 }

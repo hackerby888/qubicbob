@@ -376,18 +376,21 @@ int runBob(int argc, char *argv[])
 
     // Wake all data threads so none remain blocked on MRB.
     {
-        RequestResponseHeader header;
-        header.randomizeDejavu();
-        header.setType(35); // NOP
-        header.setSize(8);
         const size_t wake_count = v_data_thread.size() * 4; // ensure enough tokens
-        for (size_t i = 0; i < wake_count; ++i) {
-            MRB_Data.EnqueuePacket(reinterpret_cast<uint8_t*>(&header));
-            MRB_Request.EnqueuePacket(reinterpret_cast<uint8_t*>(&header));
+        std::vector<RequestResponseHeader> tokens(wake_count);
+        for (auto& t : tokens) {
+            t.randomizeDejavu();
+            t.setType(35); // NOP
+            t.setSize(8);
         }
-    }
+        for (size_t i = 0; i < wake_count; ++i) {
+            MRB_Data.EnqueuePacket(reinterpret_cast<uint8_t*>(&tokens[i]));
+            MRB_Request.EnqueuePacket(reinterpret_cast<uint8_t*>(&tokens[i]));
+        }
 
-    for (auto& thr : v_data_thread) thr.join();
+        // Keep tokens alive until all data threads exit
+        for (auto& thr : v_data_thread) thr.join();
+    }
     Logger::get()->info("Exited data threads");
     db_close();
 
