@@ -392,12 +392,11 @@ int runBob(int argc, char *argv[])
         for (auto& thr : v_data_thread) thr.join();
     }
     Logger::get()->info("Exited data threads");
+    garbage_thread.join();
     db_close();
-
     // Stop embedded server (if it was started) before shutting down logger
     StopQubicServer();
     stopRESTServer();
-    garbage_thread.join();
     ProfilerRegistry::instance().printSummary();
     Logger::get()->info("Shutting down logger");
     spdlog::shutdown();
