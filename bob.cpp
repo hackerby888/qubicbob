@@ -352,7 +352,7 @@ int runBob(int argc, char *argv[])
     }
     // Signal stop, disconnect sockets first to break any blocking I/O.
     for (int i = 0; i < conn_pool.size(); i++) conn_pool.get(i)->disconnect();
-
+    garbage_thread.join();
     // Stop and join producer/request threads first so they cannot enqueue more work.
     verify_thread.join();
     Logger::get()->info("Exited Verifying thread");
@@ -393,7 +393,6 @@ int runBob(int argc, char *argv[])
     // Stop embedded server (if it was started) before shutting down logger
     StopQubicServer();
     stopRESTServer();
-    garbage_thread.join();
     ProfilerRegistry::instance().printSummary();
     Logger::get()->info("Shutting down logger");
     spdlog::shutdown();
