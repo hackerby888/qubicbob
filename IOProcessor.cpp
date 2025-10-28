@@ -298,13 +298,7 @@ void cleanRawTick(uint32_t fromTick, uint32_t toTick)
         }
 
         // Delete all TickVotes for this tick (attempt all indices; API treats missing as success)
-        for (uint16_t i = 0; i < 676; ++i)
-        {
-            if (!db_delete_tick_vote(tick, i))
-            {
-                Logger::get()->warn("compressTick: Failed to delete TickVote for tick {}, computor {}", tick, i);
-            }
-        }
+        db_delete_tick_vote(tick);
     }
     Logger::get()->info("Cleaned raw tick data from {} to {}", fromTick, toTick);
 }

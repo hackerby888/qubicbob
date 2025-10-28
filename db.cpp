@@ -847,6 +847,26 @@ bool db_delete_tick_vote(uint32_t tick, uint16_t computorIndex) {
     }
 }
 
+bool db_delete_tick_vote(uint32_t tick) {
+    if (!g_redis) return false;
+    try {
+        // Delete all tick vote records for computor indices 0-675
+        constexpr int MAX_COMPUTORS = 676;
+        const std::string pattern = "tick_vote:" + std::to_string(tick) + ":*";
+
+        std::vector<std::string> keys;
+        g_redis->keys(pattern, std::back_inserter(keys));
+
+        if (!keys.empty()) {
+            g_redis->del(keys.begin(), keys.end());
+        }
+        return true;
+    } catch (const sw::redis::Error &e) {
+        Logger::get()->error("Redis error in db_delete_tick_vote: %s\n", e.what());
+        return false;
+    }
+}
+
 
 // Insert FullTickStruct compressed with zstd under key "vtick:<tick>"
 bool db_insert_vtick(uint32_t tick, const FullTickStruct& fullTick)

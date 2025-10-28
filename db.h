@@ -303,6 +303,7 @@ bool db_delete_tick_data(uint32_t tick);
 // Deletes a TickVote for a specific tick and computor index.
 // Returns true if the key was removed (or did not exist), false on Redis error.
 bool db_delete_tick_vote(uint32_t tick, uint16_t computorIndex);
+bool db_delete_tick_vote(uint32_t tick);
 
 // New: get log range for a specific tx in a tick
 // Returns true on success; outputs fromLogId and length.
