@@ -5,10 +5,10 @@
 - Processor (CPU): 4 Cores (with AVX2 support)
 - Storage (Disk): 100 GB Fast SSD / NVMe
 
-Install dependencies:
+Install dependencies and necessary tools to operate bob:
 ```
 sudo apt-get update;
-sudo apt-get install libjsoncpp-dev build-essential cmake uuid-dev libhiredis-dev -y;
+apt install vim net-tools tmux cmake git libjsoncpp-dev build-essential cmake uuid-dev libhiredis-dev zlib1g-dev unzip -y;
 ```
 
 ### BUILD
@@ -48,3 +48,18 @@ For the trusted-node field, the expected format is `NODE_IP:NODE_PORT:PASSCODE_L
 
 ### USAGE
 `./bob <config_path>`
+
+### INSTALLATION SCRIPTS
+```
+apt update && apt upgrade -y;
+apt install vim net-tools tmux cmake git libjsoncpp-dev build-essential cmake uuid-dev libhiredis-dev zlib1g-dev unzip -y;
+git clone https://github.com/krypdkat/qubicbob.git;
+cd qubicbob;
+mkdir build;
+cmake ..;
+make bob;
+curl -fsSL https://download.keydb.dev/open-source-dist/keyring.gpg | sudo gpg --dearmor -o /usr/share/keyrings/keydb-archive-keyring.gpg;
+echo "deb [signed-by=/usr/share/keyrings/keydb-archive-keyring.gpg] https://download.keydb.dev/open-source-dist jammy main" | sudo tee /etc/apt/sources.list.d/keydb.list;
+apt update;
+apt install keydb
+```
