@@ -306,12 +306,17 @@ int runBob(int argc, char *argv[])
     uint32_t prevVerifyEventTick = 0;
     uint32_t prevIndexingTick = 0;
     const long long sleep_time = 5;
+    auto start_time = std::chrono::high_resolution_clock::now();
     while (!stopFlag.load())
     {
-        float fetching_td_speed = (prevFetchingTickData == 0) ? 0: float(gCurrentFetchingTick.load() - prevFetchingTickData) / sleep_time;
-        float fetching_le_speed = (prevLoggingEventTick == 0) ? 0: float(gCurrentFetchingLogTick.load() - prevLoggingEventTick) / sleep_time;
-        float verify_le_speed = (prevVerifyEventTick == 0) ? 0: float(gCurrentVerifyLoggingTick.load() - prevVerifyEventTick) / sleep_time;
-        float indexing_speed = (prevIndexingTick == 0) ? 0: float(gCurrentIndexingTick.load() - prevIndexingTick) / sleep_time;
+        auto current_time = std::chrono::high_resolution_clock::now();
+        float duration_ms = float(std::chrono::duration_cast<std::chrono::milliseconds>(current_time - start_time).count());
+        start_time = std::chrono::high_resolution_clock::now();
+
+        float fetching_td_speed = (prevFetchingTickData == 0) ? 0: float(gCurrentFetchingTick.load() - prevFetchingTickData) / duration_ms * 1000.0f;
+        float fetching_le_speed = (prevLoggingEventTick == 0) ? 0: float(gCurrentFetchingLogTick.load() - prevLoggingEventTick) / duration_ms * 1000.0f;
+        float verify_le_speed = (prevVerifyEventTick == 0) ? 0: float(gCurrentVerifyLoggingTick.load() - prevVerifyEventTick) / duration_ms * 1000.0f;
+        float indexing_speed = (prevIndexingTick == 0) ? 0: float(gCurrentIndexingTick.load() - prevIndexingTick) / duration_ms * 1000.0f;
         prevFetchingTickData = gCurrentFetchingTick.load();
         prevLoggingEventTick = gCurrentFetchingLogTick.load();
         prevVerifyEventTick = gCurrentVerifyLoggingTick.load();
@@ -326,7 +331,6 @@ int runBob(int argc, char *argv[])
         long long cleanToTick = (long long)(gCurrentVerifyLoggingTick.load()) - 5;
         if (lastCleanTick < cleanToTick)
         {
-            Logger::get()->trace("Cleaning from {} to {}", lastCleanTick + 1, cleanToTick);
             cleanRawTick(lastCleanTick + 1, cleanToTick);
             lastCleanTick = cleanToTick;
         }

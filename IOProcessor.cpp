@@ -166,7 +166,6 @@ void IORequestThread(ConnectionPool& conn_pool, std::atomic_bool& stopFlag, std:
                 refetchTickVotes = -1;
             }
             auto now = std::chrono::high_resolution_clock::now();
-            uint32_t currentTick = gCurrentFetchingTick;
             if (now - requestClock >= requestCycle)
             {
                 requestClock = now;
@@ -307,6 +306,7 @@ void cleanRawTick(uint32_t fromTick, uint32_t toTick)
             }
         }
     }
+    Logger::get()->info("Cleaned raw tick data from {} to {}", fromTick, toTick);
 }
 
 void IOVerifyThread(std::atomic_bool& stopFlag)
