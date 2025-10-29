@@ -413,11 +413,14 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
 
             if (fromId != -1 && length != -1 && vle.size() != length)
             {
-                refetchFromId = fromId;
-                refetchToId = fromId + length -1;
+
                 Logger::get()->info("Entering rescue mode to fetch missing data");
                 while (!stopFlag.load())
                 {
+                    auto endId = fromId + length - 1;
+                    while (db_log_exists(gCurrentProcessingEpoch, fromId) && fromId <= endId) fromId++;
+                    refetchFromId = fromId;
+                    refetchToId = fromId + length -1;
                     SLEEP(1000);
                     vle = db_get_logs_by_tick_range(gCurrentProcessingEpoch, processFromTick, processToTick);
                     if (vle.size() == length)
@@ -630,7 +633,7 @@ verifyNodeStateDigest:
 // The logging fetcher thread: uses its own connection, shares DB with other threads.
 void LoggingEventRequestThread(ConnectionPool& conn, std::atomic_bool& stopFlag, std::chrono::milliseconds requestCycle, uint32_t futureOffset)
 {
-    auto idleBackoff = 10ms;
+    auto idleBackoff = requestCycle;
 
     while (!stopFlag.load(std::memory_order_relaxed)) {
         try {
@@ -679,7 +682,10 @@ void LoggingEventRequestThread(ConnectionPool& conn, std::atomic_bool& stopFlag,
                     continue;
                 }
                 long long endId = fromId + length - 1; // inclusive
-                while (db_log_exists(gCurrentProcessingEpoch, fromId) && fromId <= endId) fromId++;
+                while (db_log_exists(gCurrentProcessingEpoch, fromId) && fromId <= endId)
+                {
+                    fromId++;
+                }
                 for (long long s = fromId; s <= endId; s += MAX_LOG_EVENT_PER_CALL) {
                     long long e = std::min(endId, s + MAX_LOG_EVENT_PER_CALL - 1);
                     struct {

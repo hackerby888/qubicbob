@@ -21,7 +21,9 @@ bool verifySignature(void* ptr, uint8_t* pubkey, int structSize) // structSize i
 }
 void processTickVote(uint8_t* ptr)
 {
-    auto* vote = reinterpret_cast<TickVote*>(ptr);
+    TickVote _vote;
+    memcpy(&_vote, ptr, sizeof(TickVote));
+    auto vote = (TickVote*)&_vote;
     uint8_t* compPubkey = computorsList.publicKeys[vote->computorIndex].m256i_u8;
     vote->computorIndex ^= 3;
     bool ok = verifySignature((void *) vote, compPubkey, sizeof(TickVote));
@@ -38,7 +40,10 @@ void processTickVote(uint8_t* ptr)
 
 void processTickData(uint8_t* ptr)
 {
-    auto* data = reinterpret_cast<TickData*>(ptr);
+    TickData _data;
+    memcpy(&_data, ptr, sizeof(TickData));
+    auto* data = (TickData*)&_data;
+    if (data->epoch != gCurrentProcessingEpoch) return;
     uint8_t* compPubkey = computorsList.publicKeys[data->computorIndex].m256i_u8;
     data->computorIndex ^= 8;
     bool ok = verifySignature((void *) data, compPubkey, sizeof(TickData));
@@ -56,7 +61,9 @@ void processTickData(uint8_t* ptr)
 
 void processTransaction(const uint8_t* ptr)
 {
-    const auto* tx = reinterpret_cast<const Transaction*>(ptr);
+    Transaction _tx;
+    memcpy(&_tx, ptr, sizeof(Transaction));
+    const auto* tx = &_tx;
     auto* pubkey = (uint8_t*)tx->sourcePublicKey;
     if (verifySignature((void *) tx, pubkey, sizeof(Transaction) + tx->inputSize + 64))
     {
@@ -281,7 +288,7 @@ void replyLogEvent(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
     header.setDejavu(dejavu);
     header.setType(RespondLog::type());
     std::vector<uint8_t> resp;
-    for (uint64_t i = request->fromid; i < request->toid; i++)
+    for (uint64_t i = request->fromid; i <= request->toid; i++)
     {
         LogEvent le;
         if (db_get_log(gCurrentProcessingEpoch, i, le))
