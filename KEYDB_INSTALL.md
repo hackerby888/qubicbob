@@ -150,19 +150,7 @@ Here are practical examples for the installation methods from Part 1.
     ```
     Look for the `maxmemory` setting and other memory-related stats. As you add data beyond your `maxmemory` limit, you will see `used_memory` stay near the cap, while the files in `/mnt/nvme/keydb-flash` grow.
 
-### Example B: Configure FLASH with Docker
+### BEST PRACTICE
 
-With Docker, you pass the configuration as command-line arguments and use a volume to map your host's SSD path to the container.
-
-* This single command does everything:
-* `-v /mnt/nvme/keydb-flash:/data` maps your host's SSD path `/mnt/nvme/keydb-flash` to the `/data` directory inside the container.
-* The `keydb-server` command is appended with all the configuration flags.
-
-```bash
-docker run -d --name keydb-flash-instance -p 6379:6379 \
-  -v /mnt/nvme/keydb-flash:/data \
-  eqalpha/keydb \
-  keydb-server /etc/keydb/keydb.conf \
-    --storage-provider flash /data \
-    --maxmemory 4gb \
-    --maxmemory-policy allkeys-lru
+- Turning off bgsave completely on production bob
+- Replicate and Save on Replica if you want to build both high performance and archival bob
