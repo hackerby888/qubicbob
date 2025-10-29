@@ -61,11 +61,9 @@ void processTickData(uint8_t* ptr)
 
 void processTransaction(const uint8_t* ptr)
 {
-    Transaction _tx;
-    memcpy(&_tx, ptr, sizeof(Transaction));
-    const auto* tx = &_tx;
+    const auto* tx = (Transaction*)ptr;
     auto* pubkey = (uint8_t*)tx->sourcePublicKey;
-    if (verifySignature((void *) tx, pubkey, sizeof(Transaction) + tx->inputSize + 64))
+    if (verifySignature((void *) ptr, pubkey, sizeof(Transaction) + tx->inputSize + 64))
     {
         db_insert_transaction(tx);
     }
