@@ -69,9 +69,9 @@ void processTransaction(const uint8_t* ptr)
         Logger::get()->warn("Malformed transaction data");
         return;
     }
-    memcpy(buffer+sizeof(Transaction),ptr+sizeof(Transaction), tx->inputSize);
+    memcpy(buffer+sizeof(Transaction),ptr+sizeof(Transaction), tx->inputSize + SIGNATURE_SIZE);
     auto* pubkey = (uint8_t*)tx->sourcePublicKey;
-    if (verifySignature((void *) ptr, pubkey, sizeof(Transaction) + tx->inputSize + 64))
+    if (verifySignature((void *) buffer, pubkey, sizeof(Transaction) + tx->inputSize + SIGNATURE_SIZE))
     {
         db_insert_transaction(tx);
     }
