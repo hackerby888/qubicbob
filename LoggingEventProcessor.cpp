@@ -702,7 +702,7 @@ void LoggingEventRequestThread(ConnectionPool& conn, std::atomic_bool& stopFlag,
                     packet.toid = e;
                     conn.sendWithPasscodeToRandom((uint8_t *) &packet, 8, packet.header.size());
                 }
-                if (fromId >= endId)
+                if (fromId > endId)
                 {
                     Logger::get()->trace("Advancing logEvent tick {}", gCurrentFetchingLogTick);
                     gCurrentFetchingLogTick++;
