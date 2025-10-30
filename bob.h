@@ -20,7 +20,7 @@ std::string bobGetTick(const uint32_t tick); // return Data And Votes and LogRan
 std::string bobFindLog(uint32_t scIndex, uint32_t logType,
                        const std::string& st1, const std::string& st2, const std::string& st3,
                        uint32_t fromTick, uint32_t toTick);
-
+std::string bobGetStatus();
 
 // no one request for C ABI atm, add later if needed
 //#ifdef __cplusplus

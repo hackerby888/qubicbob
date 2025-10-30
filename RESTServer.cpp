@@ -159,6 +159,20 @@ namespace {
                 {Get}
         );
 
+        // GET /status - Returns node status information
+        app().registerHandler(
+                "/status",
+                [](const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback) {
+                    try {
+                        std::string result = bobGetStatus();
+                        callback(makeJsonResponse(result));
+                    } catch (const std::exception &ex) {
+                        callback(makeError(std::string("status error: ") + ex.what(), k500InternalServerError));
+                    }
+                },
+                {Get}
+        );
+
     }
 
     void startServerIfNeeded() {

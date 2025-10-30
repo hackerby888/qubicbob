@@ -29,6 +29,7 @@ std::string bobGetBalance(const char* identity)
            ",\"numberOfOutgoingTransfers\":" + std::to_string(e.numberOfOutgoingTransfers) +
            ",\"latestIncomingTransferTick\":" + std::to_string(e.latestIncomingTransferTick) +
            ",\"latestOutgoingTransferTick\":" + std::to_string(e.latestOutgoingTransferTick) +
+            ",\"currentBobTick:\":" + std::to_string(gCurrentVerifyLoggingTick - 1) +
            "}";
 }
 
@@ -267,4 +268,15 @@ std::string bobFindLog(uint32_t scIndex, uint32_t logType,
     }
     result.push_back(']');
     return result;
+}
+
+std::string bobGetStatus()
+{
+    return std::string("{") +
+           "\"currentProcessingEpoch\":" + std::to_string(gCurrentProcessingEpoch) +
+           ",\"currentFetchingTick\":" + std::to_string(gCurrentFetchingTick) +
+           ",\"currentFetchingLogTick\":" + std::to_string(gCurrentFetchingLogTick) +
+           ",\"currentVerifyLoggingTick\":" + std::to_string(gCurrentVerifyLoggingTick) +
+           ",\"currentIndexingTick\":" + std::to_string(gCurrentIndexingTick) +
+           "}";
 }
