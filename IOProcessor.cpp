@@ -139,7 +139,12 @@ void IORequestThread(ConnectionPool& conn_pool, std::atomic_bool& stopFlag, std:
     while (!stopFlag.load(std::memory_order_relaxed)) {
         try {
             /* Don't need to fetch too far if not yet verifying*/
-            while (gCurrentFetchingTick > gCurrentVerifyLoggingTick + 1000 && !stopFlag.load(std::memory_order_relaxed)) SLEEP(100);
+            if (gCurrentFetchingTick > gCurrentVerifyLoggingTick + 1000)
+            {
+                Logger::get()->info("Pause fetching tick data, waiting for more verified ticks.");
+                while (gCurrentFetchingTick > gCurrentVerifyLoggingTick + 1000 && !stopFlag.load(std::memory_order_relaxed)) SLEEP(100);
+                Logger::get()->info("Resume fetching tick data.");
+            }
             if (refetchTickVotes != -1)
             {
                 struct {
