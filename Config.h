@@ -6,6 +6,7 @@
 struct AppConfig {
     std::vector<std::string> trusted_nodes;
     unsigned int request_cycle_ms = 1000;
+    unsigned int request_logging_cycle_ms = 100;
     unsigned int future_offset = 1;
     std::string log_level = "info";
     std::string redis_url = "tcp://127.0.0.1:6379";

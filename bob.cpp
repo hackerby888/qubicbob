@@ -90,6 +90,7 @@ int runBob(int argc, char *argv[])
 
     // Defaults for new knobs are already in AppConfig
     unsigned int request_cycle_ms = cfg.request_cycle_ms;
+    unsigned int request_logging_cycle_ms = cfg.request_logging_cycle_ms;
     unsigned int future_offset = cfg.future_offset;
 
     // trace - debug - info - warn - error - fatal
@@ -276,7 +277,7 @@ int runBob(int argc, char *argv[])
     auto log_request_thread = std::thread([&](){
         set_this_thread_name("log-req");
         LoggingEventRequestThread(std::ref(conn_pool_logging), std::ref(stopFlag),
-                                  std::chrono::milliseconds(request_cycle_ms),
+                                  std::chrono::milliseconds(request_logging_cycle_ms),
                                   static_cast<uint32_t>(future_offset));
     });
     auto indexer_thread = std::thread([&](){

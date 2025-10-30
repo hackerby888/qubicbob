@@ -631,9 +631,9 @@ verifyNodeStateDigest:
 }
 
 // The logging fetcher thread: uses its own connection, shares DB with other threads.
-void LoggingEventRequestThread(ConnectionPool& conn, std::atomic_bool& stopFlag, std::chrono::milliseconds requestCycle, uint32_t futureOffset)
+void LoggingEventRequestThread(ConnectionPool& conn, std::atomic_bool& stopFlag, std::chrono::milliseconds request_logging_cycle_ms, uint32_t futureOffset)
 {
-    auto idleBackoff = requestCycle/futureOffset;
+    auto idleBackoff = request_logging_cycle_ms;
 
     while (!stopFlag.load(std::memory_order_relaxed)) {
         try {

@@ -109,6 +109,7 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
     };
 
     if (!validate_uint("request-cycle-ms", out.request_cycle_ms)) return false;
+    if (!validate_uint("request-logging-cycle-ms", out.request_logging_cycle_ms)) return false;
     if (!validate_uint("future-offset", out.future_offset)) return false;
     if (!validate_uint("server-port", out.server_port)) return false;
 
