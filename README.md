@@ -45,7 +45,7 @@ For the trusted-node field, the expected format is `NODE_IP:NODE_PORT:PASSCODE_L
 ### USEFUL RESOURCES
 
 - [What is logging event in Qubic?](LOGGING_IN_QUBIC.MD)
-- [REST API endpoints](REST_API.MD)
+- [REST API endpoints](REST_API.md)
 - [Mastering findlog method](FINDLOG.MD)
 - [Dealing with tx and logging in bob](DEAL_WITH_TX.MD)
 - Increase kernel buffer size to [improve the stability of lite node](KERN_BUF_SIZE.MD)
