@@ -249,15 +249,17 @@ void replyTickVotes(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
         {
             if (!(request->voteFlags[i >> 3] & (1 << (i & 7))))
             {
-                struct {
-                    RequestResponseHeader header;
-                    TickVote vote;
-                } packet{};
-                packet.vote = tv;
-                packet.header.setSize(sizeof(packet));
-                packet.header.setDejavu(dejavu);
-                packet.header.setType(BROADCAST_TICK_VOTE);
-                conn->sendData(reinterpret_cast<uint8_t*>(&packet), sizeof(packet));
+                // Build a tightly packed buffer: header (8) + TickVote
+                const uint32_t total = 8 + sizeof(TickVote);
+                std::array<uint8_t, 8 + sizeof(TickVote)> buf{};
+                RequestResponseHeader hdr{};
+                hdr.setSize(total);
+                hdr.setDejavu(dejavu);
+                hdr.setType(BROADCAST_TICK_VOTE);
+                // Copy header (first 8 bytes only) then payload
+                memcpy(buf.data(), &hdr, 8);
+                memcpy(buf.data() + 8, &tv, sizeof(TickVote));
+                conn->sendData(buf.data(), total);
             }
         }
     }
@@ -272,16 +274,17 @@ void replyTickData(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
     FullTickStruct fts{};
     if (db_get_vtick(tick, fts))
     {
-        struct
-        {
-            RequestResponseHeader header;
-            TickData td;
-        } resp;
-        resp.td = fts.td;
-        resp.header.setType(TickData::type());
-        resp.header.setDejavu(dejavu);
-        resp.header.setSize((sizeof(resp)));
-        conn->sendData((uint8_t*)&resp, sizeof(resp));
+        // Build a tightly packed buffer: header (8) + TickData
+        const uint32_t total = 8 + sizeof(TickData);
+        // If your platform/compiler doesn’t support VLAs, use a vector
+        std::vector<uint8_t> buf(total);
+        RequestResponseHeader hdr{};
+        hdr.setType(TickData::type());
+        hdr.setDejavu(dejavu);
+        hdr.setSize(total);
+        memcpy(buf.data(), &hdr, 8);
+        memcpy(buf.data() + 8, &fts.td, sizeof(TickData));
+        conn->sendData(buf.data(), total);
     }
 }
 
