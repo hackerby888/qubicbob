@@ -180,26 +180,6 @@ void DataProcessorThread(std::atomic_bool& exitFlag)
     }
 }
 
-void replyTickData(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
-{
-    uint32_t tick;
-    memcpy(&tick, ptr, 4);
-    FullTickStruct fts{};
-    if (db_get_vtick(tick, fts))
-    {
-        struct
-        {
-            RequestResponseHeader header;
-            TickData td;
-        } resp;
-        resp.td = fts.td;
-        resp.header.setType(TickData::type());
-        resp.header.setDejavu(dejavu);
-        resp.header.setSize((sizeof(resp)));
-        conn->sendData((uint8_t*)&resp, sizeof(resp));
-    }
-}
-
 void replyTransaction(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
 {
     RequestedTickTransactions *request = (RequestedTickTransactions *)ptr;
@@ -223,8 +203,11 @@ void replyTransaction(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
                     resp.setSize(8 + txData.size());
                     resp.setDejavu(dejavu);
                     resp.setType(BROADCAST_TRANSACTION);
-                    conn->sendData((uint8_t *) &resp, sizeof(resp));
-                    conn->sendData(txData.data(), txData.size());
+                    std::vector<uint8_t> v_resp;
+                    v_resp.resize(8 + txData.size());
+                    memcpy(v_resp.data(), &resp, 8);
+                    memcpy(v_resp.data() + 8, txData.data(), txData.size());
+                    conn->sendData(v_resp.data(), v_resp.size());
                 }
             }
         }
@@ -237,12 +220,17 @@ void replyComputorList(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
 {
     if (computorsList.epoch != 0)
     {
-        RequestResponseHeader resp{};
-        resp.setSize(8 + sizeof(Computors));
-        resp.setDejavu(dejavu);
-        resp.setType(RESPOND_COMPUTOR_LIST);
-        conn->sendData((uint8_t *) &resp, sizeof(resp));
-        conn->sendData((uint8_t*)&computorsList, sizeof(computorsList));
+        struct
+        {
+            RequestResponseHeader resp{};
+            Computors comp;
+        } pl;
+
+        pl.resp.setSize(8 + sizeof(Computors));
+        pl.resp.setDejavu(dejavu);
+        pl.resp.setType(RESPOND_COMPUTOR_LIST);
+        memcpy((void*)&pl.comp, &computorsList, sizeof(Computors));
+        conn->sendData((uint8_t *) &pl, sizeof(pl));
         return;
     }
     conn->sendEndPacket(dejavu);
@@ -261,17 +249,40 @@ void replyTickVotes(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
         {
             if (!(request->voteFlags[i >> 3] & (1 << (i & 7))))
             {
-                RequestResponseHeader resp{};
-                resp.setSize(8 + sizeof(TickVote));
-                resp.setDejavu(dejavu);
-                resp.setType(BROADCAST_TICK_VOTE);
-                conn->sendData((uint8_t *) &resp, sizeof(resp));
-                conn->sendData((uint8_t*)&tv, sizeof(tv));
+                struct {
+                    RequestResponseHeader header;
+                    TickVote vote;
+                } packet{};
+                packet.vote = tv;
+                packet.header.setSize(sizeof(packet));
+                packet.header.setDejavu(dejavu);
+                packet.header.setType(BROADCAST_TICK_VOTE);
+                conn->sendData(reinterpret_cast<uint8_t*>(&packet), sizeof(packet));
             }
         }
     }
     conn->sendEndPacket(dejavu);
     return;
+}
+
+void replyTickData(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
+{
+    uint32_t tick;
+    memcpy(&tick, ptr, 4);
+    FullTickStruct fts{};
+    if (db_get_vtick(tick, fts))
+    {
+        struct
+        {
+            RequestResponseHeader header;
+            TickData td;
+        } resp;
+        resp.td = fts.td;
+        resp.header.setType(TickData::type());
+        resp.header.setDejavu(dejavu);
+        resp.header.setSize((sizeof(resp)));
+        conn->sendData((uint8_t*)&resp, sizeof(resp));
+    }
 }
 
 void replyLogEvent(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
@@ -305,8 +316,13 @@ void replyLogEvent(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
         }
     }
     header.setSize(8 + resp.size());
-    conn->sendData((uint8_t *) &header, sizeof(header));
-    conn->sendData(resp.data(), resp.size());
+
+    std::vector<uint8_t> v_resp;
+    v_resp.resize(8 + resp.size());
+    memcpy(v_resp.data(), &header, 8);
+    memcpy(v_resp.data() + 8, resp.data(), resp.size());
+
+    conn->sendData(v_resp.data(), v_resp.size());
 }
 
 void replyLogRange(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
@@ -321,14 +337,17 @@ void replyLogRange(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
         return;
     }
     uint32_t tick = request->tick;
-    ResponseAllLogIdRangesFromTick logRange;
-    if (db_get_log_range_all_txs(tick, logRange)) {
-        RequestResponseHeader resp{};
-        resp.setSize(8 + sizeof(ResponseAllLogIdRangesFromTick));
-        resp.setDejavu(dejavu);
-        resp.setType(ResponseAllLogIdRangesFromTick::type());
-        conn->sendData((uint8_t *) &resp, sizeof(resp));
-        conn->sendData((uint8_t *) &logRange, sizeof(logRange));
+    struct
+    {
+        RequestResponseHeader resp;
+        ResponseAllLogIdRangesFromTick logRange;
+    } pl;
+
+    if (db_get_log_range_all_txs(tick, pl.logRange)) {
+        pl.resp.setSize(8 + sizeof(ResponseAllLogIdRangesFromTick));
+        pl.resp.setDejavu(dejavu);
+        pl.resp.setType(ResponseAllLogIdRangesFromTick::type());
+        conn->sendData((uint8_t *) &pl, sizeof(pl));
         return;
     }
     conn->sendEndPacket(dejavu);
