@@ -61,7 +61,15 @@ void processTickData(uint8_t* ptr)
 
 void processTransaction(const uint8_t* ptr)
 {
-    const auto* tx = (Transaction*)ptr;
+    uint8_t buffer[80+1024+64];
+    const auto* tx = (Transaction*)buffer;
+    memcpy(buffer, ptr, sizeof(Transaction));
+    if (tx->inputSize > 1024)
+    {
+        Logger::get()->warn("Malformed transaction data");
+        return;
+    }
+    memcpy(buffer+sizeof(Transaction),ptr+sizeof(Transaction), tx->inputSize);
     auto* pubkey = (uint8_t*)tx->sourcePublicKey;
     if (verifySignature((void *) ptr, pubkey, sizeof(Transaction) + tx->inputSize + 64))
     {
@@ -249,7 +257,7 @@ void replyTickVotes(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
     for (int i = 0; i < NUMBER_OF_COMPUTORS; i++)
     {
         auto& tv = fts.tv[i];
-        if (tv.epoch != 0)
+        if (tv.epoch != 0 && tv.tick == tick)
         {
             if (!(request->voteFlags[i >> 3] & (1 << (i & 7))))
             {
