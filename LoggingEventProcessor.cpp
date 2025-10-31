@@ -554,7 +554,7 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
         }
 
 verifyNodeStateDigest:
-        if (!stopFlag.load()) break;
+        if (stopFlag.load()) break;
         m256i spectrumDigest, universeDigest;
         std::vector<TickVote> votes;
         int voteCount = 0;
