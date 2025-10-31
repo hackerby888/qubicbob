@@ -1,5 +1,4 @@
 #include "Config.h"
-#include "cxxopts.hpp"
 #include "connection.h"
 #include "parser.h"
 #include "structs.h"

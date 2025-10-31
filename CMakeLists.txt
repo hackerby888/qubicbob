@@ -95,6 +95,19 @@ set(BUILD_DOC OFF CACHE BOOL "Build Drogon documentation" FORCE)
 FetchContent_MakeAvailable(drogon)
 include_directories(${drogon_SOURCE_DIR}/lib/inc)
 
+# libcurl
+FetchContent_Declare(
+		curl
+		GIT_REPOSITORY https://github.com/curl/curl.git
+		GIT_TAG curl-8_4_0
+)
+set(BUILD_CURL_EXE OFF CACHE BOOL "Build curl executable" FORCE)
+set(BUILD_TESTING OFF CACHE BOOL "Build tests" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
+set(HTTP_ONLY ON CACHE BOOL "Build with HTTP support only" FORCE)
+FetchContent_MakeAvailable(curl)
+include_directories(${curl_SOURCE_DIR}/include)
+
 
 # Check for AVX2 support
 include(CheckCXXCompilerFlag)
@@ -130,7 +143,7 @@ add_library(XKCP_avx2 STATIC XKCP/KangarooTwelve.c
 # Create a library from the source files to be shared between the main executable and tests
 add_library(bob_lib STATIC ${FILES})
 target_link_libraries(bob_lib PRIVATE redis++_static hiredis spdlog::spdlog cxxopts::cxxopts
-		${ZSTD_TARGET} XKCP_avx2 drogon ${JSONCPP_TARGET})
+		${ZSTD_TARGET} XKCP_avx2 drogon ${JSONCPP_TARGET} libcurl)
 
 
 # --- Executable and Linking ---
