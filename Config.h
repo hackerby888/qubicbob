@@ -11,6 +11,7 @@ struct AppConfig {
     std::string log_level = "info";
     std::string redis_url = "tcp://127.0.0.1:6379";
     bool run_server = false;
+    bool is_testnet = false;
     unsigned int server_port = 21842;
     std::string arbitrator_identity;
 };

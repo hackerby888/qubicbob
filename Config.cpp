@@ -80,6 +80,14 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
         out.run_server = root["run-server"].asBool();
     }
 
+    if (root.isMember("is-testnet")) {
+        if (!root["is-testnet"].isBool()) {
+            error = "Invalid type: boolean required for key 'is-testnet'";
+            return false;
+        }
+        out.is_testnet = root["is-testnet"].asBool();
+    }
+
     auto validate_uint = [&](const char* key, unsigned& target) -> bool {
         if (!root.isMember(key)) return true;
         const auto& v = root[key];
@@ -98,6 +106,7 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
         }
         error = std::string("Invalid type: unsigned integer required for key '") + key + "'";
         return false;
+        bool isTestnet = false;
     };
 
     if (!validate_uint("request-cycle-ms", out.request_cycle_ms)) return false;
