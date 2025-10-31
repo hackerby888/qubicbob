@@ -163,6 +163,7 @@ namespace {
                         ::close(ctx->fd);
                         ctx->fd = -1;
                     }
+                    ctx->conn.reset();
 
                     // IMPORTANT: Detach the thread before removing ctx to avoid destroying a joinable thread from within itself
                     if (ctx->th.joinable()) {
@@ -196,4 +197,5 @@ bool StartQubicServer(uint16_t port = 21842) {
 
 void StopQubicServer() {
     QubicServer::instance().stop();
+    Logger::get()->info("Stop qubic server");
 }
