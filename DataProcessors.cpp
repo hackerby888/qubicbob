@@ -241,6 +241,7 @@ void replyTickVotes(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
     auto *request = (RequestedQuorumTick *)ptr;
     uint32_t tick = request->tick;
     FullTickStruct fts{};
+    memset(&fts, 0, sizeof(fts));
     db_get_vtick(tick, fts);
     for (int i = 0; i < NUMBER_OF_COMPUTORS; i++)
     {
