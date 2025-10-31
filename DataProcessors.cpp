@@ -207,7 +207,7 @@ void replyTransaction(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
                     v_resp.resize(8 + txData.size());
                     memcpy(v_resp.data(), &resp, 8);
                     memcpy(v_resp.data() + 8, txData.data(), txData.size());
-                    conn->sendData(v_resp.data(), v_resp.size());
+                    conn->enqueueSend(v_resp.data(), v_resp.size());
                 }
             }
         }
@@ -230,7 +230,7 @@ void replyComputorList(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
         pl.resp.setDejavu(dejavu);
         pl.resp.setType(RESPOND_COMPUTOR_LIST);
         memcpy((void*)&pl.comp, &computorsList, sizeof(Computors));
-        conn->sendData((uint8_t *) &pl, sizeof(pl));
+        conn->enqueueSend((uint8_t *) &pl, sizeof(pl));
         return;
     }
     conn->sendEndPacket(dejavu);
@@ -260,7 +260,7 @@ void replyTickVotes(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
                 // Copy header (first 8 bytes only) then payload
                 memcpy(buf.data(), &hdr, 8);
                 memcpy(buf.data() + 8, &tv, sizeof(TickVote));
-                conn->sendData(buf.data(), total);
+                conn->enqueueSend(buf.data(), total);
             }
         }
     }
@@ -285,7 +285,7 @@ void replyTickData(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
         hdr.setSize(total);
         memcpy(buf.data(), &hdr, 8);
         memcpy(buf.data() + 8, &fts.td, sizeof(TickData));
-        conn->sendData(buf.data(), total);
+        conn->enqueueSend(buf.data(), total);
     }
 }
 
@@ -326,7 +326,7 @@ void replyLogEvent(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
     memcpy(v_resp.data(), &header, 8);
     memcpy(v_resp.data() + 8, resp.data(), resp.size());
 
-    conn->sendData(v_resp.data(), v_resp.size());
+    conn->enqueueSend(v_resp.data(), v_resp.size());
 }
 
 void replyLogRange(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
@@ -351,7 +351,7 @@ void replyLogRange(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
         pl.resp.setSize(8 + sizeof(ResponseAllLogIdRangesFromTick));
         pl.resp.setDejavu(dejavu);
         pl.resp.setType(ResponseAllLogIdRangesFromTick::type());
-        conn->sendData((uint8_t *) &pl, sizeof(pl));
+        conn->enqueueSend((uint8_t *) &pl, sizeof(pl));
         return;
     }
     conn->sendEndPacket(dejavu);
@@ -381,7 +381,7 @@ void replyCurrentTickInfo(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
     {
         setMem(&pl.currentTickInfo, sizeof(CurrentTickInfo), 0);
     }
-    conn->sendData((uint8_t*)&pl, sizeof(pl));
+    conn->enqueueSend((uint8_t *) &pl, sizeof(pl));
 }
 
 void RequestProcessorThread(std::atomic_bool& exitFlag)

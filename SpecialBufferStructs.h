@@ -12,7 +12,6 @@
 #include <map>
 #include <chrono> // For timestamps
 #include "structs.h"
-#include "connection.h"
 /**
  * @class MutexRoundBuffer
  * @brief A thread-safe circular buffer for storing and retrieving variable-length raw data packets.
@@ -90,7 +89,7 @@ public:
 
         return true;
     }
-
+    
     /**
      * @brief Retrieves a packet from the buffer.
      *
@@ -144,6 +143,50 @@ public:
         return true;
     }
 
+    bool TryGetPacket(uint8_t *out_ptr, uint32_t &size) {
+        if (!out_ptr) {
+            return false;
+        }
+
+        std::unique_lock<std::mutex> lock(mtx_);
+
+        // Check if there's at least enough data for a header
+        if (size_ < sizeof(RequestResponseHeader)) {
+            return false;
+        }
+
+        // Peek at the header to determine the full packet size
+        RequestResponseHeader header;
+        peek_data(reinterpret_cast<uint8_t *>(&header), sizeof(RequestResponseHeader));
+        const uint32_t packet_size = header.size();
+
+        // Check if the entire packet is available
+        if (size_ < packet_size) {
+            return false;
+        }
+
+        // The full packet is available, so we can copy it out
+        if (head_ + packet_size <= capacity_) {
+            // The packet can be read in a single contiguous block
+            memcpy(out_ptr, buffer_.data() + head_, packet_size);
+        } else {
+            // The packet is wrapped around the buffer's end
+            size_t first_chunk_size = capacity_ - head_;
+            memcpy(out_ptr, buffer_.data() + head_, first_chunk_size);
+            memcpy(out_ptr + first_chunk_size, buffer_.data(), packet_size - first_chunk_size);
+        }
+
+        // Update head pointer, current size, and the output size parameter
+        head_ = (head_ + packet_size) % capacity_;
+        size_ -= packet_size;
+        size = packet_size;
+
+        // Notify one waiting producer that space is now available
+        cv_not_full_.notify_one();
+
+        return true;
+    }
+
     /**
      * @brief Returns a string containing the current buffer usage information.
      * @return String with buffer size, capacity, and usage percentage.
@@ -182,99 +225,4 @@ private:
     std::mutex mtx_;
     std::condition_variable cv_not_full_;
     std::condition_variable cv_not_empty_;
-};
-
-// mapping from dejavu to requested data
-// usage: some response doesn't contain requested info
-// if code makes several queries, we need this map to know which
-// response to which request
-class RequestMap
-{
-public:
-    // Convert input to RequestedData and add/replace entry for given dejavu.
-    void add(const uint32_t dejavu, const uint8_t* data, const int size, QCPtr conn)
-    {
-        std::lock_guard<std::mutex> lock(mtx_);
-
-        RequestedData rd;
-        const uint64_t now =
-            static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::seconds>(
-                                      std::chrono::system_clock::now().time_since_epoch())
-                                      .count());
-        rd.timestamp = now;
-
-        if (data != nullptr && size > 0) {
-            rd.data.assign(data, data + static_cast<size_t>(size));
-        } else {
-            rd.data.clear();
-        }
-        rd.conn = std::move(conn);
-        mem[dejavu] = std::move(rd);
-    }
-
-    // Look up dejavu; if found copy into dataOut; return true, else false.
-    bool get(uint32_t dejavu, std::vector<uint8_t>& dataOut, QCPtr& conn)
-    {
-        std::lock_guard<std::mutex> lock(mtx_);
-
-        auto it = mem.find(dejavu);
-        if (it == mem.end()) {
-            return false;
-        }
-
-        dataOut = it->second.data;
-        conn = it->second.conn;
-        return true;
-    }
-
-    bool get(uint32_t dejavu, std::vector<uint8_t>& dataOut)
-    {
-        std::lock_guard<std::mutex> lock(mtx_);
-
-        auto it = mem.find(dejavu);
-        if (it == mem.end()) {
-            return false;
-        }
-
-        dataOut = it->second.data;
-        return true;
-    }
-
-    // Remove entries older than 10 seconds.
-    void clean()
-    {
-        std::lock_guard<std::mutex> lock(mtx_);
-
-        const uint64_t now =
-            static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::seconds>(
-                                      std::chrono::system_clock::now().time_since_epoch())
-                                      .count());
-        for (auto it = mem.begin(); it != mem.end(); ) {
-            const uint64_t age = (now >= it->second.timestamp) ? (now - it->second.timestamp) : 0;
-            if (age > 10) {
-                it = mem.erase(it);
-            } else {
-                ++it;
-            }
-        }
-    }
-
-    /**
-     * @brief Returns a string containing the current map usage information.
-     * @return String with map size and entries count.
-     */
-    std::string GetMapUsageString() {
-        std::lock_guard<std::mutex> lock(mtx_);
-        return "Map Usage: " + std::to_string(mem.size()) + " entries";
-    }
-
-private:
-    struct RequestedData
-    {
-        uint64_t timestamp;
-        QCPtr conn;
-        std::vector<uint8_t> data;
-    };
-    std::map <uint32_t, RequestedData> mem;
-    std::mutex mtx_;
 };

@@ -2,6 +2,7 @@
 #include <memory>
 #include <stdexcept>
 #include <algorithm> // For std::min
+#include <thread>
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -76,6 +77,12 @@ static int do_connect(const char* nodeIp, int nodePort)
     return serverSocket;
 }
 
+void QubicConnection::initSendThread()
+{
+    mBuffer = std::make_unique<MutexRoundBuffer>(0xffffff);
+    shouldStop = false;
+    sendThreadHDL = std::thread(&QubicConnection::sendThread, this);
+}
 
 QubicConnection::QubicConnection(const char* nodeIp, int nodePort)
 {
@@ -86,11 +93,15 @@ QubicConnection::QubicConnection(const char* nodeIp, int nodePort)
     mSocket = -1;
     mSocket = do_connect(mNodeIp, mNodePort);
     mReconnectable = true;
-    mBuffer = std::make_unique<MutexRoundBuffer>(0xffffff);
+    initSendThread();
 }
 QubicConnection::~QubicConnection()
 {
-	close(mSocket);
+    shouldStop = true;
+    if (sendThreadHDL.joinable()) {
+        sendThreadHDL.join();
+    }
+    close(mSocket);
 }
 
 int QubicConnection::receiveData(uint8_t* buffer, int sz)
@@ -142,10 +153,42 @@ void QubicConnection::sendEndPacket(uint32_t dejavu)
     if (dejavu != 0xffffffff) nop.setDejavu(dejavu);
     else nop.randomizeDejavu();
     nop.setSize(sizeof(RequestResponseHeader));
-    sendData((uint8_t *) &nop, sizeof(nop));
+    enqueueSend((uint8_t *) &nop, sizeof(nop));
 }
 
-int QubicConnection::sendData(uint8_t* buffer, int sz)
+void QubicConnection::sendThread()
+{
+    std::vector<uint8_t> local_buf(0xffffff);
+    uint32_t size;
+    while (!shouldStop)
+    {
+        if (mSocket != -1 && mBuffer->TryGetPacket(local_buf.data(), size))
+        {
+            auto buffer = local_buf.data();
+            while (size > 0 && mSocket != -1) {
+                int numberOfBytes = send(mSocket, buffer, size, MSG_NOSIGNAL);
+                if (numberOfBytes < 0) {
+                    if (errno == EINTR) {
+                        // Interrupted by a signal, retry the send
+                        continue;
+                    }
+                    // Peer likely closed (EPIPE) or connection reset, mark socket invalid
+                    Logger::get()->debug("send() failed on socket {} with errno {}. Disconnecting.", mSocket, errno);
+                    disconnect();
+                }
+                if (numberOfBytes == 0) {
+                    // Treat as closed
+                    Logger::get()->debug("send() returned 0 on socket {}. Disconnecting.", mSocket);
+                    disconnect();
+                }
+                buffer += numberOfBytes;
+                size   -= numberOfBytes;
+            }
+        }
+    }
+}
+
+int QubicConnection::enqueueSend(uint8_t* buffer, int sz)
 {
     if (sz >= 8)
     {
@@ -157,28 +200,7 @@ int QubicConnection::sendData(uint8_t* buffer, int sz)
             requestMapperFrom.add(dejavu, buffer, sz, nullptr);
         }
     }
-    int size = sz;
-    while (size > 0 && mSocket != -1) {
-        int numberOfBytes = send(mSocket, reinterpret_cast<char*>(buffer), size, MSG_NOSIGNAL);
-        if (numberOfBytes < 0) {
-            if (errno == EINTR) {
-                // Interrupted by a signal, retry the send
-                continue;
-            }
-            // Peer likely closed (EPIPE) or connection reset, mark socket invalid
-            Logger::get()->debug("send() failed on socket {} with errno {}. Disconnecting.", mSocket, errno);
-            disconnect();
-            return (sz - size); // bytes successfully sent before failure
-        }
-        if (numberOfBytes == 0) {
-            // Treat as closed
-            Logger::get()->debug("send() returned 0 on socket {}. Disconnecting.", mSocket);
-            disconnect();
-            return (sz - size);
-        }
-        buffer += numberOfBytes;
-        size   -= numberOfBytes;
-    }
+    mBuffer->EnqueuePacket(buffer);
     return sz;
 }
 
@@ -196,7 +218,7 @@ void QubicConnection::getComputorList(const uint16_t epoch, Computors& compList)
             header.setSize(sizeof(header));
             header.randomizeDejavu();
             header.setType(REQUEST_COMPUTOR_LIST);
-            sendData((uint8_t*)&header, 8);
+            enqueueSend((uint8_t *) &header, 8);
         }
         RequestResponseHeader header{};
         receiveAFullPacket(header, packet);
@@ -226,7 +248,7 @@ void QubicConnection::doHandshake()
     payload.header.randomizeDejavu();
     payload.header.setType(0);
     payload.header.setSize(sizeof(payload));
-    sendData((uint8_t*)&payload, sizeof(payload));
+    enqueueSend((uint8_t *) &payload, sizeof(payload));
 }
 
 void QubicConnection::getTickInfo(uint32_t& tick, uint16_t& epoch)
@@ -243,7 +265,7 @@ void QubicConnection::getTickInfo(uint32_t& tick, uint16_t& epoch)
             header.setSize(sizeof(header));
             header.randomizeDejavu();
             header.setType(REQUEST_CURRENT_TICK_INFO);
-            sendData((uint8_t*)&header, 8);
+            enqueueSend((uint8_t *) &header, 8);
         }
         RequestResponseHeader header{};
         receiveAFullPacket(header, packet);
@@ -303,5 +325,6 @@ QubicConnection::QubicConnection(int existingSocket)
     mNodePort = 0;
     mSocket = existingSocket;
     mReconnectable = false;
-    mBuffer = std::make_unique<MutexRoundBuffer>(0xffffff);
+
+    initSendThread();
 }

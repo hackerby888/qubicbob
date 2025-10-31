@@ -3,6 +3,7 @@
 #include <atomic>
 #include "structs.h"
 #include "SpecialBufferStructs.h"
+#include "RequestMap.h"
 #include "common_def.h"
 #include <atomic>
 #include <chrono>

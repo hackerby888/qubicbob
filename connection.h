@@ -14,7 +14,7 @@ public:
     QubicConnection(const char* nodeIp, int nodePort);
     ~QubicConnection();
     int receiveData(uint8_t* buffer, int sz);
-    int sendData(uint8_t* buffer, int sz);
+    int enqueueSend(uint8_t* buffer, int sz);
     void receiveAFullPacket(RequestResponseHeader& header, std::vector<uint8_t>& buffer);
     bool reconnect();
     void disconnect();
@@ -39,6 +39,11 @@ private:
     std::unique_ptr<MutexRoundBuffer> mBuffer;
     uint64_t mPasscode[4]; // for loggingEvent
     bool mReconnectable;   // whether reconnect() is allowed
+
+    void initSendThread();
+    void sendThread();
+    std::thread sendThreadHDL;
+    bool shouldStop;
 };
 typedef std::shared_ptr<QubicConnection> QCPtr;
 static QCPtr make_qc(const char* nodeIp, int nodePort)
@@ -83,7 +88,7 @@ public:
 
         std::uniform_int_distribution<std::size_t> dist(0, idx.size() - 1);
         auto chosen = idx[dist(rng_)];
-        return conns_[chosen]->sendData(buffer, sz);
+        return conns_[chosen]->enqueueSend(buffer, sz);
     }
 
     // Sends to 'howMany' distinct random valid connections (or fewer if not enough are valid).
@@ -110,7 +115,7 @@ public:
 
         results.reserve(idx.size());
         for (auto i : idx) {
-            results.push_back(conns_[i]->sendData(buffer, sz));
+            results.push_back(conns_[i]->enqueueSend(buffer, sz));
         }
         return results;
     }
@@ -131,7 +136,7 @@ public:
         std::uniform_int_distribution<std::size_t> dist(0, idx.size() - 1);
         auto chosen = idx[dist(rng_)];
         conns_[chosen]->getPasscode((uint64_t*)(buffer+passcodeOffset));
-        return conns_[chosen]->sendData(buffer, sz);
+        return conns_[chosen]->enqueueSend(buffer, sz);
     }
 
 private:
