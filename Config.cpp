@@ -80,14 +80,6 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
         out.run_server = root["run-server"].asBool();
     }
 
-    if (root.isMember("verify-log-event")) {
-        if (!root["verify-log-event"].isBool()) {
-            error = "Invalid type: boolean required for key 'verify-log-event'";
-            return false;
-        }
-        out.verify_log_event = root["verify-log-event"].asBool();
-    }
-
     auto validate_uint = [&](const char* key, unsigned& target) -> bool {
         if (!root.isMember(key)) return true;
         const auto& v = root[key];

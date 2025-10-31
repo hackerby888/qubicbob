@@ -95,7 +95,6 @@ int runBob(int argc, char *argv[])
 
     // trace - debug - info - warn - error - fatal
     std::string log_level = cfg.log_level;
-    const bool verify_log_event = cfg.verify_log_event;
 
     // Put redis_url in REDIS_CONNECTION_STRING
     std::string REDIS_CONNECTION_STRING = cfg.redis_url;
@@ -312,12 +311,10 @@ int runBob(int argc, char *argv[])
         });
     }
     std::thread log_event_verifier_thread;
-    if (verify_log_event) {
-        log_event_verifier_thread = std::thread([&](){
-            set_this_thread_name("log-ver");
-            verifyLoggingEvent(std::ref(stopFlag));
-        });
-    }
+    log_event_verifier_thread = std::thread([&](){
+        set_this_thread_name("log-ver");
+        verifyLoggingEvent(std::ref(stopFlag));
+    });
     startRESTServer();
     auto garbage_thread = std::thread(garbageCleaner);
 
