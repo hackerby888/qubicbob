@@ -102,9 +102,11 @@ QubicConnection::~QubicConnection()
     if (mSocket >= 0) {
         shutdown(mSocket, SHUT_RDWR);
     }
+    printf("Debug: exiting conn\n");
     if (sendThreadHDL.joinable()) {
         sendThreadHDL.join();
     }
+    printf("Debug: exited conn\n");
     close(mSocket);
 }
 
@@ -336,7 +338,7 @@ QubicConnection::QubicConnection(int existingSocket)
     if (mSocket >= 0) {
         // Configure timeouts (best-effort)
         struct timeval tv;
-        tv.tv_sec = 2;
+        tv.tv_sec = 1;
         tv.tv_usec = 0;
         if (setsockopt(mSocket, SOL_SOCKET, SO_RCVTIMEO, (const void*)&tv, sizeof tv) < 0) {
             Logger::get()->warn("setsockopt(SO_RCVTIMEO) failed: {} ({})", errno, strerror(errno));

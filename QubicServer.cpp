@@ -82,22 +82,32 @@ namespace {
                 accept_thread_.join();
             }
 
-            // Stop all client handlers
+            // Signal all client handlers to stop and disconnect sockets to break I/O.
+            std::vector<std::shared_ptr<ClientCtx>> local_clients;
             {
                 std::lock_guard<std::mutex> lk2(clients_m_);
-                for (auto& c : clients_) {
+                local_clients = clients_; // copy list to operate without holding the mutex
+                for (auto& c : local_clients) {
                     c->stopFlag.store(true, std::memory_order_relaxed);
                     if (c->conn) {
                         c->conn->disconnect();
                     }
+                    if (c->fd >= 0) {
+                        ::shutdown(c->fd, SHUT_RDWR);
+                        ::close(c->fd);
+                        c->fd = -1;
+                    }
                 }
             }
 
+            // Join all client threads without holding clients_m_ to avoid deadlock
+            for (auto& c : local_clients) {
+                if (c->th.joinable()) c->th.join();
+            }
+
+            // Now clear the shared list
             {
                 std::lock_guard<std::mutex> lk2(clients_m_);
-                for (auto& c : clients_) {
-                    if (c->th.joinable()) c->th.join();
-                }
                 clients_.clear();
             }
 
@@ -165,16 +175,8 @@ namespace {
                     }
                     ctx->conn.reset();
 
-                    // IMPORTANT: Detach the thread before removing ctx to avoid destroying a joinable thread from within itself
-                    if (ctx->th.joinable()) {
-                        ctx->th.detach();
-                    }
-
-                    // Remove from list
-                    std::lock_guard<std::mutex> lk(clients_m_);
-                    auto it = std::remove_if(clients_.begin(), clients_.end(),
-                                             [&](const std::shared_ptr<ClientCtx>& p){ return p.get() == ctx.get(); });
-                    clients_.erase(it, clients_.end());
+                    // Note: Do NOT detach or modify clients_ here to avoid races/deadlocks with stop().
+                    // The stop() method is responsible for joining threads and clearing the list.
                 });
             }
         }
