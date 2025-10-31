@@ -5,6 +5,7 @@
 #include <random>
 #include <algorithm>
 #include "structs.h"
+#include "SpecialBufferStructs.h"
 
 // Not thread safe
 class QubicConnection
@@ -35,7 +36,7 @@ private:
     char mNodeIp[32];
     int mNodePort;
     int mSocket;
-    uint8_t mBuffer[0xFFFFFF];
+    std::unique_ptr<MutexRoundBuffer> mBuffer;
     uint64_t mPasscode[4]; // for loggingEvent
     bool mReconnectable;   // whether reconnect() is allowed
 };

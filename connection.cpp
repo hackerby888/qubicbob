@@ -1,4 +1,5 @@
 #include "structs.h"
+#include <memory>
 #include <stdexcept>
 #include <algorithm> // For std::min
 
@@ -85,6 +86,7 @@ QubicConnection::QubicConnection(const char* nodeIp, int nodePort)
     mSocket = -1;
     mSocket = do_connect(mNodeIp, mNodePort);
     mReconnectable = true;
+    mBuffer = std::make_unique<MutexRoundBuffer>(0xffffff);
 }
 QubicConnection::~QubicConnection()
 {
@@ -301,4 +303,5 @@ QubicConnection::QubicConnection(int existingSocket)
     mNodePort = 0;
     mSocket = existingSocket;
     mReconnectable = false;
+    mBuffer = std::make_unique<MutexRoundBuffer>(0xffffff);
 }
