@@ -1,12 +1,10 @@
 {
-  "trusted-node": ["65.109.122.174:21841:0-0-0-0","46.17.96.249:21841:0-0-0-0","157.180.10.49:21841:0-0-0-0","23.88.1.189:21841:0-0-0-0"],
-  "request-cycle-ms": 100,
-  "request-logging-cycle-ms": 10,
+  "trusted-node": ["91.99.221.77:21842:0-0-0-0","23.88.1.189:21842:0-0-0-0"],
+  "request-cycle-ms": 500,
   "future-offset": 3,
   "log-level": "info",
   "redis-url": "tcp://127.0.0.1:6379",
-  "run-server": true,
+  "run-server": false,
   "server-port": 21842,
-  "verify-log-event": true,
   "arbitrator-identity": "AFZPUAIYVPNUYGJRQVLUKOPPVLHAZQTGLYAAUUNBXFTVTAMSBKQBLEIEPCVJ"
 }

@@ -98,6 +98,10 @@ QubicConnection::QubicConnection(const char* nodeIp, int nodePort)
 QubicConnection::~QubicConnection()
 {
     shouldStop = true;
+    // Proactively interrupt any blocking send() to let the thread exit promptly
+    if (mSocket >= 0) {
+        shutdown(mSocket, SHUT_RDWR);
+    }
     if (sendThreadHDL.joinable()) {
         sendThreadHDL.join();
     }
@@ -184,6 +188,10 @@ void QubicConnection::sendThread()
                 buffer += numberOfBytes;
                 size   -= numberOfBytes;
             }
+        }
+        else
+        {
+            SLEEP(10);
         }
     }
 }
@@ -325,6 +333,21 @@ QubicConnection::QubicConnection(int existingSocket)
     mNodePort = 0;
     mSocket = existingSocket;
     mReconnectable = false;
+    if (mSocket >= 0) {
+        // Configure timeouts (best-effort)
+        struct timeval tv;
+        tv.tv_sec = 2;
+        tv.tv_usec = 0;
+        if (setsockopt(mSocket, SOL_SOCKET, SO_RCVTIMEO, (const void*)&tv, sizeof tv) < 0) {
+            Logger::get()->warn("setsockopt(SO_RCVTIMEO) failed: {} ({})", errno, strerror(errno));
+        }
+        if (setsockopt(mSocket, SOL_SOCKET, SO_SNDTIMEO, (const void*)&tv, sizeof tv) < 0) {
+            Logger::get()->warn("setsockopt(SO_SNDTIMEO) failed: {} ({})", errno, strerror(errno));
+        }
+        int on = 1;
+        (void)setsockopt(mSocket, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on));
+        (void)setsockopt(mSocket, SOL_SOCKET, SO_KEEPALIVE, &on, sizeof(on));
+    }
 
     initSendThread();
 }
