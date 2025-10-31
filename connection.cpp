@@ -102,11 +102,9 @@ QubicConnection::~QubicConnection()
     if (mSocket >= 0) {
         shutdown(mSocket, SHUT_RDWR);
     }
-    printf("Debug: exiting conn\n");
     if (sendThreadHDL.joinable()) {
         sendThreadHDL.join();
     }
-    printf("Debug: exited conn\n");
     close(mSocket);
 }
 
