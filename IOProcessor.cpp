@@ -292,21 +292,27 @@ static void compressTick(uint32_t tick, TickData td, std::vector<TickVote> votes
     Logger::get()->trace("compressTick: Compressed tick {}", tick);
 }
 
-void cleanRawTick(uint32_t fromTick, uint32_t toTick)
+bool cleanRawTick(uint32_t fromTick, uint32_t toTick)
 {
+    // precheck if all vtick exist
+    for (uint32_t tick = fromTick; tick <= toTick; tick++)
+    {
+        if (!db_vtick_exists(tick)) return false;
+    }
     Logger::get()->info("Start cleaning raw tick data from {} to {}", fromTick, toTick);
     for (uint32_t tick = fromTick; tick <= toTick; tick++)
     {
         // Delete raw TickData
         if (!db_delete_tick_data(tick))
         {
-            Logger::get()->warn("compressTick: Failed to delete TickData for tick {}", tick);
+            Logger::get()->warn("cleanRawTick: Failed to delete TickData for tick {}", tick);
         }
 
         // Delete all TickVotes for this tick (attempt all indices; API treats missing as success)
         db_delete_tick_vote(tick);
     }
     Logger::get()->info("Cleaned raw tick data from {} to {}", fromTick, toTick);
+    return true;
 }
 
 void IOVerifyThread(std::atomic_bool& stopFlag)

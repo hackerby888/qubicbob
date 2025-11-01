@@ -24,7 +24,7 @@ void DataProcessorThread(std::atomic_bool& exitFlag);
 void RequestProcessorThread(std::atomic_bool& exitFlag);
 void verifyLoggingEvent(std::atomic_bool& stopFlag);
 void indexVerifiedTicks(std::atomic_bool& stopFlag);
-void cleanRawTick(uint32_t fromTick, uint32_t toTick);
+bool cleanRawTick(uint32_t fromTick, uint32_t toTick);
 std::atomic_bool stopFlag{false};
 
 // Public helpers from QubicServer.cpp
@@ -55,8 +55,10 @@ void garbageCleaner()
         long long cleanToTick = (long long)(gCurrentVerifyLoggingTick.load()) - 5;
         if (lastCleanTick < cleanToTick)
         {
-            cleanRawTick(lastCleanTick + 1, cleanToTick);
-            lastCleanTick = cleanToTick;
+            if (cleanRawTick(lastCleanTick + 1, cleanToTick))
+            {
+                lastCleanTick = cleanToTick;
+            }
         }
     }
     Logger::get()->info("Exited garbage cleaner");

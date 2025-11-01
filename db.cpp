@@ -872,7 +872,6 @@ bool db_delete_tick_vote(uint32_t tick) {
     }
 }
 
-
 // Insert FullTickStruct compressed with zstd under key "vtick:<tick>"
 bool db_insert_vtick(uint32_t tick, const FullTickStruct& fullTick)
 {
@@ -914,6 +913,17 @@ bool db_insert_vtick(uint32_t tick, const FullTickStruct& fullTick)
 }
 
 // Get FullTickStruct stored under "vtick:<tick>", decompressing with zstd
+bool db_vtick_exists(uint32_t tick) {
+    if (!g_redis) return false;
+    try {
+        const std::string key = "vtick:" + std::to_string(tick);
+        return g_redis->exists(key);
+    } catch (const sw::redis::Error &e) {
+        Logger::get()->error("Redis error in db_vtick_exists: %s\n", e.what());
+        return false;
+    }
+}
+
 bool db_get_vtick(uint32_t tick, FullTickStruct& outFullTick)
 {
     if (!g_redis) return false;
