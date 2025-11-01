@@ -133,18 +133,11 @@ bool verifyQuorum(uint32_t tick, TickData& td, std::vector<TickVote>& votes)
 void IORequestThread(ConnectionPool& conn_pool, std::atomic_bool& stopFlag, std::chrono::milliseconds requestCycle, uint32_t futureOffset)
 {
     // Optional: pacing/tuning knobs
-    const auto idleBackoff = 10ms;   // Backoff when there's nothing immediate to request
+    auto idleBackoff = 10ms;   // Backoff when there's nothing immediate to request
     const auto errorBackoff = 2000ms; // Backoff after an exception
     auto requestClock = std::chrono::high_resolution_clock::now() - requestCycle;
     while (!stopFlag.load(std::memory_order_relaxed)) {
         try {
-            /* Don't need to fetch too far if not yet verifying*/
-            if (gCurrentFetchingTick > gCurrentVerifyLoggingTick + 1000)
-            {
-                Logger::get()->info("Pause fetching tick data, waiting for more verified ticks.");
-                while (gCurrentFetchingTick > gCurrentVerifyLoggingTick + 100 && !stopFlag.load(std::memory_order_relaxed)) SLEEP(100);
-                Logger::get()->info("Resume fetching tick data.");
-            }
             if (refetchTickVotes != -1)
             {
                 struct {
@@ -169,6 +162,12 @@ void IORequestThread(ConnectionPool& conn_pool, std::atomic_bool& stopFlag, std:
                     conn_pool.sendToMany((uint8_t *) &pl, sizeof(pl), 6);
                 }
                 refetchTickVotes = -1;
+            }
+            /* Don't need to fetch too far if not yet verifying*/
+            if (gCurrentFetchingTick > gCurrentVerifyLoggingTick + 1000)
+            {
+                SLEEP(idleBackoff);
+                continue;
             }
             auto now = std::chrono::high_resolution_clock::now();
             if (now - requestClock >= requestCycle)
@@ -253,6 +252,7 @@ void IORequestThread(ConnectionPool& conn_pool, std::atomic_bool& stopFlag, std:
                     }
                 }
             }
+            SLEEP(idleBackoff);
         } catch (const std::exception& ex) {
             Logger::get()->warn("IORequestThread exception: {}", ex.what());
             std::this_thread::sleep_for(errorBackoff);
