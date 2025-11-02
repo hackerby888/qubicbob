@@ -212,6 +212,19 @@ int QubicConnection::enqueueSend(uint8_t* buffer, int sz)
     return sz;
 }
 
+int QubicConnection::enqueueWithHeader(uint8_t* buffer, int sz, uint8_t type, bool randomDejavu)
+{
+    std::vector<uint8_t> buf;
+    buf.resize(sz + 8);
+    memcpy(buf.data()+8, buffer, sz);
+    auto h = (RequestResponseHeader*)buf.data();
+    h->setType(type);
+    h->setSize(sz+8);
+    if (randomDejavu) h->randomizeDejavu();
+    else h->setDejavu(0);
+    enqueueSend(buf.data(), buf.size());
+}
+
 void QubicConnection::getComputorList(const uint16_t epoch, Computors& compList)
 {
     RequestResponseHeader header{};

@@ -15,6 +15,7 @@ public:
     ~QubicConnection();
     int receiveData(uint8_t* buffer, int sz);
     int enqueueSend(uint8_t* buffer, int sz);
+    int enqueueWithHeader(uint8_t* buffer, int sz, uint8_t type, bool randomDejavu);
     void receiveAFullPacket(RequestResponseHeader& header, std::vector<uint8_t>& buffer);
     bool reconnect();
     void disconnect();
@@ -120,7 +121,7 @@ public:
         return results;
     }
 
-    int sendWithPasscodeToRandom(uint8_t* buffer, int passcodeOffset, int sz) {
+    int sendWithPasscodeToRandom(uint8_t* buffer, int passcodeOffset, int sz, uint8_t type, bool randomDejavu) {
         if (conns_.empty()) return -1;
 
         // Build an index list of currently valid connections
@@ -132,11 +133,10 @@ public:
             }
         }
         if (idx.empty()) return -1;
-
         std::uniform_int_distribution<std::size_t> dist(0, idx.size() - 1);
         auto chosen = idx[dist(rng_)];
         conns_[chosen]->getPasscode((uint64_t*)(buffer+passcodeOffset));
-        return conns_[chosen]->enqueueSend(buffer, sz);
+        return conns_[chosen]->enqueueWithHeader(buffer, sz, type, randomDejavu);
     }
 
 private:

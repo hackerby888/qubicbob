@@ -18,7 +18,7 @@
 
 void IOVerifyThread(std::atomic_bool& stopFlag);
 void IORequestThread(ConnectionPool& conn_pool, std::atomic_bool& stopFlag, std::chrono::milliseconds requestCycle, uint32_t futureOffset);
-void LoggingEventRequestThread(ConnectionPool& conn, std::atomic_bool& stopFlag, std::chrono::milliseconds requestCycle, uint32_t futureOffset);
+void LoggingEventRequestThread(ConnectionPool& connPoolWithPwd, ConnectionPool& connPoolNoPwd, std::atomic_bool& stopFlag, std::chrono::milliseconds requestCycle);
 void connReceiver(QCPtr& conn, const bool isTrustedNode, std::atomic_bool& stopFlag);
 void DataProcessorThread(std::atomic_bool& exitFlag);
 void RequestProcessorThread(std::atomic_bool& exitFlag);
@@ -135,8 +135,9 @@ int runBob(int argc, char *argv[])
     // Collect endpoints from config
     std::vector<std::string> endpoints = cfg.trusted_nodes;
     // Try endpoints in order, connect to the first that works
-    ConnectionPool conn_pool;
-    ConnectionPool conn_pool_logging; // conn pool with passcode
+    ConnectionPool connPoolAll;
+    ConnectionPool connPoolWithPwd; // conn pool with passcode
+    ConnectionPool connPoolNoPwd; // conn pool WITHOUT passcode
     for (const auto& endpoint : endpoints) {
         // Parse ip:port[:pass0-pass1-pass2-pass3]
         auto p1 = endpoint.find(':');
@@ -256,15 +257,16 @@ int runBob(int argc, char *argv[])
             Logger::get()->warn("Failed to connect or handshake with endpoint '{}': {}."
                                 "bob still added this node to connection pool for future use", endpoint, e.what());
         }
-        conn_pool.add(conn);
-        if (has_passcode) conn_pool_logging.add(conn);
+        connPoolAll.add(conn);
+        if (has_passcode) connPoolWithPwd.add(conn);
+        else connPoolNoPwd.add(conn);
     }
     stopFlag.store(false);
     auto request_thread = std::thread(
             [&](){
                 set_this_thread_name("io-req");
                 IORequestThread(
-                        std::ref(conn_pool),
+                        std::ref(connPoolAll),
                         std::ref(stopFlag),
                         std::chrono::milliseconds(request_cycle_ms),
                         static_cast<uint32_t>(future_offset)
@@ -277,15 +279,14 @@ int runBob(int argc, char *argv[])
     });
     auto log_request_thread = std::thread([&](){
         set_this_thread_name("log-req");
-        LoggingEventRequestThread(std::ref(conn_pool_logging), std::ref(stopFlag),
-                                  std::chrono::milliseconds(request_logging_cycle_ms),
-                                  static_cast<uint32_t>(future_offset));
+        LoggingEventRequestThread(std::ref(connPoolWithPwd), std::ref(connPoolNoPwd), std::ref(stopFlag),
+                                  std::chrono::milliseconds(request_logging_cycle_ms));
     });
     auto indexer_thread = std::thread([&](){
         set_this_thread_name("indexer");
         indexVerifiedTicks(std::ref(stopFlag));
     });
-    int pool_size = conn_pool.size();
+    int pool_size = connPoolAll.size();
     std::vector<std::thread> v_recv_thread;
     std::vector<std::thread> v_data_thread;
     Logger::get()->info("Starting {} data processor threads", pool_size);
@@ -296,7 +297,7 @@ int runBob(int argc, char *argv[])
             char nm[16];
             std::snprintf(nm, sizeof(nm), "recv-%d", i);
             set_this_thread_name(nm);
-            connReceiver(std::ref(conn_pool.get(i)), isTrustedNode, std::ref(stopFlag));
+            connReceiver(std::ref(connPoolAll.get(i)), isTrustedNode, std::ref(stopFlag));
         });
     }
     for (int i = 0; i < std::max(16, pool_size); i++)
@@ -353,7 +354,7 @@ int runBob(int argc, char *argv[])
         while (count++ < sleep_time*10 && !stopFlag.load()) SLEEP(100);
     }
     // Signal stop, disconnect sockets first to break any blocking I/O.
-    for (int i = 0; i < conn_pool.size(); i++) conn_pool.get(i)->disconnect();
+    for (int i = 0; i < connPoolAll.size(); i++) connPoolAll.get(i)->disconnect();
     // Stop and join producer/request threads first so they cannot enqueue more work.
     verify_thread.join();
     Logger::get()->info("Exited Verifying thread");

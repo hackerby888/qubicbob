@@ -633,7 +633,10 @@ verifyNodeStateDigest:
 }
 
 // The logging fetcher thread: uses its own connection, shares DB with other threads.
-void LoggingEventRequestThread(ConnectionPool& conn, std::atomic_bool& stopFlag, std::chrono::milliseconds request_logging_cycle_ms, uint32_t futureOffset)
+void LoggingEventRequestThread(ConnectionPool& connPoolWithPwd,
+                               ConnectionPool& connPoolNoPwd,
+                               std::atomic_bool& stopFlag,
+                               std::chrono::milliseconds request_logging_cycle_ms)
 {
     auto idleBackoff = request_logging_cycle_ms;
 
@@ -643,19 +646,8 @@ void LoggingEventRequestThread(ConnectionPool& conn, std::atomic_bool& stopFlag,
             {
                 for (long long s = refetchFromId; s <= refetchToId; s += MAX_LOG_EVENT_PER_CALL) {
                     long long e = std::min(refetchToId, s + MAX_LOG_EVENT_PER_CALL - 1);
-                    struct {
-                        RequestResponseHeader header;
-                        unsigned long long passcode[4];
-                        unsigned long long fromid;
-                        unsigned long long toid;
-                    } packet;
-                    memset(&packet, 0, sizeof(packet));
-                    packet.header.setSize(sizeof(packet));
-                    packet.header.randomizeDejavu();
-                    packet.header.setType(RequestLog::type());
-                    packet.fromid = s;
-                    packet.toid = e;
-                    conn.sendWithPasscodeToRandom((uint8_t *) &packet, 8, packet.header.size());
+                    RequestLog rl{{0,0,0,0},(unsigned long long)(s),(unsigned long long)(e)};
+                    connPoolWithPwd.sendWithPasscodeToRandom((uint8_t *) &rl, 0, sizeof(RequestLog), RequestLog::type(), true);
                 }
                 SLEEP(100);
             }
@@ -663,17 +655,8 @@ void LoggingEventRequestThread(ConnectionPool& conn, std::atomic_bool& stopFlag,
             if (stopFlag.load(std::memory_order_relaxed)) break;
             if (!db_check_log_range(gCurrentFetchingLogTick))
             {
-                struct {
-                    RequestResponseHeader header;
-                    unsigned long long passcode[4];
-                    unsigned int tick;
-                } packet;
-                memset(&packet, 0, sizeof(packet));
-                packet.header.setSize(sizeof(packet));
-                packet.header.randomizeDejavu();
-                packet.header.setType(RequestAllLogIdRangesFromTick::type());
-                packet.tick = gCurrentFetchingLogTick;
-                conn.sendWithPasscodeToRandom((uint8_t *) &packet, 8, packet.header.size());
+                RequestAllLogIdRangesFromTick ralr{{0,0,0,0},gCurrentFetchingLogTick};
+                connPoolWithPwd.sendWithPasscodeToRandom((uint8_t*)&ralr, 0, sizeof(RequestAllLogIdRangesFromTick), RequestAllLogIdRangesFromTick::type(), true);
             } else {
                 long long fromId, length;
                 db_get_log_range_for_tick(gCurrentFetchingLogTick, fromId, length);
@@ -690,19 +673,8 @@ void LoggingEventRequestThread(ConnectionPool& conn, std::atomic_bool& stopFlag,
                 }
                 for (long long s = fromId; s <= endId; s += MAX_LOG_EVENT_PER_CALL) {
                     long long e = std::min(endId, s + MAX_LOG_EVENT_PER_CALL - 1);
-                    struct {
-                        RequestResponseHeader header;
-                        unsigned long long passcode[4];
-                        unsigned long long fromid;
-                        unsigned long long toid;
-                    } packet;
-                    memset(&packet, 0, sizeof(packet));
-                    packet.header.setSize(sizeof(packet));
-                    packet.header.randomizeDejavu();
-                    packet.header.setType(RequestLog::type());
-                    packet.fromid = s;
-                    packet.toid = e;
-                    conn.sendWithPasscodeToRandom((uint8_t *) &packet, 8, packet.header.size());
+                    RequestLog rl{{0,0,0,0},(unsigned long long)(s),(unsigned long long)(e)};
+                    connPoolWithPwd.sendWithPasscodeToRandom((uint8_t *) &rl, 0, sizeof(RequestLog), RequestLog::type(), true);
                 }
                 if (fromId > endId)
                 {
@@ -715,17 +687,8 @@ void LoggingEventRequestThread(ConnectionPool& conn, std::atomic_bool& stopFlag,
             {
                 if (!db_check_log_range(gCurrentFetchingLogTick + i))
                 {
-                    struct {
-                        RequestResponseHeader header;
-                        unsigned long long passcode[4];
-                        unsigned int tick;
-                    } packet;
-                    memset(&packet, 0, sizeof(packet));
-                    packet.header.setSize(sizeof(packet));
-                    packet.header.randomizeDejavu();
-                    packet.header.setType(RequestAllLogIdRangesFromTick::type());
-                    packet.tick = gCurrentFetchingLogTick + i;
-                    conn.sendWithPasscodeToRandom((uint8_t *) &packet, 8, packet.header.size());
+                    RequestAllLogIdRangesFromTick ralr{{0,0,0,0},gCurrentFetchingLogTick + i};
+                    connPoolWithPwd.sendWithPasscodeToRandom((uint8_t*)&ralr, 0, sizeof(RequestAllLogIdRangesFromTick), RequestAllLogIdRangesFromTick::type(), true);
                 }
             }
             SLEEP(idleBackoff);
