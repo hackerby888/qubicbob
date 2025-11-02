@@ -4,7 +4,7 @@
   "request-logging-cycle-ms": 150,
   "future-offset": 3,
   "log-level": "info",
-  "redis-url": "tcp://127.0.0.1:6379",
+  "keydb-url": "tcp://127.0.0.1:6379",
   "run-server": true,
   "server-port": 21842,
   "arbitrator-identity": "AFZPUAIYVPNUYGJRQVLUKOPPVLHAZQTGLYAAUUNBXFTVTAMSBKQBLEIEPCVJ"

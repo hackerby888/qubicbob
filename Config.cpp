@@ -56,12 +56,12 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
         out.log_level = root["log-level"].asString();
     }
 
-    if (root.isMember("redis-url")) {
-        if (!root["redis-url"].isString()) {
-            error = "Invalid type: string required for key 'redis-url'";
+    if (root.isMember("keydb-url")) {
+        if (!root["keydb-url"].isString()) {
+            error = "Invalid type: string required for key 'keydb-url'";
             return false;
         }
-        out.redis_url = root["redis-url"].asString();
+        out.keydb_url = root["keydb-url"].asString();
     }
 
     if (root.isMember("arbitrator-identity")) {

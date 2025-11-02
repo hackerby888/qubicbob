@@ -9,7 +9,7 @@ struct AppConfig {
     unsigned int request_logging_cycle_ms = 100;
     unsigned int future_offset = 1;
     std::string log_level = "info";
-    std::string redis_url = "tcp://127.0.0.1:6379";
+    std::string keydb_url = "tcp://127.0.0.1:6379";
     bool run_server = false;
     bool is_testnet = false;
     unsigned int server_port = 21842;

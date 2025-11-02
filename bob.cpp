@@ -98,7 +98,7 @@ int runBob(int argc, char *argv[])
     std::string log_level = cfg.log_level;
 
     // Put redis_url in REDIS_CONNECTION_STRING
-    std::string REDIS_CONNECTION_STRING = cfg.redis_url;
+    std::string REDIS_CONNECTION_STRING = cfg.keydb_url;
     Logger::init(log_level);
 
     // Read server flags
@@ -119,6 +119,7 @@ int runBob(int argc, char *argv[])
 
     {
         // initialize gCurrentProcessingTick with 1st connection
+
         db_connect(REDIS_CONNECTION_STRING);
         uint32_t tick;
         uint16_t epoch;
