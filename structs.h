@@ -380,3 +380,51 @@ struct Computors
 static_assert(sizeof(Computors) == 2 + 32 * NUMBER_OF_COMPUTORS + SIGNATURE_SIZE, "Something is wrong with the struct size.");
 
 #pragma pack(pop)
+
+// list of structs that bob uses to communicate logging events
+struct RequestLogWithSignature // Fetches log
+{
+    unsigned long long passcode[4];
+    unsigned long long fromid;
+    unsigned long long toid;
+
+    static constexpr unsigned char type()
+    {
+        return 144;
+    }
+};
+
+// verified logging event in bob
+struct RespondLogWithSignature
+{
+    // Variable-size log;
+
+    static constexpr unsigned char type()
+    {
+        return 145;
+    }
+};
+
+struct RequestAllLogIdRangesFromTickWithSignature
+{
+    unsigned long long passcode[4];
+    unsigned int tick;
+
+    static constexpr unsigned char type()
+    {
+        return 150;
+    }
+};
+
+struct ResponseAllLogIdRangesFromTickWithSignature
+{
+    long long fromLogId[LOG_TX_PER_TICK];
+    long long length[LOG_TX_PER_TICK];
+    m256i pubkey;
+    unsigned char signature[SIGNATURE_SIZE];
+
+    static constexpr unsigned char type()
+    {
+        return 151;
+    }
+};
