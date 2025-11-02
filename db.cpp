@@ -842,7 +842,7 @@ bool db_delete_tick_data(uint32_t tick) {
     if (!g_redis) return false;
     try {
         const std::string key = "tick_data:" + std::to_string(tick);
-        g_redis->del(key);
+        g_redis->unlink(key);
         return true;
     } catch (const sw::redis::Error& e) {
         Logger::get()->error("Redis error in db_delete_tick_data: %s\n", e.what());
@@ -854,7 +854,7 @@ bool db_delete_tick_vote(uint32_t tick, uint16_t computorIndex) {
     if (!g_redis) return false;
     try {
         const std::string key = "tick_vote:" + std::to_string(tick) + ":" + std::to_string(computorIndex);
-        g_redis->del(key);
+        g_redis->unlink(key);
         return true;
     } catch (const sw::redis::Error& e) {
         Logger::get()->error("Redis error in db_delete_tick_vote: %s\n", e.what());
@@ -878,7 +878,7 @@ bool db_delete_tick_vote(uint32_t tick) {
         }
 
         if (!keys.empty()) {
-            g_redis->del(keys.begin(), keys.end());
+            g_redis->unlink(keys.begin(), keys.end());
         }
         return true;
     } catch (const sw::redis::Error &e) {
