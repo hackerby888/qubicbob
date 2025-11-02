@@ -45,8 +45,11 @@ void db_close() {
 bool db_insert_tick_vote(const TickVote& vote) {
     if (!g_redis) return false;
     try {
-        sw::redis::StringView val(reinterpret_cast<const char*>(&vote), sizeof(vote));
         std::string key = "tick_vote:" + std::to_string(vote.tick) + ":" + std::to_string(vote.computorIndex);
+        if (g_redis->exists(key)) {
+            return true;
+        }
+        sw::redis::StringView val(reinterpret_cast<const char *>(&vote), sizeof(vote));
         g_redis->set(key, val);
     } catch (const sw::redis::Error& e) {
         Logger::get()->error("Redis error: {}\n", e.what());
@@ -58,8 +61,11 @@ bool db_insert_tick_vote(const TickVote& vote) {
 bool db_insert_tick_data(const TickData& data) {
     if (!g_redis) return false;
     try {
-        sw::redis::StringView val(reinterpret_cast<const char*>(&data), sizeof(data));
         std::string key = "tick_data:" + std::to_string(data.tick);
+        if (g_redis->exists(key)) {
+            return true;
+        }
+        sw::redis::StringView val(reinterpret_cast<const char*>(&data), sizeof(data));
         g_redis->set(key, val);
     } catch (const sw::redis::Error& e) {
         Logger::get()->error("Redis error: {}\n", e.what());
@@ -72,12 +78,15 @@ bool db_insert_transaction(const Transaction* tx) {
     if (!g_redis) return false;
     try {
         size_t tx_size = sizeof(Transaction) + tx->inputSize + SIGNATURE_SIZE;
-        sw::redis::StringView val(reinterpret_cast<const char*>(tx), tx_size);
         char hash[64] = {0};
         getQubicHash(reinterpret_cast<const unsigned char*>(tx), tx_size, hash);
         std::string hash_str(hash);
         // Store by transaction hash only; tick is no longer part of the key.
         std::string key = "transaction:" + hash_str;
+        if (g_redis->exists(key)) {
+            return true;
+        }
+        sw::redis::StringView val(reinterpret_cast<const char*>(tx), tx_size);
         g_redis->set(key, val);
     } catch (const sw::redis::Error& e) {
         Logger::get()->error("Redis error: {}\n", e.what());
@@ -92,6 +101,9 @@ bool db_insert_log(uint16_t epoch, uint32_t tick, uint64_t logId, int logSize, c
         std::string key = "log:" +
                           std::to_string(epoch) + ":" +
                           std::to_string(logId);
+        if (g_redis->exists(key)) {
+            return true;
+        }
         // Store the raw log bytes directly as the key value instead of using a hash field.
         sw::redis::StringView val(reinterpret_cast<const char*>(content), static_cast<size_t>(logSize));
         g_redis->set(key, val);
@@ -108,6 +120,10 @@ bool db_insert_log(uint16_t epoch, uint32_t tick, uint64_t logId, int logSize, c
 bool db_insert_log_range(uint32_t tick, const ResponseAllLogIdRangesFromTick& logRange) {
     if (!g_redis) return false;
     try {
+        std::string key_struct = "log_ranges:" + std::to_string(tick);
+        if (g_redis->exists(key_struct)) {
+            return true;
+        }
         if (isArrayZero((uint8_t*)&logRange, sizeof(ResponseAllLogIdRangesFromTick)))
         {
             return false;
@@ -139,7 +155,6 @@ bool db_insert_log_range(uint32_t tick, const ResponseAllLogIdRangesFromTick& lo
 
         // Store the whole struct for the tick
         sw::redis::StringView val(reinterpret_cast<const char*>(&logRange), sizeof(ResponseAllLogIdRangesFromTick));
-        std::string key_struct = "log_ranges:" + std::to_string(tick);
         g_redis->set(key_struct, val);
 
         std::string key_summary = "tick_log_range:" + std::to_string(tick);
