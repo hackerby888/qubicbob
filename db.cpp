@@ -46,11 +46,8 @@ bool db_insert_tick_vote(const TickVote& vote) {
     if (!g_redis) return false;
     try {
         std::string key = "tick_vote:" + std::to_string(vote.tick) + ":" + std::to_string(vote.computorIndex);
-        if (g_redis->exists(key)) {
-            return true;
-        }
         sw::redis::StringView val(reinterpret_cast<const char *>(&vote), sizeof(vote));
-        g_redis->set(key, val);
+        g_redis->set(key, val, std::chrono::milliseconds(0), sw::redis::UpdateType::NOT_EXIST);
     } catch (const sw::redis::Error& e) {
         Logger::get()->error("Redis error: {}\n", e.what());
         return false;
@@ -62,11 +59,8 @@ bool db_insert_tick_data(const TickData& data) {
     if (!g_redis) return false;
     try {
         std::string key = "tick_data:" + std::to_string(data.tick);
-        if (g_redis->exists(key)) {
-            return true;
-        }
         sw::redis::StringView val(reinterpret_cast<const char*>(&data), sizeof(data));
-        g_redis->set(key, val);
+        g_redis->set(key, val, std::chrono::milliseconds(0), sw::redis::UpdateType::NOT_EXIST);
     } catch (const sw::redis::Error& e) {
         Logger::get()->error("Redis error: {}\n", e.what());
         return false;
@@ -83,11 +77,8 @@ bool db_insert_transaction(const Transaction* tx) {
         std::string hash_str(hash);
         // Store by transaction hash only; tick is no longer part of the key.
         std::string key = "transaction:" + hash_str;
-        if (g_redis->exists(key)) {
-            return true;
-        }
         sw::redis::StringView val(reinterpret_cast<const char*>(tx), tx_size);
-        g_redis->set(key, val);
+        g_redis->set(key, val, std::chrono::milliseconds(0), sw::redis::UpdateType::NOT_EXIST);
     } catch (const sw::redis::Error& e) {
         Logger::get()->error("Redis error: {}\n", e.what());
         return false;
@@ -101,12 +92,9 @@ bool db_insert_log(uint16_t epoch, uint32_t tick, uint64_t logId, int logSize, c
         std::string key = "log:" +
                           std::to_string(epoch) + ":" +
                           std::to_string(logId);
-        if (g_redis->exists(key)) {
-            return true;
-        }
         // Store the raw log bytes directly as the key value instead of using a hash field.
         sw::redis::StringView val(reinterpret_cast<const char*>(content), static_cast<size_t>(logSize));
-        g_redis->set(key, val);
+        g_redis->set(key, val, std::chrono::milliseconds(0), sw::redis::UpdateType::NOT_EXIST);
         // Removed: stop tracking per-tick log index (log_index:<epoch>:<tick>)
         // std::string index_key = "log_index:" + std::to_string(epoch) + ":" + std::to_string(tick);
         // g_redis->sadd(index_key, key);
@@ -121,9 +109,6 @@ bool db_insert_log_range(uint32_t tick, const ResponseAllLogIdRangesFromTick& lo
     if (!g_redis) return false;
     try {
         std::string key_struct = "log_ranges:" + std::to_string(tick);
-        if (g_redis->exists(key_struct)) {
-            return true;
-        }
         if (isArrayZero((uint8_t*)&logRange, sizeof(ResponseAllLogIdRangesFromTick)))
         {
             return false;
@@ -155,7 +140,7 @@ bool db_insert_log_range(uint32_t tick, const ResponseAllLogIdRangesFromTick& lo
 
         // Store the whole struct for the tick
         sw::redis::StringView val(reinterpret_cast<const char*>(&logRange), sizeof(ResponseAllLogIdRangesFromTick));
-        g_redis->set(key_struct, val);
+        g_redis->set(key_struct, val, std::chrono::milliseconds(0), sw::redis::UpdateType::NOT_EXIST);
 
         std::string key_summary = "tick_log_range:" + std::to_string(tick);
         std::unordered_map<std::string, std::string> fields;
