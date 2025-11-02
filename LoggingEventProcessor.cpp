@@ -596,7 +596,7 @@ verifyNodeStateDigest:
                 hasTickData = true;
             } else {
                 Logger::get()->warn("Missing votes for tick {}. EmptyCount {} | NonEmptyCount {} | Total {}"
-                                    " Trying to refetch it.", emptyTick, nonEmptyTick, votes.size(), processToTick);
+                                    " Trying to refetch it.", processToTick, emptyTick, nonEmptyTick, votes.size());
                 refetchTickVotes = processToTick;
                 SLEEP(1000);
                 goto verifyNodeStateDigest;
