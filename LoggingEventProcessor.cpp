@@ -648,6 +648,7 @@ void LoggingEventRequestThread(ConnectionPool& connPoolWithPwd,
                     long long e = std::min(refetchToId, s + MAX_LOG_EVENT_PER_CALL - 1);
                     RequestLog rl{{0,0,0,0},(unsigned long long)(s),(unsigned long long)(e)};
                     connPoolWithPwd.sendWithPasscodeToRandom((uint8_t *) &rl, 0, sizeof(RequestLog), RequestLog::type(), true);
+                    connPoolNoPwd.sendToRandom((uint8_t *) &rl, sizeof(RequestLog), RequestLogWithSignature::type(), true);
                 }
                 SLEEP(100);
             }
@@ -657,6 +658,7 @@ void LoggingEventRequestThread(ConnectionPool& connPoolWithPwd,
             {
                 RequestAllLogIdRangesFromTick ralr{{0,0,0,0},gCurrentFetchingLogTick};
                 connPoolWithPwd.sendWithPasscodeToRandom((uint8_t*)&ralr, 0, sizeof(RequestAllLogIdRangesFromTick), RequestAllLogIdRangesFromTick::type(), true);
+                connPoolNoPwd.sendToRandom((uint8_t*)&ralr, sizeof(RequestAllLogIdRangesFromTick), RequestAllLogIdRangesFromTickWithSignature::type(), true);
             } else {
                 long long fromId, length;
                 db_get_log_range_for_tick(gCurrentFetchingLogTick, fromId, length);
@@ -675,6 +677,7 @@ void LoggingEventRequestThread(ConnectionPool& connPoolWithPwd,
                     long long e = std::min(endId, s + MAX_LOG_EVENT_PER_CALL - 1);
                     RequestLog rl{{0,0,0,0},(unsigned long long)(s),(unsigned long long)(e)};
                     connPoolWithPwd.sendWithPasscodeToRandom((uint8_t *) &rl, 0, sizeof(RequestLog), RequestLog::type(), true);
+                    connPoolNoPwd.sendToRandom((uint8_t *) &rl, sizeof(RequestLog), RequestLog::type(), true);
                 }
                 if (fromId > endId)
                 {
@@ -689,6 +692,7 @@ void LoggingEventRequestThread(ConnectionPool& connPoolWithPwd,
                 {
                     RequestAllLogIdRangesFromTick ralr{{0,0,0,0},gCurrentFetchingLogTick + i};
                     connPoolWithPwd.sendWithPasscodeToRandom((uint8_t*)&ralr, 0, sizeof(RequestAllLogIdRangesFromTick), RequestAllLogIdRangesFromTick::type(), true);
+                    connPoolNoPwd.sendToRandom((uint8_t*)&ralr, sizeof(RequestAllLogIdRangesFromTick), RequestAllLogIdRangesFromTick::type(), true);
                 }
             }
             SLEEP(idleBackoff);

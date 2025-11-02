@@ -74,7 +74,7 @@ public:
     std::size_t size() const { return conns_.size(); }
     QCPtr& get(int i) { return conns_[i];}
     // Sends to one random valid connection. Returns bytes sent, or -1 if none could be used.
-    int sendToRandom(uint8_t* buffer, int sz) {
+    int sendToRandom(uint8_t* buffer, int sz, uint8_t type, bool randomDejavu) {
         if (conns_.empty()) return -1;
 
         // Build an index list of currently valid connections
@@ -89,12 +89,12 @@ public:
 
         std::uniform_int_distribution<std::size_t> dist(0, idx.size() - 1);
         auto chosen = idx[dist(rng_)];
-        return conns_[chosen]->enqueueSend(buffer, sz);
+        return conns_[chosen]->enqueueWithHeader(buffer, sz, type, randomDejavu);
     }
 
     // Sends to 'howMany' distinct random valid connections (or fewer if not enough are valid).
     // Returns a vector of bytes-sent per selected connection, in the order of selection.
-    std::vector<int> sendToMany(uint8_t* buffer, int sz, std::size_t howMany) {
+    std::vector<int> sendToMany(uint8_t* buffer, int sz, std::size_t howMany, uint8_t type, bool randomDejavu) {
         std::vector<int> results;
         if (conns_.empty() || howMany == 0) return results;
 
@@ -116,7 +116,7 @@ public:
 
         results.reserve(idx.size());
         for (auto i : idx) {
-            results.push_back(conns_[i]->enqueueSend(buffer, sz));
+            results.push_back(conns_[i]->enqueueWithHeader(buffer, sz, type, randomDejavu));
         }
         return results;
     }
