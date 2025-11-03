@@ -21,6 +21,9 @@
 #define assetDigests               (GS().assetDigests)
 #define refetchFromId              (GS().refetchFromId)
 #define refetchToId                (GS().refetchToId)
+#define refetchLogFromTick             (GS().refetchLogFromTick)
+#define refetchLogToTick             (GS().refetchLogToTick)
+
 #define refetchTickVotes           (GS().refetchTickVotes)
 
 #define nodeSubseed                 (GS().nodeSubseed)

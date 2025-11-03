@@ -386,6 +386,8 @@ struct RequestLogEventSignature
 {
     uint32_t tick;
     uint32_t chunkid;
+    long long startLogId;
+    long long endLogId;
     static constexpr unsigned char type()
     {
         return 144;

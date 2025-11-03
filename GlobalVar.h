@@ -37,6 +37,8 @@ struct GlobalState {
     // Rescue mode range
     long long refetchFromId{-1};
     long long refetchToId{-1};
+    long long refetchLogFromTick{-1};
+    long long refetchLogToTick{-1};
 
     // Rescue mode votes
     long long refetchTickVotes{-1};
