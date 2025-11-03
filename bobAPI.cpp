@@ -74,6 +74,7 @@ std::string bobGetTransaction(const char* txHash)
                    "\"amount\":" + std::to_string(tx->amount) + "," +
                    "\"tick\":" + std::to_string(tx->tick) + "," +
                     "\"inputSize\":" + std::to_string(tx->inputSize) + "," +
+                    "\"inputType\":" + std::to_string(tx->inputType) + "," +
                     "\"inputData\":\"" + inputData + "\"" +
                     "}";
         }
@@ -89,6 +90,7 @@ std::string bobGetTransaction(const char* txHash)
                 "\"transactionIndex\":" + std::to_string(tx_index) + "," +
                 "\"executed\":" + (executed ? "true" : "false") + "," +
                 "\"inputSize\":" + std::to_string(tx->inputSize) + "," +
+                "\"inputType\":" + std::to_string(tx->inputType) + "," +
                 "\"inputData\":\"" + inputData + "\"" +
                 "}";
     } catch (const std::exception &e) {
