@@ -106,13 +106,31 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
         }
         error = std::string("Invalid type: unsigned integer required for key '") + key + "'";
         return false;
-        bool isTestnet = false;
     };
 
     if (!validate_uint("request-cycle-ms", out.request_cycle_ms)) return false;
     if (!validate_uint("request-logging-cycle-ms", out.request_logging_cycle_ms)) return false;
     if (!validate_uint("future-offset", out.future_offset)) return false;
     if (!validate_uint("server-port", out.server_port)) return false;
+
+    if (root.isMember("is-trusted-node")) {
+        if (!root["is-trusted-node"].isBool()) {
+            error = "Invalid type: boolean required for key 'is-trusted-node'";
+            return false;
+        }
+        out.is_trusted_node = root["is-trusted-node"].asBool();
+    }
+
+    if (out.is_trusted_node)
+    {
+        if (root.isMember("node-seed")) {
+            if (!root["node-seed"].isString()) {
+                error = "Invalid type: string required for key 'node-seed'";
+                return false;
+            }
+            out.node_seed = root["node-seed"].asString();
+        }
+    }
 
     return true;
 }

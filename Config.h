@@ -14,6 +14,9 @@ struct AppConfig {
     bool is_testnet = false;
     unsigned int server_port = 21842;
     std::string arbitrator_identity;
+
+    bool is_trusted_node = false;
+    std::string node_seed = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 };
 
 // Returns true on success; on failure returns false and fills error with a human-readable message.

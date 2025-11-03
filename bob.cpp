@@ -89,6 +89,16 @@ int runBob(int argc, char *argv[])
         return -1;
     }
 
+    if (cfg.is_trusted_node)
+    {
+        getSubseedFromSeed((uint8_t*)cfg.node_seed.c_str(), nodeSubseed.m256i_u8);
+        getPrivateKeyFromSubSeed(nodeSubseed.m256i_u8, nodePrivatekey.m256i_u8);
+        getPublicKeyFromPrivateKey(nodePrivatekey.m256i_u8, nodePublickey.m256i_u8);
+        char identity[64] = {0};
+        getIdentityFromPublicKey(nodePublickey.m256i_u8, identity, false);
+        Logger::get()->info("Trusted node identity: {}", identity);
+    }
+
     // Defaults for new knobs are already in AppConfig
     unsigned int request_cycle_ms = cfg.request_cycle_ms;
     unsigned int request_logging_cycle_ms = cfg.request_logging_cycle_ms;

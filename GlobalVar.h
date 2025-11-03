@@ -40,6 +40,11 @@ struct GlobalState {
 
     // Rescue mode votes
     long long refetchTickVotes{-1};
+
+    // trusted node info
+    m256i nodeSubseed;
+    m256i nodePublickey;
+    m256i nodePrivatekey;
 };
 
 // Safe, lazy singleton accessor avoids static init order issues.

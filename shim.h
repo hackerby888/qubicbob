@@ -22,3 +22,7 @@
 #define refetchFromId              (GS().refetchFromId)
 #define refetchToId                (GS().refetchToId)
 #define refetchTickVotes           (GS().refetchTickVotes)
+
+#define nodeSubseed                 (GS().nodeSubseed)
+#define nodePublickey                 (GS().nodePublickey)
+#define nodePrivatekey                 (GS().nodePrivatekey)
