@@ -439,14 +439,14 @@ struct RequestLogEventSignature
     }
 };
 
-struct RespondLogEventSignature
+struct ResponseLogEventSignature
 {
     m256i identity;
     uint32_t tick;
     uint32_t chunkid;
     long long startLogId, endLogId;
-    uint8_t signature[64];
-    // dynamic size after this, signature is sign(K12(all_log))
+    // dynamic size after this, signature is sign(K12(everything before sig))
+    // last 64 bytes is signature
     static constexpr unsigned char type()
     {
         return 145;
@@ -465,10 +465,8 @@ struct RequestLogRangeSignature
 
 struct ResponseLogRangeSignature
 {
+    ResponseAllLogIdRangesFromTick lr;
     m256i identity;
-    uint32_t tick;
-    uint32_t padding;
-    long long startLogId, endLogId;
     uint8_t signature[64];
     static constexpr unsigned char type()
     {

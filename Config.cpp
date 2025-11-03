@@ -132,5 +132,30 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
         }
     }
 
+    if (root.isMember("trusted-entities")) {
+        if (!root["trusted-entities"].isArray()) {
+            error = "Invalid type: array required for key 'trusted-entities'";
+            return false;
+        }
+        for (const auto &v: root["trusted-entities"]) {
+            if (!v.isString()) {
+                error = "Invalid type: elements of 'trusted-entities' must be strings";
+                return false;
+            }
+            const std::string &id = v.asString();
+            if (id.length() != 60) {
+                error = "Invalid trusted entity ID length: must be 60 characters";
+                return false;
+            }
+            for (char c: id) {
+                if (c < 'A' || c > 'Z') {
+                    error = "Invalid trusted entity ID format: must be uppercase letters only";
+                    return false;
+                }
+            }
+            out.trustedEntities[id] = true;
+        }
+    }
+
     return true;
 }

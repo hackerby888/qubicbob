@@ -329,6 +329,74 @@ void replyLogEvent(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
     conn->enqueueSend(v_resp.data(), v_resp.size());
 }
 
+void replyLogEventSignature(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
+{
+    RequestLogEventSignature* request = (RequestLogEventSignature*)ptr;
+    if (request->endLogId < request->startLogId)
+    {
+        conn->sendEndPacket();
+        return;
+    }
+    long long ts,tl,te;
+    db_get_log_range_for_tick(request->tick, ts, tl);
+    te = ts + tl - 1;
+    // check for correct range
+    if (!(request->startLogId >= ts && request->endLogId <= te))
+    {
+        conn->sendEndPacket();
+        return;
+    }
+    // check for correct chunk
+    if ( (request->startLogId - ts) / BOB_LOG_EVENT_CHUNK_SIZE != request->chunkid)
+    {
+        conn->sendEndPacket();
+        return;
+    }
+    uint8_t l_pubkey[32];
+    uint8_t l_sig[64];
+    bool has_sig_in_db = db_get_log_sig(request->tick, request->chunkid, l_pubkey, l_sig);
+    if (!has_sig_in_db && !gIsTrustedNode)
+    {
+        conn->sendEndPacket();
+        return;
+    }
+
+    std::vector<uint8_t> resp;
+    resp.resize(8);
+    auto header = (RequestResponseHeader*)resp.data();
+    header->setDejavu(dejavu);
+    header->setType(ResponseLogEventSignature::type());
+    for (uint64_t i = request->startLogId; i <= request->endLogId; i++)
+    {
+        LogEvent le;
+        if (db_get_log(gCurrentProcessingEpoch, i, le))
+        {
+            int currentSize = resp.size();
+            resp.resize(currentSize + le.getLogSize() + LogEvent::PackedHeaderSize);
+            memcpy(resp.data() + currentSize, le.getRawPtr(), le.getLogSize() + LogEvent::PackedHeaderSize);
+        }
+    }
+    resp.resize(resp.size() + 32 + SIGNATURE_SIZE);
+    uint8_t* pubkey_ptr = resp.data() + resp.size() - SIGNATURE_SIZE - 32;
+    uint8_t* sig_ptr = pubkey_ptr + 32;
+    if (has_sig_in_db)
+    {
+        memcpy(pubkey_ptr, l_pubkey, 32);
+        memcpy(sig_ptr, l_sig, 64);
+    }
+    else
+    {
+        memcpy(pubkey_ptr, nodePublickey.m256i_u8, 32);
+        uint8_t digest[32];
+        KangarooTwelve(resp.data()+8, resp.size()-8-64, digest, 32);
+        sign(nodeSubseed.m256i_u8, nodePublickey.m256i_u8, digest, sig_ptr);
+        db_insert_log_sig(request->tick, request->chunkid, pubkey_ptr, sig_ptr);
+    }
+    header = (RequestResponseHeader*)resp.data();
+    header->setSize(resp.size());
+    conn->enqueueSend(resp.data(), resp.size());
+}
+
 void replyLogRange(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
 {
     RequestAllLogIdRangesFromTick* request = (RequestAllLogIdRangesFromTick*)ptr;
@@ -351,6 +419,48 @@ void replyLogRange(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
         pl.resp.setSize(8 + sizeof(ResponseAllLogIdRangesFromTick));
         pl.resp.setDejavu(dejavu);
         pl.resp.setType(ResponseAllLogIdRangesFromTick::type());
+        conn->enqueueSend((uint8_t *) &pl, sizeof(pl));
+        return;
+    }
+    conn->sendEndPacket(dejavu);
+}
+
+void replyLogRangeSignature(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
+{
+    auto* request = (RequestLogRangeSignature*)ptr;
+    uint32_t tick = request->tick;
+    uint8_t l_pubkey[32];
+    uint8_t l_sig[64];
+    bool has_sig_in_db = db_get_log_range_sig(request->tick, l_pubkey, l_sig);
+    if (!has_sig_in_db && !gIsTrustedNode)
+    {
+        conn->sendEndPacket();
+        return;
+    }
+    struct
+    {
+        RequestResponseHeader resp;
+        ResponseLogRangeSignature logRange;
+    } pl;
+
+    if (db_get_log_range_all_txs(tick, pl.logRange.lr)) {
+        pl.resp.setSize(8 + sizeof(ResponseAllLogIdRangesFromTick));
+        pl.resp.setDejavu(dejavu);
+        pl.resp.setType(ResponseAllLogIdRangesFromTick::type());
+        if (has_sig_in_db)
+        {
+            memcpy(pl.logRange.identity.m256i_u8, l_pubkey, 32);
+            memcpy(pl.logRange.signature, l_sig, 64);
+        }
+        else
+        {
+            memcpy(pl.logRange.identity.m256i_u8, nodePublickey.m256i_u8, 32);
+            m256i digest;
+            KangarooTwelve((uint8_t*)&pl.logRange, sizeof(ResponseLogRangeSignature) - 64, digest.m256i_u8, 32);
+            uint8_t* sig_ptr = ((uint8_t*)&pl.logRange) + sizeof(ResponseLogRangeSignature) - 64;
+            sign(nodeSubseed.m256i_u8, nodePublickey.m256i_u8, digest.m256i_u8, sig_ptr);
+            db_insert_log_range_sig(request->tick, nodePublickey.m256i_u8, sig_ptr);
+        }
         conn->enqueueSend((uint8_t *) &pl, sizeof(pl));
         return;
     }
@@ -418,7 +528,6 @@ void RequestProcessorThread(std::atomic_bool& exitFlag)
             case RequestTickData::type: // TickData
                 replyTickData(conn, header.getDejavu(), ptr);
                 break;
-                //if (type == 27) return true; //REQUEST_CURRENT_TICK_INFO
             case REQUEST_CURRENT_TICK_INFO:
                 replyCurrentTickInfo(conn, header.getDejavu(), ptr);
                 break;
@@ -430,6 +539,12 @@ void RequestProcessorThread(std::atomic_bool& exitFlag)
                 break;
             case RequestAllLogIdRangesFromTick::type(): // logID ranges
                 replyLogRange(conn, header.getDejavu(), ptr);
+                break;
+            case RequestLogEventSignature::type():
+                replyLogEventSignature(conn, header.getDejavu(), ptr);
+                break;
+            case RequestLogRangeSignature::type(): // logID ranges
+                replyLogRangeSignature(conn, header.getDejavu(), ptr);
                 break;
             default:
                 break;

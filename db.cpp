@@ -1130,3 +1130,79 @@ std::vector<uint32_t> db_search_log(uint32_t scIndex, uint32_t scLogType, uint32
 
     return result;
 }
+
+
+// Store first signature seen for a tick/chunk pair; value layout: 32-byte pubkey || 64-byte signature
+void db_insert_log_sig(uint32_t tick, uint32_t chunkid, uint8_t* pubkey, const uint8_t* signature) {
+    if (!g_redis) return;
+    try {
+        const std::string key = "log_sig:" + std::to_string(tick) + ":" + std::to_string(chunkid);
+        uint8_t buf[32 + 64];
+        // pubkey is 32 bytes, signature is 64 bytes
+        std::memcpy(buf, pubkey, 32);
+        std::memcpy(buf + 32, signature, 64);
+        sw::redis::StringView val(reinterpret_cast<const char*>(buf), sizeof(buf));
+        // Only store if not exists
+        g_redis->set(key, val, std::chrono::milliseconds(0), sw::redis::UpdateType::NOT_EXIST);
+    } catch (const sw::redis::Error& e) {
+        Logger::get()->error("Redis error in db_insert_log_sig: {}\n", e.what());
+    }
+}
+
+// Retrieve signature stored for a tick/chunk pair; fills pubkey (32 bytes) and signature (64 bytes) if present
+bool db_get_log_sig(uint32_t tick, uint32_t chunkid, uint8_t* pubkey, uint8_t* signature) {
+    if (!g_redis) {
+        return false;
+    }
+    try {
+        const std::string key = "log_sig:" + std::to_string(tick) + ":" + std::to_string(chunkid);
+        auto val = g_redis->get(key);
+        if (!val) {
+            return false;
+        }
+        if (val->size() != (32 + 64)) {
+            Logger::get()->warn("db_get_log_sig: size mismatch for key {}: got {}, expected {}", key, val->size(), 96);
+            return false;
+        }
+        const uint8_t* data = reinterpret_cast<const uint8_t*>(val->data());
+        std::memcpy(pubkey, data, 32);
+        std::memcpy(signature, data + 32, 64);
+    } catch (const sw::redis::Error& e) {
+        Logger::get()->error("Redis error in db_get_log_sig: {}\n", e.what());
+    }
+    return true;
+}
+
+void db_insert_log_range_sig(uint32_t tick, uint8_t* pubkey, const uint8_t* signature) {
+    if (!g_redis) return;
+    try {
+        const std::string key = "log_range_sig:" + std::to_string(tick);
+        uint8_t buf[32 + 64];
+        std::memcpy(buf, pubkey, 32);
+        std::memcpy(buf + 32, signature, 64);
+        sw::redis::StringView val(reinterpret_cast<const char*>(buf), sizeof(buf));
+        g_redis->set(key, val, std::chrono::milliseconds(0), sw::redis::UpdateType::NOT_EXIST);
+    } catch (const sw::redis::Error& e) {
+        Logger::get()->error("Redis error in db_insert_log_range_sig: {}\n", e.what());
+    }
+}
+bool db_get_log_range_sig(uint32_t tick, uint8_t* pubkey, uint8_t* signature) {
+    if (!g_redis) return false;
+    try {
+        const std::string key = "log_range_sig:" + std::to_string(tick);
+        auto val = g_redis->get(key);
+        if (!val) {
+            return false;
+        }
+        if (val->size() != (32 + 64)) {
+            Logger::get()->warn("db_get_log_range_sig: size mismatch for key {}: got {}, expected {}", key, val->size(), 96);
+            return false;
+        }
+        const uint8_t* data = reinterpret_cast<const uint8_t*>(val->data());
+        std::memcpy(pubkey, data, 32);
+        std::memcpy(signature, data + 32, 64);
+    } catch (const sw::redis::Error& e) {
+        Logger::get()->error("Redis error in db_get_log_range_sig: {}\n", e.what());
+    }
+    return true;
+}

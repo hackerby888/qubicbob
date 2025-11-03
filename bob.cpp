@@ -102,6 +102,7 @@ int runBob(int argc, char *argv[])
         getIdentityFromPublicKey(nodePublickey.m256i_u8, identity, false);
         Logger::get()->info("Trusted node identity: {}", identity);
     }
+    gTrustedEntities = cfg.trustedEntities;
 
     // Defaults for new knobs are already in AppConfig
     unsigned int request_cycle_ms = cfg.request_cycle_ms;

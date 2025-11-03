@@ -25,6 +25,8 @@
 #define refetchLogToTick             (GS().refetchLogToTick)
 #define gIsTrustedNode               (GS().gIsTrustedNode)
 
+#define gTrustedEntities (GS().gTrustedEntities)
+
 #define refetchTickVotes           (GS().refetchTickVotes)
 
 #define nodeSubseed                 (GS().nodeSubseed)

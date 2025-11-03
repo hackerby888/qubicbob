@@ -319,3 +319,9 @@ std::vector<uint32_t> db_search_log(uint32_t scIndex, uint32_t scLogType, uint32
                                     std::string topic1, std::string topic2, std::string topic3);
 
 bool db_vtick_exists(uint32_t tick);
+
+void db_insert_log_sig(uint32_t tick, uint32_t chunkid, uint8_t* pubkey, const uint8_t* signature);
+bool db_get_log_sig(uint32_t tick, uint32_t chunkid, uint8_t* pubkey, uint8_t* signature);
+
+void db_insert_log_range_sig(uint32_t tick, uint8_t* pubkey, const uint8_t* signature);
+bool db_get_log_range_sig(uint32_t tick, uint8_t* pubkey, uint8_t* signature);

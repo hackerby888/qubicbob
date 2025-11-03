@@ -27,8 +27,6 @@ int KT128(const unsigned char *input, size_t inputByteLen,
           unsigned char *output, size_t outputByteLen,
           const unsigned char *customization, size_t customByteLen);
 }
-// the chunk size that has signature from trusted entity in bob
-static constexpr long long LOG_EVENT_CHUNK_SIZE = 1024; // do not edit
 
 static void KangarooTwelve64To32(void* input, void* output)
 {
@@ -647,8 +645,8 @@ void EventRequestFromTrustedNode(ConnectionPool& connPoolWithPwd,
         try {
             while (refetchFromId != -1 && refetchToId != -1 && !stopFlag.load(std::memory_order_relaxed))
             {
-                for (long long s = refetchFromId; s <= refetchToId; s += LOG_EVENT_CHUNK_SIZE) {
-                    long long e = std::min(refetchToId, s + LOG_EVENT_CHUNK_SIZE - 1);
+                for (long long s = refetchFromId; s <= refetchToId; s += BOB_LOG_EVENT_CHUNK_SIZE) {
+                    long long e = std::min(refetchToId, s + BOB_LOG_EVENT_CHUNK_SIZE - 1);
                     RequestLog rl{{0,0,0,0},(unsigned long long)(s),(unsigned long long)(e)};
                     connPoolWithPwd.sendWithPasscodeToRandom((uint8_t *) &rl, 0, sizeof(RequestLog), RequestLog::type(), true);
                 }
@@ -674,8 +672,8 @@ void EventRequestFromTrustedNode(ConnectionPool& connPoolWithPwd,
                 {
                     fromId++;
                 }
-                for (long long s = fromId; s <= endId; s += LOG_EVENT_CHUNK_SIZE) {
-                    long long e = std::min(endId, s + LOG_EVENT_CHUNK_SIZE - 1);
+                for (long long s = fromId; s <= endId; s += BOB_LOG_EVENT_CHUNK_SIZE) {
+                    long long e = std::min(endId, s + BOB_LOG_EVENT_CHUNK_SIZE - 1);
                     RequestLog rl{{0,0,0,0},(unsigned long long)(s),(unsigned long long)(e)};
                     connPoolWithPwd.sendWithPasscodeToRandom((uint8_t *) &rl, 0, sizeof(RequestLog), RequestLog::type(), true);
                 }
@@ -726,9 +724,9 @@ void EventRequestFromNormalNodes(ConnectionPool& connPoolNoPwd,
                     db_get_log_range_for_tick(tick, ts, tl);
                     te = ts + tl - 1;
                     uint32_t chunk_count = 0;
-                    for (long long s = ts; s <= te; s += LOG_EVENT_CHUNK_SIZE, chunk_count++)
+                    for (long long s = ts; s <= te; s += BOB_LOG_EVENT_CHUNK_SIZE, chunk_count++)
                     {
-                        long long e = std::min(te, s + LOG_EVENT_CHUNK_SIZE - 1);
+                        long long e = std::min(te, s + BOB_LOG_EVENT_CHUNK_SIZE - 1);
                         if (isIntersect(s,e,refetchFromId,refetchToId))
                         {
                             RequestLogEventSignature rls{tick, chunk_count,s,e};
@@ -758,9 +756,9 @@ void EventRequestFromNormalNodes(ConnectionPool& connPoolNoPwd,
                 uint32_t chunk_count = 0;
                 if (fromId <= endId)
                 {
-                    for (long long s = tmpFromId; s <= endId; s += LOG_EVENT_CHUNK_SIZE, chunk_count++)
+                    for (long long s = tmpFromId; s <= endId; s += BOB_LOG_EVENT_CHUNK_SIZE, chunk_count++)
                     {
-                        long long e = std::min(endId, s + LOG_EVENT_CHUNK_SIZE - 1);
+                        long long e = std::min(endId, s + BOB_LOG_EVENT_CHUNK_SIZE - 1);
                         if (isIntersect(s,e,fromId,endId))
                         {
                             RequestLogEventSignature rls{gCurrentFetchingLogTick, chunk_count,s,e};

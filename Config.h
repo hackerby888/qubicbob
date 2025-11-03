@@ -2,7 +2,7 @@
 
 #include <string>
 #include <vector>
-
+#include <map>
 struct AppConfig {
     std::vector<std::string> trusted_nodes;
     unsigned int request_cycle_ms = 1000;
@@ -17,6 +17,8 @@ struct AppConfig {
 
     bool is_trusted_node = false;
     std::string node_seed = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+    std::map<std::string, bool> trustedEntities;
 };
 
 // Returns true on success; on failure returns false and fills error with a human-readable message.

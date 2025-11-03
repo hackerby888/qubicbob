@@ -48,6 +48,8 @@ struct GlobalState {
     m256i nodeSubseed;
     m256i nodePublickey;
     m256i nodePrivatekey;
+
+    std::map<std::string, bool> gTrustedEntities;
 };
 
 // Safe, lazy singleton accessor avoids static init order issues.
@@ -71,3 +73,6 @@ GlobalState& GS();
 #define CUSTOM_MESSAGE 255
 #define CUSTOM_MESSAGE_OP_START_DISTRIBUTE_DIVIDENDS 6217575821008262227ULL // STA_DDIV
 #define CUSTOM_MESSAGE_OP_END_DISTRIBUTE_DIVIDENDS 6217575821008457285ULL //END_DDIV
+
+// the chunk size that has signature from trusted entity in bob
+static constexpr long long BOB_LOG_EVENT_CHUNK_SIZE = 1024; // do not edit
