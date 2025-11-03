@@ -140,26 +140,19 @@ void IORequestThread(ConnectionPool& conn_pool, std::atomic_bool& stopFlag, std:
         try {
             if (refetchTickVotes != -1)
             {
-                struct {
-                    RequestResponseHeader header;
-                    unsigned int tick;
-                    unsigned char voteFlags[(NUMBER_OF_COMPUTORS + 7) / 8];
-                } pl{}; // type 14
-                pl.header.setSize(sizeof(pl));
-                pl.header.setType(14);
-                pl.header.randomizeDejavu();
-                pl.tick = refetchTickVotes;
-                memset(pl.voteFlags, 0, sizeof(pl.voteFlags));
+                RequestedQuorumTick rqt{};
+                rqt.tick = refetchTickVotes;
+                memset(rqt.voteFlags, 0, sizeof(rqt.voteFlags));
                 int count = 0;
                 auto tvs = db_get_tick_votes(refetchTickVotes);
                 for (auto& tv: tvs) {
                     int i = tv.computorIndex;
-                    pl.voteFlags[i >> 3] |= (1 << (i & 7)); // turn on the flag if the vote exists
+                    rqt.voteFlags[i >> 3] |= (1 << (i & 7)); // turn on the flag if the vote exists
                     count++;
                 }
                 if (count < 676)
                 {
-                    conn_pool.sendToMany((uint8_t *) &pl, sizeof(pl), 6);
+                    conn_pool.sendToMany((uint8_t *) &rqt, sizeof(rqt), 3, RequestedQuorumTick::type, true);
                 }
                 refetchTickVotes = -1;
             }
@@ -178,16 +171,9 @@ void IORequestThread(ConnectionPool& conn_pool, std::atomic_bool& stopFlag, std:
                     {
                         if (!db_has_tick_data(gCurrentFetchingTick + offset))
                         {
-                            // request if this tick doesn't exist
-                            struct {
-                                RequestResponseHeader header;
-                                unsigned int tick;
-                            } pl{}; // type 16
-                            pl.header.setSize(sizeof(pl));
-                            pl.header.setType(16);
-                            pl.header.randomizeDejavu();
-                            pl.tick = gCurrentFetchingTick + offset;
-                            conn_pool.sendToMany((uint8_t *) &pl, sizeof(pl), 1);
+                            RequestTickData rtd;
+                            rtd.tick = gCurrentFetchingTick + offset;
+                            conn_pool.sendToMany((uint8_t *) &rtd, sizeof(rtd), 1, RequestTickData::type, true);
                         } else {
                             have_next_td = true;
                         }
@@ -195,26 +181,19 @@ void IORequestThread(ConnectionPool& conn_pool, std::atomic_bool& stopFlag, std:
 
                     {
                         // tick votes
-                        struct {
-                            RequestResponseHeader header;
-                            unsigned int tick;
-                            unsigned char voteFlags[(NUMBER_OF_COMPUTORS + 7) / 8];
-                        } pl{}; // type 14
-                        pl.header.setSize(sizeof(pl));
-                        pl.header.setType(14);
-                        pl.header.randomizeDejavu();
-                        pl.tick = gCurrentFetchingTick + offset;
-                        memset(pl.voteFlags, 0, sizeof(pl.voteFlags));
+                        RequestedQuorumTick rqt{};
+                        rqt.tick = gCurrentFetchingTick + offset;
+                        memset(rqt.voteFlags, 0, sizeof(rqt.voteFlags));
                         int count = 0;
                         auto tvs = db_get_tick_votes(gCurrentFetchingTick + offset);
                         for (auto& tv: tvs) {
                             int i = tv.computorIndex;
-                            pl.voteFlags[i >> 3] |= (1 << (i & 7)); // turn on the flag if the vote exists
+                            rqt.voteFlags[i >> 3] |= (1 << (i & 7)); // turn on the flag if the vote exists
                             count++;
                         }
                         if (count < 676)
                         {
-                            conn_pool.sendToMany((uint8_t *) &pl, sizeof(pl), 1);
+                            conn_pool.sendToMany((uint8_t *) &rqt, sizeof(rqt), 1, RequestedQuorumTick::type, true);
                         }
                     }
 
@@ -223,17 +202,9 @@ void IORequestThread(ConnectionPool& conn_pool, std::atomic_bool& stopFlag, std:
                         if (have_next_td) {
                             TickData td{};
                             db_get_tick_data(gCurrentFetchingTick + offset, td);
-                            struct {
-                                RequestResponseHeader header;
-                                unsigned int tick;
-                                unsigned char flag[NUMBER_OF_TRANSACTIONS_PER_TICK / 8];
-                            } pl{}; // type 29
-
-                            pl.header.setSize(sizeof(pl));
-                            pl.header.setType(29);
-                            pl.header.randomizeDejavu();
-                            pl.tick = gCurrentFetchingTick + offset;
-                            memset(pl.flag, 0, sizeof(pl.flag));
+                            RequestedTickTransactions rtt;
+                            rtt.tick = gCurrentFetchingTick + offset;
+                            memset(rtt.flag, 0, sizeof(rtt.flag));
                             int count = 0;
                             for (unsigned int i = 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK; i++) {
                                 if (td.transactionDigests[i] == m256i::zero()) continue;
@@ -241,13 +212,13 @@ void IORequestThread(ConnectionPool& conn_pool, std::atomic_bool& stopFlag, std:
                                 getIdentityFromPublicKey(td.transactionDigests[i].m256i_u8, qhash, true);
                                 std::string hash_str(qhash);
                                 if (db_check_transaction_exist(hash_str)) {
-                                    pl.flag[i >> 3] |= (1 << (i & 7)); // turn on the flag if the tx exists
+                                    rtt.flag[i >> 3] |= (1 << (i & 7)); // turn on the flag if the tx exists
                                 } else
                                 {
                                     count++;
                                 }
                             }
-                            if (count) conn_pool.sendToMany((uint8_t *) &pl, sizeof(pl), 1);
+                            if (count) conn_pool.sendToMany((uint8_t *) &rtt, sizeof(rtt), 1, RequestedTickTransactions::type, true);
                         }
                     }
                 }

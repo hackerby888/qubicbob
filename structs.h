@@ -135,11 +135,6 @@ struct TickData
 typedef struct
 {
     unsigned int tick;
-} RequestedTickData;
-
-typedef struct
-{
-    RequestedTickData requestedTickData;
     enum {
         type = 16,
     };
@@ -157,7 +152,10 @@ typedef struct
 typedef struct
 {
     unsigned int tick;
-    unsigned char transactionFlags[NUMBER_OF_TRANSACTIONS_PER_TICK / 8];
+    unsigned char flag[NUMBER_OF_TRANSACTIONS_PER_TICK / 8];
+    enum {
+        type = 29,
+    };
 } RequestedTickTransactions;
 
 typedef struct

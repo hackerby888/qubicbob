@@ -191,7 +191,7 @@ void replyTransaction(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
     {
         if (td.transactionDigests[i] != m256i::zero())
         {
-            if (!(request->transactionFlags[i >> 3] & (1 << (i & 7))))
+            if (!(request->flag[i >> 3] & (1 << (i & 7))))
             {
                 char hash[64] = {0};
                 getIdentityFromPublicKey(td.transactionDigests[i].m256i_u8, hash, true);

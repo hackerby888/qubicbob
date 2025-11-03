@@ -4,8 +4,6 @@
 std::string LogEvent::parseToJson()
 {
     uint8_t* log_header = getRawPtr();
-    uint8_t* body_data = log_header + PackedHeaderSize;
-
     auto hex_encode = [](const uint8_t* data, size_t len) -> std::string {
         static const char* hexdigits = "0123456789abcdef";
         std::string out;
