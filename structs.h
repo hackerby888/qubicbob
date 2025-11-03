@@ -382,49 +382,51 @@ static_assert(sizeof(Computors) == 2 + 32 * NUMBER_OF_COMPUTORS + SIGNATURE_SIZE
 #pragma pack(pop)
 
 // list of structs that bob uses to communicate logging events
-struct RequestLogWithSignature // Fetches log
-{
-    unsigned long long passcode[4];
-    unsigned long long fromid;
-    unsigned long long toid;
 
+// custom request in bob => request a signature from trusted entities about logging [startLogId, endLogId]
+struct RequestLogEventSignature
+{
+    uint32_t tick;
+    uint32_t chunkid;
     static constexpr unsigned char type()
     {
         return 144;
     }
 };
 
-// verified logging event in bob
-struct RespondLogWithSignature
+struct RespondLogEventSignature
 {
-    // Variable-size log;
-
+    m256i identity;
+    uint32_t tick;
+    uint32_t chunkid;
+    long long startLogId, endLogId;
+    uint8_t signature[64];
+    // dynamic size after this, signature is sign(K12(all_log))
     static constexpr unsigned char type()
     {
         return 145;
     }
 };
 
-struct RequestAllLogIdRangesFromTickWithSignature
+// ask for signature of the log range
+struct RequestLogRangeSignature
 {
-    unsigned long long passcode[4];
-    unsigned int tick;
-
+    uint32_t tick;
     static constexpr unsigned char type()
     {
-        return 150;
+        return 146;
     }
 };
 
-struct ResponseAllLogIdRangesFromTickWithSignature
+struct ResponseLogRangeSignature
 {
-    long long fromLogId[LOG_TX_PER_TICK];
-    long long length[LOG_TX_PER_TICK];
-    m256i pubkey;
-    unsigned char signature[SIGNATURE_SIZE];
-
+    m256i identity;
+    uint32_t tick;
+    uint32_t padding;
+    long long startLogId, endLogId;
+    uint8_t signature[64];
     static constexpr unsigned char type()
     {
-        return 151;
+        return 147;
     }
 };

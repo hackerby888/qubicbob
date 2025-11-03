@@ -27,8 +27,8 @@ int KT128(const unsigned char *input, size_t inputByteLen,
           unsigned char *output, size_t outputByteLen,
           const unsigned char *customization, size_t customByteLen);
 }
-// Constants (kept local to this translation unit)
-static constexpr long long MAX_LOG_EVENT_PER_CALL = 100000;
+// the chunk size that has signature from trusted entity in bob
+static constexpr long long LOG_EVENT_CHUNK_SIZE = 1024; // do not edit
 
 static void KangarooTwelve64To32(void* input, void* output)
 {
@@ -632,11 +632,10 @@ verifyNodeStateDigest:
     Logger::get()->info("verifyLoggingEvent stopping gracefully.");
 }
 
-// The logging fetcher thread: uses its own connection, shares DB with other threads.
-void LoggingEventRequestThread(ConnectionPool& connPoolWithPwd,
-                               ConnectionPool& connPoolNoPwd,
-                               std::atomic_bool& stopFlag,
-                               std::chrono::milliseconds request_logging_cycle_ms)
+// The logging fetcher thread from trusted nodes only
+void EventRequestFromTrustedNode(ConnectionPool& connPoolWithPwd,
+                                 std::atomic_bool& stopFlag,
+                                 std::chrono::milliseconds request_logging_cycle_ms)
 {
     auto idleBackoff = request_logging_cycle_ms;
 
@@ -644,11 +643,10 @@ void LoggingEventRequestThread(ConnectionPool& connPoolWithPwd,
         try {
             while (refetchFromId != -1 && refetchToId != -1 && !stopFlag.load(std::memory_order_relaxed))
             {
-                for (long long s = refetchFromId; s <= refetchToId; s += MAX_LOG_EVENT_PER_CALL) {
-                    long long e = std::min(refetchToId, s + MAX_LOG_EVENT_PER_CALL - 1);
+                for (long long s = refetchFromId; s <= refetchToId; s += LOG_EVENT_CHUNK_SIZE) {
+                    long long e = std::min(refetchToId, s + LOG_EVENT_CHUNK_SIZE - 1);
                     RequestLog rl{{0,0,0,0},(unsigned long long)(s),(unsigned long long)(e)};
                     connPoolWithPwd.sendWithPasscodeToRandom((uint8_t *) &rl, 0, sizeof(RequestLog), RequestLog::type(), true);
-                    connPoolNoPwd.sendToRandom((uint8_t *) &rl, sizeof(RequestLog), RequestLogWithSignature::type(), true);
                 }
                 SLEEP(100);
             }
@@ -658,7 +656,6 @@ void LoggingEventRequestThread(ConnectionPool& connPoolWithPwd,
             {
                 RequestAllLogIdRangesFromTick ralr{{0,0,0,0},gCurrentFetchingLogTick};
                 connPoolWithPwd.sendWithPasscodeToRandom((uint8_t*)&ralr, 0, sizeof(RequestAllLogIdRangesFromTick), RequestAllLogIdRangesFromTick::type(), true);
-                connPoolNoPwd.sendToRandom((uint8_t*)&ralr, sizeof(RequestAllLogIdRangesFromTick), RequestAllLogIdRangesFromTickWithSignature::type(), true);
             } else {
                 long long fromId, length;
                 db_get_log_range_for_tick(gCurrentFetchingLogTick, fromId, length);
@@ -673,11 +670,10 @@ void LoggingEventRequestThread(ConnectionPool& connPoolWithPwd,
                 {
                     fromId++;
                 }
-                for (long long s = fromId; s <= endId; s += MAX_LOG_EVENT_PER_CALL) {
-                    long long e = std::min(endId, s + MAX_LOG_EVENT_PER_CALL - 1);
+                for (long long s = fromId; s <= endId; s += LOG_EVENT_CHUNK_SIZE) {
+                    long long e = std::min(endId, s + LOG_EVENT_CHUNK_SIZE - 1);
                     RequestLog rl{{0,0,0,0},(unsigned long long)(s),(unsigned long long)(e)};
                     connPoolWithPwd.sendWithPasscodeToRandom((uint8_t *) &rl, 0, sizeof(RequestLog), RequestLog::type(), true);
-                    connPoolNoPwd.sendToRandom((uint8_t *) &rl, sizeof(RequestLog), RequestLog::type(), true);
                 }
                 if (fromId > endId)
                 {
@@ -692,7 +688,6 @@ void LoggingEventRequestThread(ConnectionPool& connPoolWithPwd,
                 {
                     RequestAllLogIdRangesFromTick ralr{{0,0,0,0},gCurrentFetchingLogTick + i};
                     connPoolWithPwd.sendWithPasscodeToRandom((uint8_t*)&ralr, 0, sizeof(RequestAllLogIdRangesFromTick), RequestAllLogIdRangesFromTick::type(), true);
-                    connPoolNoPwd.sendToRandom((uint8_t*)&ralr, sizeof(RequestAllLogIdRangesFromTick), RequestAllLogIdRangesFromTick::type(), true);
                 }
             }
             SLEEP(idleBackoff);
@@ -701,5 +696,5 @@ void LoggingEventRequestThread(ConnectionPool& connPoolWithPwd,
         }
     }
 
-    Logger::get()->info("LoggingEventThread stopping gracefully.");
+    Logger::get()->info("EventRequestFromTrustedNode stopping gracefully.");
 }

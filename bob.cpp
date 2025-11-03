@@ -18,7 +18,7 @@
 
 void IOVerifyThread(std::atomic_bool& stopFlag);
 void IORequestThread(ConnectionPool& conn_pool, std::atomic_bool& stopFlag, std::chrono::milliseconds requestCycle, uint32_t futureOffset);
-void LoggingEventRequestThread(ConnectionPool& connPoolWithPwd, ConnectionPool& connPoolNoPwd, std::atomic_bool& stopFlag, std::chrono::milliseconds requestCycle);
+void EventRequestFromTrustedNode(ConnectionPool& connPoolWithPwd, std::atomic_bool& stopFlag, std::chrono::milliseconds request_logging_cycle_ms);
 void connReceiver(QCPtr& conn, const bool isTrustedNode, std::atomic_bool& stopFlag);
 void DataProcessorThread(std::atomic_bool& exitFlag);
 void RequestProcessorThread(std::atomic_bool& exitFlag);
@@ -137,7 +137,6 @@ int runBob(int argc, char *argv[])
     // Try endpoints in order, connect to the first that works
     ConnectionPool connPoolAll;
     ConnectionPool connPoolWithPwd; // conn pool with passcode
-    ConnectionPool connPoolNoPwd; // conn pool WITHOUT passcode
     for (const auto& endpoint : endpoints) {
         // Parse ip:port[:pass0-pass1-pass2-pass3]
         auto p1 = endpoint.find(':');
@@ -259,7 +258,6 @@ int runBob(int argc, char *argv[])
         }
         connPoolAll.add(conn);
         if (has_passcode) connPoolWithPwd.add(conn);
-        else connPoolNoPwd.add(conn);
     }
     stopFlag.store(false);
     auto request_thread = std::thread(
@@ -278,9 +276,9 @@ int runBob(int argc, char *argv[])
         IOVerifyThread(std::ref(stopFlag));
     });
     auto log_request_thread = std::thread([&](){
-        set_this_thread_name("log-req");
-        LoggingEventRequestThread(std::ref(connPoolWithPwd), std::ref(connPoolNoPwd), std::ref(stopFlag),
-                                  std::chrono::milliseconds(request_logging_cycle_ms));
+        set_this_thread_name("trusted-log-req");
+        EventRequestFromTrustedNode(std::ref(connPoolWithPwd), std::ref(stopFlag),
+                                    std::chrono::milliseconds(request_logging_cycle_ms));
     });
     auto indexer_thread = std::thread([&](){
         set_this_thread_name("indexer");
