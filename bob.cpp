@@ -89,6 +89,7 @@ int runBob(int argc, char *argv[])
         return -1;
     }
 
+    gIsTrustedNode = cfg.is_trusted_node;
     if (cfg.is_trusted_node)
     {
         getSubseedFromSeed((uint8_t*)cfg.node_seed.c_str(), nodeSubseed.m256i_u8);

@@ -23,6 +23,7 @@
 #define refetchToId                (GS().refetchToId)
 #define refetchLogFromTick             (GS().refetchLogFromTick)
 #define refetchLogToTick             (GS().refetchLogToTick)
+#define gIsTrustedNode               (GS().gIsTrustedNode)
 
 #define refetchTickVotes           (GS().refetchTickVotes)
 

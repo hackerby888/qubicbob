@@ -44,6 +44,7 @@ struct GlobalState {
     long long refetchTickVotes{-1};
 
     // trusted node info
+    bool gIsTrustedNode;
     m256i nodeSubseed;
     m256i nodePublickey;
     m256i nodePrivatekey;
