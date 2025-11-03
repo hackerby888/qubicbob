@@ -71,31 +71,3 @@ GlobalState& GS();
 #define CUSTOM_MESSAGE 255
 #define CUSTOM_MESSAGE_OP_START_DISTRIBUTE_DIVIDENDS 6217575821008262227ULL // STA_DDIV
 #define CUSTOM_MESSAGE_OP_END_DISTRIBUTE_DIVIDENDS 6217575821008457285ULL //END_DDIV
-
-static bool checkAllowedTypeForNonTrusted(int type)
-{
-    if (type == 45) return false;
-    if (type == 51) return false;
-    return true;
-}
-
-static bool isRequestType(int type)
-{
-    if (type == 11) return true; //request computor list
-    if (type == 14) return true; //request vote
-    if (type == 16) return true; //request tickdata
-    if (type == 27) return true; //REQUEST_CURRENT_TICK_INFO
-    if (type == 29) return true; // request tx
-    if (type == 44) return true; // request log
-    if (type == 50) return true; // request log range
-    return false;
-}
-static bool isDataType(int type)
-{
-    if (type == 3) return true; //vote
-    if (type == 8) return true; //tickdata
-    if (type == 24) return true; // tx
-    if (type == 45) return true; // log
-    if (type == 51) return true; //  logrange
-    return false;
-}

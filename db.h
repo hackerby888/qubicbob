@@ -53,47 +53,6 @@ namespace sw { namespace redis { class Redis; }}
 #define NUMBER_OF_TRANSACTIONS_PER_TICK 1024
 #define MAX_NUMBER_OF_CONTRACTS 1024
 
-// ---- Data Structures to be Stored ----
-
-struct TickVote
-{
-    unsigned short computorIndex;
-    unsigned short epoch;
-    unsigned int tick;
-
-    unsigned short millisecond;
-    unsigned char second;
-    unsigned char minute;
-    unsigned char hour;
-    unsigned char day;
-    unsigned char month;
-    unsigned char year;
-
-    unsigned int prevResourceTestingDigest;
-    unsigned int saltedResourceTestingDigest;
-
-    unsigned int prevTransactionBodyDigest;
-    unsigned int saltedTransactionBodyDigest;
-
-    m256i prevSpectrumDigest;
-    m256i prevUniverseDigest;
-    m256i prevComputerDigest;
-    m256i saltedSpectrumDigest;
-    m256i saltedUniverseDigest;
-    m256i saltedComputerDigest;
-
-    m256i transactionDigest;
-    m256i expectedNextTickTransactionDigest;
-
-    unsigned char signature[SIGNATURE_SIZE];
-};
-
-struct FullTickStruct
-{
-    TickData td;
-    TickVote tv[676];
-};
-
 // ---- Database Interface ----
 
 /**

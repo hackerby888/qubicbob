@@ -19,6 +19,9 @@
 void IOVerifyThread(std::atomic_bool& stopFlag);
 void IORequestThread(ConnectionPool& conn_pool, std::atomic_bool& stopFlag, std::chrono::milliseconds requestCycle, uint32_t futureOffset);
 void EventRequestFromTrustedNode(ConnectionPool& connPoolWithPwd, std::atomic_bool& stopFlag, std::chrono::milliseconds request_logging_cycle_ms);
+void EventRequestFromNormalNodes(ConnectionPool& connPoolNoPwd,
+                                 std::atomic_bool& stopFlag,
+                                 std::chrono::milliseconds request_logging_cycle_ms);
 void connReceiver(QCPtr& conn, const bool isTrustedNode, std::atomic_bool& stopFlag);
 void DataProcessorThread(std::atomic_bool& exitFlag);
 void RequestProcessorThread(std::atomic_bool& exitFlag);

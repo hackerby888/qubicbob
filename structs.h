@@ -132,6 +132,51 @@ struct TickData
     }
 };
 
+
+// ---- Data Structures to be Stored ----
+
+struct TickVote
+{
+    unsigned short computorIndex;
+    unsigned short epoch;
+    unsigned int tick;
+
+    unsigned short millisecond;
+    unsigned char second;
+    unsigned char minute;
+    unsigned char hour;
+    unsigned char day;
+    unsigned char month;
+    unsigned char year;
+
+    unsigned int prevResourceTestingDigest;
+    unsigned int saltedResourceTestingDigest;
+
+    unsigned int prevTransactionBodyDigest;
+    unsigned int saltedTransactionBodyDigest;
+
+    m256i prevSpectrumDigest;
+    m256i prevUniverseDigest;
+    m256i prevComputerDigest;
+    m256i saltedSpectrumDigest;
+    m256i saltedUniverseDigest;
+    m256i saltedComputerDigest;
+
+    m256i transactionDigest;
+    m256i expectedNextTickTransactionDigest;
+
+    unsigned char signature[SIGNATURE_SIZE];
+    static constexpr unsigned char type()
+    {
+        return 3;
+    }
+};
+
+struct FullTickStruct
+{
+    TickData td;
+    TickVote tv[676];
+};
 typedef struct
 {
     unsigned int tick;

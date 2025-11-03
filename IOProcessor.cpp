@@ -313,6 +313,35 @@ void IOVerifyThread(std::atomic_bool& stopFlag)
     }
 }
 
+static bool checkAllowedTypeForNonTrusted(int type)
+{
+    if (type == RespondLog::type()) return false;
+    if (type == ResponseAllLogIdRangesFromTick::type()) return false;
+    return true;
+}
+
+static bool isRequestType(int type)
+{
+    if (type == REQUEST_COMPUTOR_LIST) return true;                   // request computor list
+    if (type == RequestedQuorumTick::type) return true;               // request vote
+    if (type == RequestTickData::type) return true;                   // request tickdata
+    if (type == REQUEST_CURRENT_TICK_INFO) return true;               // REQUEST_CURRENT_TICK_INFO
+    if (type == RequestedTickTransactions::type) return true;         // request tx
+    if (type == RequestLog::type()) return true;                      // request log
+    if (type == RequestAllLogIdRangesFromTick::type()) return true;   // request log range
+    return false;
+}
+static bool isDataType(int type)
+{
+    if (type == TickVote::type()) return true;                               // vote
+    if (type == TickData::type()) return true;                        // tickdata
+    if (type == BROADCAST_TRANSACTION) return true;                                 // tx
+    if (type == RespondLog::type()) return true;                      // log
+    if (type == ResponseAllLogIdRangesFromTick::type()) return true;  // logrange
+    return false;
+}
+
+
 // Receiver thread: continuously receives full packets and enqueues them into the global round buffer (MRB).
 void connReceiver(QCPtr& conn, const bool isTrustedNode, std::atomic_bool& stopFlag)
 {
