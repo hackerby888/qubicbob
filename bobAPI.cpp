@@ -21,6 +21,11 @@ std::string bobGetBalance(const char* identity)
     if (index < 0) return "{\"error\": \"Wrong identity format\"}";
 
     const auto& e = spectrum[index];
+    std::string error = "null";
+    if (e.numberOfIncomingTransfers > gCurrentVerifyLoggingTick - 1 || e.numberOfOutgoingTransfers > gCurrentVerifyLoggingTick - 1)
+    {
+        error = "This entity is being processed. currentBobTick is smaller than latestIncomingTransferTick/latestOutgoingTransferTick";
+    }
     return std::string("{") +
            "\"incomingAmount\":" + std::to_string(e.incomingAmount) +
             ",\"outgoingAmount\":" + std::to_string(e.outgoingAmount) +
@@ -30,6 +35,7 @@ std::string bobGetBalance(const char* identity)
            ",\"latestIncomingTransferTick\":" + std::to_string(e.latestIncomingTransferTick) +
            ",\"latestOutgoingTransferTick\":" + std::to_string(e.latestOutgoingTransferTick) +
             ",\"currentBobTick:\":" + std::to_string(gCurrentVerifyLoggingTick - 1) +
+            ",\"error:\":" + error +
            "}";
 }
 
