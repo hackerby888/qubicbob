@@ -1,6 +1,5 @@
 #include "Config.h"
 #include "connection.h"
-#include "parser.h"
 #include "structs.h"
 #include "Logger.h"
 #include "GlobalVar.h"
