@@ -137,6 +137,8 @@ void IORequestThread(ConnectionPool& conn_pool, std::atomic_bool& stopFlag, std:
     const auto errorBackoff = 2000ms; // Backoff after an exception
     auto requestClock = std::chrono::high_resolution_clock::now() - requestCycle;
     while (!stopFlag.load(std::memory_order_relaxed)) {
+        if (gIsEndEpoch) break;
+
         try {
             if (refetchTickVotes != -1)
             {
@@ -296,6 +298,7 @@ void IOVerifyThread(std::atomic_bool& stopFlag)
     memset((void*)votes.data(), 0, votes.size() * sizeof(TickVote));
     while (!stopFlag.load())
     {
+        if (gIsEndEpoch) break;
         if (!verifyQuorum(gCurrentFetchingTick, td, votes))
         {
             std::this_thread::sleep_for(idleBackoff);

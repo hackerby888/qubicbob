@@ -28,7 +28,7 @@
 #define gTrustedEntities (GS().gTrustedEntities)
 
 #define refetchTickVotes           (GS().refetchTickVotes)
-
+#define gIsEndEpoch (GS().gIsEndEpoch)
 #define nodeSubseed                 (GS().nodeSubseed)
 #define nodePublickey                 (GS().nodePublickey)
 #define nodePrivatekey                 (GS().nodePrivatekey)

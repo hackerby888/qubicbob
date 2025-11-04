@@ -360,6 +360,7 @@ static std::string bytes_to_hex_string(const unsigned char* bytes, size_t size) 
 
 void verifyLoggingEvent(std::atomic_bool& stopFlag)
 {
+    gIsEndEpoch = false;
     uint32_t lastVerifiedTick = db_get_latest_verified_tick();
     std::string spectrumFilePath;
     std::string assetFilePath;
@@ -547,6 +548,10 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
                             }
                             processDistributeDividends(dd);
                         }
+                        if (msg == CUSTOM_MESSAGE_OP_END_EPOCH)
+                        {
+                            gIsEndEpoch = true;
+                        }
                         break;
                     }
                     default:
@@ -629,6 +634,35 @@ verifyNodeStateDigest:
                 saveState(lastVerifiedTick, processToTick);
             }
             gCurrentVerifyLoggingTick = processToTick + 1;
+        }
+        if (gIsEndEpoch)
+        {
+            // begin epoch transition procedure
+            uint16_t nextEpoch = gCurrentProcessingEpoch + 1;
+            Logger::get()->info("Saving verified universe/spectrum for new epoch", nextEpoch);
+            std::string tickSpectrum = "spectrum." + std::to_string(nextEpoch);
+            std::string tickUniverse = "universe." + std::to_string(nextEpoch);
+
+            FILE *f = fopen(tickSpectrum.c_str(), "wb");
+            if (!f) {
+                Logger::get()->error("Failed to open spectrum file for writing: {}", tickSpectrum);
+            } else {
+                if (fwrite(spectrum, sizeof(EntityRecord), SPECTRUM_CAPACITY, f) != SPECTRUM_CAPACITY) {
+                    Logger::get()->error("Failed to write spectrum file: {}", tickSpectrum);
+                }
+                fclose(f);
+            }
+
+            f = fopen(tickUniverse.c_str(), "wb");
+            if (!f) {
+                Logger::get()->error("Failed to open universe file for writing: {}", tickUniverse);
+            } else {
+                if (fwrite(assets, sizeof(AssetRecord), ASSETS_CAPACITY, f) != ASSETS_CAPACITY) {
+                    Logger::get()->error("Failed to write universe file: {}", tickUniverse);
+                }
+                fclose(f);
+            }
+            break;
         }
     }
     Logger::get()->info("verifyLoggingEvent stopping gracefully.");
@@ -781,5 +815,5 @@ void EventRequestFromNormalNodes(ConnectionPool& connPoolNoPwd,
         }
     }
 
-    Logger::get()->info("EventRequestFromTrustedNode stopping gracefully.");
+    Logger::get()->info("EventRequestFromNormalNodes stopping gracefully.");
 }

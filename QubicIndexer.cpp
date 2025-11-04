@@ -271,7 +271,17 @@ void indexVerifiedTicks(std::atomic_bool& stopFlag)
     while (!stopFlag.load(std::memory_order_relaxed))
     {
         uint32_t nextTick = static_cast<uint32_t>(lastIndexed + 1);
-        while (nextTick >= gCurrentVerifyLoggingTick && !stopFlag.load(std::memory_order_relaxed)) SLEEP(10);
+        if (nextTick == gCurrentVerifyLoggingTick && gIsEndEpoch)
+        {
+            // the final thread in bob 4-processors model
+            stopFlag = true;
+            break;
+        }
+        while (nextTick >= gCurrentVerifyLoggingTick && !stopFlag.load(std::memory_order_relaxed))
+        {
+            SLEEP(10);
+            continue;
+        }
         if (stopFlag.load(std::memory_order_relaxed)) break;
 
         // Only proceed when the verified-compressed record exists.

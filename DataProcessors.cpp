@@ -23,6 +23,11 @@ void processTickVote(uint8_t* ptr)
     TickVote _vote;
     memcpy((void*)&_vote, ptr, sizeof(TickVote));
     auto vote = (TickVote*)&_vote;
+
+    if (vote->epoch != gCurrentProcessingEpoch) // may also tell that epoch switch
+    {
+        return;
+    }
     uint8_t* compPubkey = computorsList.publicKeys[vote->computorIndex].m256i_u8;
     vote->computorIndex ^= 3;
     bool ok = verifySignature((void *) vote, compPubkey, sizeof(TickVote));
@@ -42,7 +47,10 @@ void processTickData(uint8_t* ptr)
     TickData _data;
     memcpy((void*)&_data, ptr, sizeof(TickData));
     auto* data = (TickData*)&_data;
-    if (data->epoch != gCurrentProcessingEpoch) return;
+    if (data->epoch != gCurrentProcessingEpoch) // may also tell that epoch switch
+    {
+        return;
+    }
     uint8_t* compPubkey = computorsList.publicKeys[data->computorIndex].m256i_u8;
     data->computorIndex ^= 8;
     bool ok = verifySignature((void *) data, compPubkey, sizeof(TickData));

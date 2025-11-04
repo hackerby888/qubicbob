@@ -122,8 +122,6 @@ int runBob(int argc, char *argv[])
     }
 
     {
-        // initialize gCurrentProcessingTick with 1st connection
-
         db_connect(KEYDB_CONNECTION_STRING);
         uint32_t tick;
         uint16_t epoch;
@@ -323,6 +321,7 @@ int runBob(int argc, char *argv[])
     StopQubicServer();
     stopRESTServer();
     ProfilerRegistry::instance().printSummary();
+    if (gIsEndEpoch) Logger::get()->info("Received END_EPOCH message. Closing BOB.");
     Logger::get()->info("Shutting down logger");
     spdlog::shutdown();
     return 0;
