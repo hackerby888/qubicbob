@@ -32,19 +32,43 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
         error = "invalid JSON: root must be an object";
         return false;
     }
-
-    // 'trusted-node' is required and must be an array of strings
-    if (!root.isMember("trusted-node") || !root["trusted-node"].isArray()) {
-        error = "'trusted-node' array is required";
-        return false;
-    }
+    
+    // Parse 'trusted-node' if present (array of strings)
     out.trusted_nodes.clear();
-    for (const auto& v : root["trusted-node"]) {
-        if (!v.isString()) {
-            error = "Invalid type: elements of 'trusted-node' must be strings";
+    if (root.isMember("trusted-node")) {
+        if (!root["trusted-node"].isArray()) {
+            error = "Invalid type: array required for key 'trusted-node'";
             return false;
         }
-        out.trusted_nodes.emplace_back(v.asString());
+        for (const auto& v : root["trusted-node"]) {
+            if (!v.isString()) {
+                error = "Invalid type: elements of 'trusted-node' must be strings";
+                return false;
+            }
+            out.trusted_nodes.emplace_back(v.asString());
+        }
+    }
+
+    // Parse 'p2p-node' if present (array of strings)
+    out.p2p_nodes.clear();
+    if (root.isMember("p2p-node")) {
+        if (!root["p2p-node"].isArray()) {
+            error = "Invalid type: array required for key 'p2p-node'";
+            return false;
+        }
+        for (const auto& v : root["p2p-node"]) {
+            if (!v.isString()) {
+                error = "Invalid type: elements of 'p2p-node' must be strings";
+                return false;
+            }
+            out.p2p_nodes.emplace_back(v.asString());
+        }
+    }
+
+    // Require at least one list to be non-empty
+    if (out.trusted_nodes.empty() && out.p2p_nodes.empty()) {
+        error = "Either 'trusted-node' or 'p2p-node' array is required";
+        return false;
     }
 
     // Optional fields (use defaults from AppConfig if absent)
