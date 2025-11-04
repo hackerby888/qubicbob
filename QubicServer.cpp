@@ -13,7 +13,7 @@
 #include <fcntl.h>
 
 #include "Logger.h"
-#include "connection.h"
+#include "connection/connection.h"
 #include "shim.h"
 // Forward declaration from IOProcessor.cpp
 void connReceiver(QCPtr& conn, const bool isTrustedNode, std::atomic_bool& stopFlag);

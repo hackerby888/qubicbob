@@ -1,4 +1,4 @@
-#include "connection.h"
+#include "connection/connection.h"
 // mapping from dejavu to requested data
 // usage: some response doesn't contain requested info
 // if code makes several queries, we need this map to know which

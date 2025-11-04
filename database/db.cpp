@@ -1,11 +1,11 @@
 #include "db.h"
-#include <sw/redis++/redis++.h>
+#include "cmake-build-release/_deps/redis-plus-plus-src/src/sw/redis++/redis++.h"
 #include <stdexcept>
 #include <vector>
 #include <sstream>
 #include <iomanip>
 #include <future>
-#include <zstd.h> // zstd compression/decompression
+#include "zstd.h" // zstd compression/decompression
 #include "Logger.h"
 #include "K12AndKeyUtil.h"
 #include <cstdlib> // std::exit
@@ -1186,6 +1186,41 @@ void db_insert_log_range_sig(uint32_t tick, uint8_t* pubkey, const uint8_t* sign
         Logger::get()->error("Redis error in db_insert_log_range_sig: {}\n", e.what());
     }
 }
+
+bool db_insert_bootstrap_info(uint16_t epoch, const BootstrapInfo &info) {
+    if (!g_redis) return false;
+    try {
+        const std::string key = "bootstrap:" + std::to_string(epoch);
+        sw::redis::StringView val(reinterpret_cast<const char *>(&info), sizeof(BootstrapInfo));
+        g_redis->set(key, val);
+        return true;
+    } catch (const sw::redis::Error &e) {
+        Logger::get()->error("Redis error in db_insert_bootstrap_info: {}\n", e.what());
+        return false;
+    }
+}
+
+bool db_get_bootstrap_info(uint16_t epoch, BootstrapInfo &info) {
+    if (!g_redis) return false;
+    try {
+        const std::string key = "bootstrap:" + std::to_string(epoch);
+        auto val = g_redis->get(key);
+        if (!val) {
+            return false;
+        }
+        if (val->size() != sizeof(BootstrapInfo)) {
+            Logger::get()->warn("BootstrapInfo size mismatch for key {}: got {}, expected {}",
+                                key.c_str(), val->size(), sizeof(BootstrapInfo));
+            return false;
+        }
+        memcpy(&info, val->data(), sizeof(BootstrapInfo));
+        return true;
+    } catch (const sw::redis::Error &e) {
+        Logger::get()->error("Redis error in db_get_bootstrap_info: {}\n", e.what());
+        return false;
+    }
+}
+
 bool db_get_log_range_sig(uint32_t tick, uint8_t* pubkey, uint8_t* signature) {
     if (!g_redis) return false;
     try {
@@ -1206,3 +1241,4 @@ bool db_get_log_range_sig(uint32_t tick, uint8_t* pubkey, uint8_t* signature) {
     }
     return true;
 }
+

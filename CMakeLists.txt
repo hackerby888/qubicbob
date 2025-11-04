@@ -103,8 +103,8 @@ if (NOT COMPILER_SUPPORTS_AVX2)
 endif ()
 
 # --- Project Sources ---
-SET(FILES ${CMAKE_SOURCE_DIR}/connection.cpp
-          ${CMAKE_SOURCE_DIR}/db.cpp
+SET(FILES ${CMAKE_SOURCE_DIR}/connection/connection.cpp
+          ${CMAKE_SOURCE_DIR}/database/db.cpp
 		  ${CMAKE_SOURCE_DIR}/Logger.cpp
 		  ${CMAKE_SOURCE_DIR}/DataProcessors.cpp
 		  ${CMAKE_SOURCE_DIR}/IOProcessor.cpp

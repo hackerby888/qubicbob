@@ -107,6 +107,15 @@ typedef struct
     unsigned int initialTick;
 } CurrentTickInfo;
 
+struct BootstrapInfo
+{
+    unsigned short epoch;
+    unsigned short padding;
+    unsigned int initialTick;
+    m256i identity;
+    uint8_t signature[64];
+} ;
+
 struct TickData
 {
     unsigned short computorIndex;

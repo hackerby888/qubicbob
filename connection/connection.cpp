@@ -12,7 +12,7 @@
 #include <cerrno>  // for errno
 #include <fcntl.h>
 #include <netinet/tcp.h>
-
+#include "database/db.h"
 #include "connection.h"
 #include "Logger.h"
 #include "GlobalVar.h"
@@ -111,7 +111,6 @@ QubicConnection::~QubicConnection()
 int QubicConnection::receiveData(uint8_t* buffer, int sz)
 {
     int count = 0;
-    double orgSize = sz;
     while (sz > 0)
     {
         auto ret = recv(mSocket, (char*)buffer + count, std::min(1024, sz), 0);
@@ -231,7 +230,7 @@ void QubicConnection::getComputorList(const uint16_t epoch, Computors& compList)
     RequestResponseHeader header{};
     std::vector<uint8_t> packet;
     int count = 0;
-    while (1)
+    while (count < 200)
     {
         // trying to get until Computors packet arrive
         // resend each 20 packets
@@ -273,14 +272,14 @@ void QubicConnection::doHandshake()
     enqueueSend((uint8_t *) &payload, sizeof(payload));
 }
 
-void QubicConnection::getTickInfo(uint32_t& tick, uint16_t& epoch)
+void QubicConnection::getTickInfoFromTrustedNode(uint32_t& tick, uint16_t& epoch)
 {
     RequestResponseHeader header{};
     std::vector<uint8_t> packet;
     int count = 0;
     while (1)
     {
-        // trying to get until Computors packet arrive
+        // trying to get until tickinfo packet arrive
         // resend each 20 packets
         if ( count++ % 20 == 0 )
         {
@@ -303,6 +302,52 @@ void QubicConnection::getTickInfo(uint32_t& tick, uint16_t& epoch)
                     tick = ctick.initialTick;
                     epoch = ctick.epoch;
                     break;
+                }
+            }
+        }
+    }
+}
+
+void QubicConnection::getBootstrapInfo(uint32_t& tick, uint16_t& epoch)
+{
+    RequestResponseHeader header{};
+    std::vector<uint8_t> packet;
+    int count = 0;
+    while (count < 60)
+    {
+        // trying to get until bootstrap packet arrive
+        // resend each 20 packets
+        if ( count++ % 20 == 0 )
+        {
+            header.setSize(sizeof(header));
+            header.randomizeDejavu();
+            header.setType(REQUEST_BOOTSTRAP_INFO);
+            enqueueSend((uint8_t *) &header, 8);
+        }
+        RequestResponseHeader header{};
+        receiveAFullPacket(header, packet);
+        if (!packet.empty())
+        {
+            memcpy((void*)&header, packet.data(), 8);
+            if (header.type() == RESPOND_BOOTSTRAP_INFO)
+            {
+                if (header.size() == 8 + sizeof(BootstrapInfo))
+                {
+                    BootstrapInfo bi{};
+                    memcpy((void*)&bi, packet.data()+8, sizeof(BootstrapInfo));
+                    if (gTrustedEntities.find(bi.identity) == gTrustedEntities.end())
+                    {
+                        // not trusted entity
+                        continue;
+                    }
+                    m256i digest;
+                    KangarooTwelve((uint8_t*)&bi, sizeof(bi) - 64, digest.m256i_u8, 32);
+                    if (verify(bi.identity.m256i_u8, digest.m256i_u8, bi.signature))
+                    {
+                        tick = bi.initialTick;
+                        epoch = bi.epoch;
+                        break;
+                    }
                 }
             }
         }
@@ -364,4 +409,146 @@ QubicConnection::QubicConnection(int existingSocket)
     }
 
     initSendThread();
+}
+
+void parseConnection(ConnectionPool& connPoolAll,
+                     ConnectionPool& connPoolTrustedNode,
+                     ConnectionPool& connPoolP2P,
+                     std::vector<std::string>& endpoints)
+{
+    // Try endpoints in order, connect to the first that works
+
+    for (const auto& endpoint : endpoints) {
+        // Parse ip:port[:pass0-pass1-pass2-pass3]
+        auto p1 = endpoint.find(':');
+        if (p1 == std::string::npos || p1 == 0 || p1 == endpoint.size() - 1) {
+            Logger::get()->warn("Skipping invalid endpoint '{}', expected ip:port or ip:port:pass0-pass1-pass2-pass3", endpoint);
+            continue;
+        }
+        auto p2 = endpoint.find(':', p1 + 1);
+        std::string ip = endpoint.substr(0, p1);
+        std::string port_str;
+        std::string passcode_str;
+
+        if (p2 == std::string::npos) {
+            port_str = endpoint.substr(p1 + 1);
+        } else {
+            if (p2 == endpoint.size() - 1) {
+                Logger::get()->warn("Skipping endpoint '{}': missing passcode after second ':'", endpoint);
+                continue;
+            }
+            port_str = endpoint.substr(p1 + 1, p2 - (p1 + 1));
+            passcode_str = endpoint.substr(p2 + 1);
+        }
+
+        int port = 0;
+        try {
+            port = std::stoi(port_str);
+            if (port <= 0 || port > 65535) {
+                throw std::out_of_range("port out of range");
+            }
+        } catch (...) {
+            Logger::get()->warn("Skipping endpoint '{}': invalid port '{}'", endpoint, port_str);
+            continue;
+        }
+
+        // Optional passcode parsing
+        bool has_passcode = false;
+        uint64_t passcode_arr[4] = {0,0,0,0};
+        if (!passcode_str.empty()) {
+            // Split by '-'
+            uint64_t parsed[4];
+            size_t start = 0;
+            int idx = 0;
+            while (idx < 4 && start <= passcode_str.size()) {
+                size_t dash = passcode_str.find('-', start);
+                auto token = passcode_str.substr(start, (dash == std::string::npos) ? std::string::npos : (dash - start));
+                if (token.empty()) break;
+                try {
+                    parsed[idx] = static_cast<uint64_t>(std::stoull(token, nullptr, 10));
+                } catch (...) {
+                    idx = -1; // mark error
+                    break;
+                }
+                idx++;
+                if (dash == std::string::npos) break;
+                start = dash + 1;
+            }
+            if (idx == 4) {
+                memcpy(passcode_arr, parsed, sizeof(parsed));
+                has_passcode = true;
+            } else {
+                Logger::get()->warn("Skipping endpoint '{}': invalid passcode format, expected 4 uint64 separated by '-'", endpoint);
+                continue;
+            }
+        }
+        QCPtr conn = make_qc(ip.c_str(), port);
+        if (has_passcode) {
+            conn->updatePasscode(passcode_arr);
+        }
+        connPoolAll.add(conn);
+        if (has_passcode) connPoolTrustedNode.add(conn);
+        else connPoolP2P.add(conn);
+    }
+}
+
+void doHandshakeAndGetBootstrapInfo(ConnectionPool& cp, bool isTrusted, uint32_t& maxInitTick, uint16_t& maxInitEpoch)
+{
+    for (int i = 0; i < cp.size(); i++)
+    {
+        auto& conn = cp.get(i);
+        try {
+            if (conn->isSocketValid())
+            {
+                uint32_t initTick = 0;
+                uint16_t initEpoch = 0;
+                conn->doHandshake();
+                if (isTrusted)
+                {
+                    conn->getTickInfoFromTrustedNode(initTick, initEpoch);
+                }
+                else
+                {
+                    conn->getBootstrapInfo(initTick, initEpoch);
+                }
+                maxInitTick = std::max(maxInitTick, initTick);
+                maxInitEpoch = std::max(maxInitEpoch, initEpoch);
+            }
+        }
+        catch (...)
+        {
+        }
+    }
+}
+
+void getComputorList(ConnectionPool& cp, std::string arbitratorIdentity)
+{
+    for (int i = 0; i < cp.size(); i++) {
+        auto &conn = cp.get(i);
+        try {
+            if (computorsList.epoch != gCurrentProcessingEpoch.load())
+            {
+                if (!db_get_computors(gCurrentProcessingEpoch.load(),computorsList))
+                {
+                    Logger::get()->warn("Trying to get computor list for epoch {}...", gCurrentProcessingEpoch.load());
+                    conn->getComputorList(gCurrentProcessingEpoch.load(),computorsList);
+                    uint8_t digest[32];
+                    uint8_t arbitratorPublicKey[32];
+                    getPublicKeyFromIdentity(arbitratorIdentity.c_str(), arbitratorPublicKey);
+                    KangarooTwelve((uint8_t*)&computorsList, sizeof(computorsList) - 64, digest, 32);
+                    if (verify(arbitratorPublicKey, digest, computorsList.signature))
+                    {
+                        db_insert_computors(computorsList);
+                    }
+                    else
+                    {
+                        Logger::get()->critical("Invalid signature in computor list");
+                    }
+                }
+            }
+        }
+        catch (...)
+        {
+        }
+    }
 }

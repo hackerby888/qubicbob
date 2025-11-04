@@ -1,9 +1,9 @@
 #include "Config.h"
-#include "connection.h"
+#include "connection/connection.h"
 #include "structs.h"
 #include "Logger.h"
 #include "GlobalVar.h"
-#include "db.h"
+#include "database/db.h"
 #include "Profiler.h"
 #include <chrono>
 #include <cstring>   // memcpy
@@ -64,139 +64,6 @@ void garbageCleaner()
         }
     }
     Logger::get()->info("Exited garbage cleaner");
-}
-
-void parseConnection(ConnectionPool& connPoolAll,
-                     ConnectionPool& connPoolTrustedNode,
-                     ConnectionPool& connPoolP2P,
-                     std::vector<std::string>& endpoints,
-                     AppConfig& cfg)
-{
-    // Try endpoints in order, connect to the first that works
-
-    for (const auto& endpoint : endpoints) {
-        // Parse ip:port[:pass0-pass1-pass2-pass3]
-        auto p1 = endpoint.find(':');
-        if (p1 == std::string::npos || p1 == 0 || p1 == endpoint.size() - 1) {
-            Logger::get()->warn("Skipping invalid endpoint '{}', expected ip:port or ip:port:pass0-pass1-pass2-pass3", endpoint);
-            continue;
-        }
-        auto p2 = endpoint.find(':', p1 + 1);
-        std::string ip = endpoint.substr(0, p1);
-        std::string port_str;
-        std::string passcode_str;
-
-        if (p2 == std::string::npos) {
-            port_str = endpoint.substr(p1 + 1);
-        } else {
-            if (p2 == endpoint.size() - 1) {
-                Logger::get()->warn("Skipping endpoint '{}': missing passcode after second ':'", endpoint);
-                continue;
-            }
-            port_str = endpoint.substr(p1 + 1, p2 - (p1 + 1));
-            passcode_str = endpoint.substr(p2 + 1);
-        }
-
-        int port = 0;
-        try {
-            port = std::stoi(port_str);
-            if (port <= 0 || port > 65535) {
-                throw std::out_of_range("port out of range");
-            }
-        } catch (...) {
-            Logger::get()->warn("Skipping endpoint '{}': invalid port '{}'", endpoint, port_str);
-            continue;
-        }
-
-        // Optional passcode parsing
-        bool has_passcode = false;
-        uint64_t passcode_arr[4] = {0,0,0,0};
-        if (!passcode_str.empty()) {
-            // Split by '-'
-            uint64_t parsed[4];
-            size_t start = 0;
-            int idx = 0;
-            while (idx < 4 && start <= passcode_str.size()) {
-                size_t dash = passcode_str.find('-', start);
-                auto token = passcode_str.substr(start, (dash == std::string::npos) ? std::string::npos : (dash - start));
-                if (token.empty()) break;
-                try {
-                    parsed[idx] = static_cast<uint64_t>(std::stoull(token, nullptr, 10));
-                } catch (...) {
-                    idx = -1; // mark error
-                    break;
-                }
-                idx++;
-                if (dash == std::string::npos) break;
-                start = dash + 1;
-            }
-            if (idx == 4) {
-                memcpy(passcode_arr, parsed, sizeof(parsed));
-                has_passcode = true;
-            } else {
-                Logger::get()->warn("Skipping endpoint '{}': invalid passcode format, expected 4 uint64 separated by '-'", endpoint);
-                continue;
-            }
-        }
-        QCPtr conn = make_qc(ip.c_str(), port);
-        if (has_passcode) {
-            conn->updatePasscode(passcode_arr);
-        }
-
-        try {
-            if (conn->isSocketValid())
-            {
-                uint32_t initTick = 0;
-                uint16_t initEpoch = 0;
-                conn->doHandshake();
-                conn->getTickInfo(initTick, initEpoch);
-                gInitialTick = initTick;
-                if (initTick > gCurrentFetchingTick.load())
-                {
-                    Logger::get()->warn("Initial tick from node {} is greater than local leading tick: {} vs {}", ip, initTick, gCurrentFetchingTick.load());
-                    gCurrentFetchingTick = initTick;
-                }
-                if (initTick > gCurrentFetchingLogTick.load())
-                {
-                    gCurrentFetchingLogTick = initTick;
-                }
-
-                if (initEpoch > gCurrentProcessingEpoch.load())
-                {
-                    Logger::get()->warn("Initial epoch from node {} is greater than local leading epoch: {} vs {}", ip, initEpoch, gCurrentProcessingEpoch.load());
-                    gCurrentProcessingEpoch = initEpoch;
-                }
-                if (computorsList.epoch != gCurrentProcessingEpoch.load())
-                {
-                    if (!db_get_computors(gCurrentProcessingEpoch.load(),computorsList))
-                    {
-                        Logger::get()->warn("Computor list for epoch {} doesn't exist, trying to get one...", gCurrentProcessingEpoch.load());
-                        conn->getComputorList(gCurrentProcessingEpoch.load(),computorsList);
-                        uint8_t digest[32];
-                        uint8_t arbitratorPublicKey[32];
-                        getPublicKeyFromIdentity(cfg.arbitrator_identity.c_str(), arbitratorPublicKey);
-                        KangarooTwelve((uint8_t*)&computorsList, sizeof(computorsList) - 64, digest, 32);
-                        if (verify(arbitratorPublicKey, digest, computorsList.signature))
-                        {
-                            db_insert_computors(computorsList);
-                        }
-                        else
-                        {
-                            Logger::get()->critical("Invalid signature in computor list");
-                        }
-                    }
-                }
-            }
-        }
-        catch (const std::exception& e)
-        {
-            Logger::get()->warn("Failed to connect or handshake with endpoint '{}': {}."
-                                "bob still added this node to connection pool for future use", endpoint, e.what());
-        }
-        connPoolAll.add(conn);
-        if (has_passcode) connPoolTrustedNode.add(conn);
-        else connPoolP2P.add(conn);
-    }
 }
 
 int runBob(int argc, char *argv[])
@@ -273,8 +140,42 @@ int runBob(int argc, char *argv[])
     ConnectionPool connPoolAll;
     ConnectionPool connPoolTrustedNode; // conn pool with passcode
     ConnectionPool connPoolP2P;
-    parseConnection(connPoolAll, connPoolTrustedNode, connPoolP2P, cfg.trusted_nodes, cfg);
-    parseConnection(connPoolAll, connPoolTrustedNode, connPoolP2P, cfg.p2p_nodes, cfg);
+    parseConnection(connPoolAll, connPoolTrustedNode, connPoolP2P, cfg.trusted_nodes);
+    parseConnection(connPoolAll, connPoolTrustedNode, connPoolP2P, cfg.p2p_nodes);
+    uint32_t initTick = 0;
+    uint16_t initEpoch = 0;
+
+    while (initTick == 0 || initEpoch < gCurrentProcessingEpoch)
+    {
+        doHandshakeAndGetBootstrapInfo(connPoolTrustedNode, true, initTick, initEpoch);
+        doHandshakeAndGetBootstrapInfo(connPoolP2P, false, initTick, initEpoch);
+        Logger::get()->info("Doing handshakes and ask for bootstrap info | PeerInitTick: {} PeerInitEpoch {}...", initTick, initEpoch);
+    }
+
+
+    gInitialTick = initTick;
+    if (initTick > gCurrentFetchingTick.load())
+    {
+        gCurrentFetchingTick = initTick;
+    }
+    if (initTick > gCurrentFetchingLogTick.load())
+    {
+        gCurrentFetchingLogTick = initTick;
+    }
+
+    if (initEpoch > gCurrentProcessingEpoch.load())
+    {
+        gCurrentProcessingEpoch = initEpoch;
+    }
+
+    if (computorsList.epoch != gCurrentProcessingEpoch.load())
+    {
+        while (computorsList.epoch != gCurrentProcessingEpoch.load())
+        {
+            getComputorList(connPoolAll, cfg.arbitrator_identity);
+            SLEEP(1000);
+        }
+    }
 
     stopFlag.store(false);
     auto request_thread = std::thread(

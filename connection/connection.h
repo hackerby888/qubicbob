@@ -28,8 +28,9 @@ public:
     // Expose whether this connection is allowed to reconnect.
     [[nodiscard]] bool isReconnectable() const { return mReconnectable; }
 
-    // non-thread safe operation
-    void getTickInfo(uint32_t& tick, uint16_t& epoch);
+    // non-thread safe operation, only use these functions for bootstrap
+    void getTickInfoFromTrustedNode(uint32_t& tick, uint16_t& epoch);
+    void getBootstrapInfo(uint32_t& tick, uint16_t& epoch);
     void doHandshake();
     void getComputorList(const uint16_t epoch, Computors& compList);
     void sendEndPacket(uint32_t dejavu = 0xffffffff);
@@ -143,3 +144,10 @@ private:
     std::vector<QCPtr> conns_;
     std::mt19937 rng_;
 };
+
+void parseConnection(ConnectionPool& connPoolAll,
+                     ConnectionPool& connPoolTrustedNode,
+                     ConnectionPool& connPoolP2P,
+                     std::vector<std::string>& endpoints);
+void doHandshakeAndGetBootstrapInfo(ConnectionPool& cp, bool isTrusted, uint32_t& maxInitTick, uint16_t& maxInitEpoch);
+void getComputorList(ConnectionPool& cp, std::string arbitratorIdentity);

@@ -3,7 +3,7 @@
 #include "K12AndKeyUtil.h"
 #include "shim.h"
 #include "Entity.h"
-#include "db.h"
+#include "database/db.h"
 #include <json/json.h>
 #include <vector>
 #include <sstream>

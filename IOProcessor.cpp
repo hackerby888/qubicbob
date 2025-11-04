@@ -5,11 +5,11 @@
 #include <map>
 #include <cstring>
 
-#include "connection.h"
+#include "connection/connection.h"
 #include "structs.h"
 #include "GlobalVar.h"
 #include "Logger.h"
-#include "db.h"
+#include "database/db.h"
 #include "K12AndKeyUtil.h"
 #include "commonFunctions.h"
 #include "Profiler.h"
@@ -286,13 +286,14 @@ bool cleanRawTick(uint32_t fromTick, uint32_t toTick)
     return true;
 }
 
+// this pre-verify tick votes, not fully verifying all digests
 void IOVerifyThread(std::atomic_bool& stopFlag)
 {
     const auto idleBackoff = 10ms;
     TickData td{};
     std::vector<TickVote> votes;
     votes.resize(676);
-    memset(votes.data(), 0, votes.size() * sizeof(TickVote));
+    memset((void*)votes.data(), 0, votes.size() * sizeof(TickVote));
     while (!stopFlag.load())
     {
         if (!verifyQuorum(gCurrentFetchingTick, td, votes))

@@ -3,7 +3,7 @@
 #include <thread>
 #include "SpecialBufferStructs.h"
 #include "structs.h"
-#include "db.h"
+#include "database/db.h"
 #include "Logger.h"
 #include "K12AndKeyUtil.h"
 #include "GlobalVar.h"
@@ -253,7 +253,7 @@ bool tryGetTickData(uint32_t tick, TickData& data) {
         data = full.td;
         return true;
     }
-    memset(&data, 0, sizeof(TickData));
+    memset((void*)&data, 0, sizeof(TickData));
     return true;
 }
 

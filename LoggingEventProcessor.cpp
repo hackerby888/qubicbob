@@ -6,11 +6,11 @@
 #include <cstring>
 #include <algorithm>
 #include "m256i.h"
-#include "connection.h"
+#include "connection/connection.h"
 #include "structs.h"
 #include "GlobalVar.h"
 #include "Logger.h"
-#include "db.h"
+#include "database/db.h"
 #include "K12AndKeyUtil.h"
 #include "commonFunctions.h"
 #include "Entity.h"
