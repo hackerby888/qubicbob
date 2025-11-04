@@ -114,10 +114,13 @@ SET(FILES ${CMAKE_SOURCE_DIR}/connection.cpp
 		  ${CMAKE_SOURCE_DIR}/QubicIndexer.cpp
 		  ${CMAKE_SOURCE_DIR}/Config.cpp
 		  ${CMAKE_SOURCE_DIR}/bob.cpp
-		  ${CMAKE_SOURCE_DIR}/bobAPI.cpp
+
 		  ${CMAKE_SOURCE_DIR}/GlobalVar.cpp
-		  ${CMAKE_SOURCE_DIR}/RESTServer.cpp
+
 		  ${CMAKE_SOURCE_DIR}/LogEvent.cpp
+
+		${CMAKE_SOURCE_DIR}/RESTAPI/bobAPI.cpp
+		${CMAKE_SOURCE_DIR}/RESTAPI/RESTServer.cpp
 )
 
 add_library(XKCP_avx2 STATIC XKCP/KangarooTwelve.c
