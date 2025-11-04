@@ -137,8 +137,10 @@ void processLogRanges(RequestResponseHeader& header, const uint8_t* ptr)
 {
     struct {
         RequestResponseHeader header;
-        unsigned long long passcode[4];
-        unsigned int tick;
+        uint32_t tick;
+        uint32_t chunkid;
+        long long startLogId;
+        long long endLogId;
     } packet;
 
     std::vector<uint8_t> request;
@@ -164,7 +166,6 @@ void processLogRangesSignature(RequestResponseHeader& header, const uint8_t* ptr
 {
     struct {
         RequestResponseHeader header;
-        unsigned long long passcode[4];
         unsigned int tick;
     } packet;
 
