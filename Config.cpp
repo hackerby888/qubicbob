@@ -150,15 +150,12 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
         out.is_trusted_node = root["is-trusted-node"].asBool();
     }
 
-    if (out.is_trusted_node)
-    {
-        if (root.isMember("node-seed")) {
-            if (!root["node-seed"].isString()) {
-                error = "Invalid type: string required for key 'node-seed'";
-                return false;
-            }
-            out.node_seed = root["node-seed"].asString();
+    if (root.isMember("node-seed")) {
+        if (!root["node-seed"].isString()) {
+            error = "Invalid type: string required for key 'node-seed'";
+            return false;
         }
+        out.node_seed = root["node-seed"].asString();
     }
 
     if (root.isMember("trusted-entities")) {
