@@ -104,7 +104,6 @@ endif ()
 
 # --- Project Sources ---
 SET(FILES ${CMAKE_SOURCE_DIR}/connection.cpp
-		  ${CMAKE_SOURCE_DIR}/parser.cpp
           ${CMAKE_SOURCE_DIR}/db.cpp
 		  ${CMAKE_SOURCE_DIR}/Logger.cpp
 		  ${CMAKE_SOURCE_DIR}/DataProcessors.cpp
