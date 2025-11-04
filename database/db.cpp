@@ -1,5 +1,5 @@
 #include "db.h"
-#include "cmake-build-release/_deps/redis-plus-plus-src/src/sw/redis++/redis++.h"
+#include "sw/redis++/redis++.h"
 #include <stdexcept>
 #include <vector>
 #include <sstream>

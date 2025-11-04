@@ -26,6 +26,7 @@ set(REDIS_PLUS_PLUS_BUILD_TEST OFF CACHE BOOL "" FORCE)
 set(REDIS_PLUS_PLUS_BUILD_STATIC ON CACHE BOOL "" FORCE)
 set(REDIS_PLUS_PLUS_BUILD_SHARED OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(redis-plus-plus)
+include_directories(${redis-plus-plus_SOURCE_DIR}/include)
 
 # spdlog
 FetchContent_Declare(
