@@ -150,6 +150,7 @@ int runBob(int argc, char *argv[])
         doHandshakeAndGetBootstrapInfo(connPoolTrustedNode, true, initTick, initEpoch);
         doHandshakeAndGetBootstrapInfo(connPoolP2P, false, initTick, initEpoch);
         Logger::get()->info("Doing handshakes and ask for bootstrap info | PeerInitTick: {} PeerInitEpoch {}...", initTick, initEpoch);
+        if (initTick == 0 || initEpoch < gCurrentProcessingEpoch) SLEEP(1000);
     }
 
 
