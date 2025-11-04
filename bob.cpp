@@ -216,7 +216,9 @@ int runBob(int argc, char *argv[])
         printf("Failed to load config '%s': %s\n", config_path.c_str(), cfg_error.c_str());
         return -1;
     }
-
+    // trace - debug - info - warn - error - fatal
+    std::string log_level = cfg.log_level;
+    Logger::init(log_level);
     gIsTrustedNode = cfg.is_trusted_node;
     if (cfg.is_trusted_node)
     {
@@ -233,13 +235,9 @@ int runBob(int argc, char *argv[])
     unsigned int request_cycle_ms = cfg.request_cycle_ms;
     unsigned int request_logging_cycle_ms = cfg.request_logging_cycle_ms;
     unsigned int future_offset = cfg.future_offset;
-
-    // trace - debug - info - warn - error - fatal
-    std::string log_level = cfg.log_level;
-
     // Put redis_url in REDIS_CONNECTION_STRING
     std::string KEYDB_CONNECTION_STRING = cfg.keydb_url;
-    Logger::init(log_level);
+
 
     // Read server flags
     const bool run_server = cfg.run_server;
