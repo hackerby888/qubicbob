@@ -3,6 +3,8 @@
 #include <string>
 #include <vector>
 #include <map>
+#include "m256i.h"
+
 struct AppConfig {
     std::vector<std::string> trusted_nodes;
     std::vector<std::string> p2p_nodes;
@@ -19,7 +21,7 @@ struct AppConfig {
     bool is_trusted_node = false;
     std::string node_seed = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
-    std::map<std::string, bool> trustedEntities;
+    std::map<m256i, bool> trustedEntities;
 };
 
 // Returns true on success; on failure returns false and fills error with a human-readable message.

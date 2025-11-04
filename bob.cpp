@@ -293,9 +293,14 @@ int runBob(int argc, char *argv[])
         set_this_thread_name("verify");
         IOVerifyThread(std::ref(stopFlag));
     });
-    auto log_request_thread = std::thread([&](){
+    auto log_request_trusted_nodes_thread = std::thread([&](){
         set_this_thread_name("trusted-log-req");
         EventRequestFromTrustedNode(std::ref(connPoolTrustedNode), std::ref(stopFlag),
+                                    std::chrono::milliseconds(request_logging_cycle_ms));
+    });
+    auto log_request_p2p_thread = std::thread([&](){
+        set_this_thread_name("trusted-log-req");
+        EventRequestFromNormalNodes(std::ref(connPoolP2P), std::ref(stopFlag),
                                     std::chrono::milliseconds(request_logging_cycle_ms));
     });
     auto indexer_thread = std::thread([&](){
@@ -376,8 +381,10 @@ int runBob(int argc, char *argv[])
     Logger::get()->info("Exited Verifying thread");
     request_thread.join();
     Logger::get()->info("Exited TickDataRequest thread");
-    log_request_thread.join();
-    Logger::get()->info("Exited LogEventRequest thread");
+    log_request_trusted_nodes_thread.join();
+    Logger::get()->info("Exited LogEventRequestTrustedNodes thread");
+    log_request_p2p_thread.join();
+    Logger::get()->info("Exited LogEventRequestP2P thread");
     indexer_thread.join();
     Logger::get()->info("Exited indexer thread");
     if (log_event_verifier_thread.joinable())

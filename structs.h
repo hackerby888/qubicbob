@@ -439,7 +439,7 @@ struct RequestLogEventSignature
     }
 };
 
-struct ResponseLogEventSignature
+struct ResponseLogSignature
 {
     m256i identity;
     uint32_t tick;

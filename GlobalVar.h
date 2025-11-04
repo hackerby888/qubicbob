@@ -49,7 +49,7 @@ struct GlobalState {
     m256i nodePublickey;
     m256i nodePrivatekey;
 
-    std::map<std::string, bool> gTrustedEntities;
+    std::map<m256i, bool> gTrustedEntities;
 };
 
 // Safe, lazy singleton accessor avoids static init order issues.

@@ -340,7 +340,7 @@ static bool isDataType(int type)
     if (type == BROADCAST_TRANSACTION) return true;                   // tx
     if (type == RespondLog::type()) return true;                      // log
     if (type == ResponseAllLogIdRangesFromTick::type()) return true;  // logrange
-    if (type == ResponseLogEventSignature::type()) return true;
+    if (type == ResponseLogSignature::type()) return true;
     if (type == ResponseLogRangeSignature::type()) return true;
     return false;
 }

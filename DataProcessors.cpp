@@ -112,6 +112,27 @@ void processLogEvent(const uint8_t* _ptr, uint32_t chunkSize)
     db_update_latest_log_id(gCurrentProcessingEpoch, maxLogId);
 }
 
+void processLogEventSignature(const uint8_t* _ptr, uint32_t chunkSize)
+{
+    // do the verification process:
+    m256i pubkey, digest;
+    uint8_t signature[64];
+    memcpy(pubkey.m256i_u8, _ptr+chunkSize-64-32, 32);
+    memcpy(signature, _ptr+chunkSize-64, 64);
+    KangarooTwelve(_ptr, chunkSize - 64, digest.m256i_u8, 32);
+    if (gTrustedEntities.find(pubkey) == gTrustedEntities.end())
+    {
+        // doesn't consider this pubkey as trusted
+        return;
+    }
+    if (!verify(pubkey.m256i_u8, digest.m256i_u8, signature))
+    {
+        //failed sig
+        return;
+    }
+    processLogEvent(_ptr, chunkSize - 96); // discard 64 sig and 32 pubkey at the end
+}
+
 void processLogRanges(RequestResponseHeader& header, const uint8_t* ptr)
 {
     struct {
@@ -131,6 +152,45 @@ void processLogRanges(RequestResponseHeader& header, const uint8_t* ptr)
         {
             const auto* logRange = reinterpret_cast<const ResponseAllLogIdRangesFromTick*>(ptr);
             db_insert_log_range(packet.tick, *logRange);
+        }
+    }
+    else
+    {
+        Logger::get()->warn("Cannot find suitable tick to map the log range");
+    }
+}
+
+void processLogRangesSignature(RequestResponseHeader& header, const uint8_t* ptr)
+{
+    struct {
+        RequestResponseHeader header;
+        unsigned long long passcode[4];
+        unsigned int tick;
+    } packet;
+
+    std::vector<uint8_t> request;
+    requestMapperFrom.get(header.getDejavu(), request);
+    if (request.size() == sizeof(packet))
+    {
+        memcpy(&packet, request.data(), sizeof(packet));
+        int header_sz = header.size();
+        int needed_sz = sizeof(RequestResponseHeader) + sizeof(ResponseLogRangeSignature);
+        if (header_sz == needed_sz)
+        {
+            const auto* logRangeWithSig = reinterpret_cast<const ResponseLogRangeSignature*>(ptr);
+            m256i digest;
+            KangarooTwelve(ptr, sizeof(ResponseLogRangeSignature) - SIGNATURE_SIZE, digest.m256i_u8, 32);
+            if (gTrustedEntities.find(logRangeWithSig->identity) == gTrustedEntities.end())
+            {
+                // doesn't consider this pubkey as trusted
+                return;
+            }
+            if (!verify(logRangeWithSig->identity.m256i_u8, digest.m256i_u8, logRangeWithSig->signature))
+            {
+                //failed sig
+                return;
+            }
+            db_insert_log_range(packet.tick, logRangeWithSig->lr);
         }
     }
     else
@@ -171,8 +231,14 @@ void DataProcessorThread(std::atomic_bool& exitFlag)
             case RespondLog::type(): // log event
                 processLogEvent(payload, packet_size - 8);
                 break;
+            case ResponseLogSignature::type():
+                processLogEventSignature(payload, packet_size - 8);
+                break;
             case ResponseAllLogIdRangesFromTick::type(): // logID ranges
                 processLogRanges(header, payload);
+                break;
+            case ResponseLogRangeSignature::type(): // logID ranges
+                processLogRangesSignature(header, payload);
                 break;
             default:
                 break;
@@ -365,7 +431,7 @@ void replyLogEventSignature(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
     resp.resize(8);
     auto header = (RequestResponseHeader*)resp.data();
     header->setDejavu(dejavu);
-    header->setType(ResponseLogEventSignature::type());
+    header->setType(ResponseLogSignature::type());
     for (uint64_t i = request->startLogId; i <= request->endLogId; i++)
     {
         LogEvent le;
@@ -444,9 +510,9 @@ void replyLogRangeSignature(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
     } pl;
 
     if (db_get_log_range_all_txs(tick, pl.logRange.lr)) {
-        pl.resp.setSize(8 + sizeof(ResponseAllLogIdRangesFromTick));
+        pl.resp.setSize(8 + sizeof(ResponseLogRangeSignature));
         pl.resp.setDejavu(dejavu);
-        pl.resp.setType(ResponseAllLogIdRangesFromTick::type());
+        pl.resp.setType(ResponseLogRangeSignature::type());
         if (has_sig_in_db)
         {
             memcpy(pl.logRange.identity.m256i_u8, l_pubkey, 32);

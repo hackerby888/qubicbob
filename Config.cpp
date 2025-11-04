@@ -182,7 +182,9 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
                     return false;
                 }
             }
-            out.trustedEntities[id] = true;
+            m256i pubkey;
+            getPublicKeyFromIdentity(id.data(), pubkey.m256i_u8);
+            out.trustedEntities[pubkey] = true;
         }
     }
 
