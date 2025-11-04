@@ -67,91 +67,14 @@ void garbageCleaner()
     Logger::get()->info("Exited garbage cleaner");
 }
 
-int runBob(int argc, char *argv[])
+void parseConnection(ConnectionPool& connPoolAll,
+                     ConnectionPool& connPoolTrustedNode,
+                     ConnectionPool& connPoolP2P,
+                     std::vector<std::string>& endpoints,
+                     AppConfig& cfg)
 {
-    // Ignore SIGPIPE so write/send on a closed socket doesn't terminate the process.
-    struct sigaction sa;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
-    sa.sa_handler = SIG_IGN;
-    sigaction(SIGPIPE, &sa, nullptr);
-    // Load configuration from JSON
-    const std::string config_path = (argc > 1) ? std::string(argv[1]) : std::string("bob.json");
-    AppConfig cfg;
-    std::string cfg_error;
-    if (!LoadConfig(config_path, cfg, cfg_error)) {
-        printf("Failed to load config '%s': %s\n", config_path.c_str(), cfg_error.c_str());
-        return -1;
-    }
-    if (cfg.trusted_nodes.empty()) {
-        printf("Config error: 'trusted-node' requires at least one endpoint in ip:port or ip:port:pass0-pass1-pass2-pass3 format.\n");
-        return -1;
-    }
-    if (cfg.arbitrator_identity.empty()) {
-        printf("Config error: 'arbitrator-identity' is required.\n");
-        return -1;
-    }
-
-    gIsTrustedNode = cfg.is_trusted_node;
-    if (cfg.is_trusted_node)
-    {
-        getSubseedFromSeed((uint8_t*)cfg.node_seed.c_str(), nodeSubseed.m256i_u8);
-        getPrivateKeyFromSubSeed(nodeSubseed.m256i_u8, nodePrivatekey.m256i_u8);
-        getPublicKeyFromPrivateKey(nodePrivatekey.m256i_u8, nodePublickey.m256i_u8);
-        char identity[64] = {0};
-        getIdentityFromPublicKey(nodePublickey.m256i_u8, identity, false);
-        Logger::get()->info("Trusted node identity: {}", identity);
-    }
-    gTrustedEntities = cfg.trustedEntities;
-
-    // Defaults for new knobs are already in AppConfig
-    unsigned int request_cycle_ms = cfg.request_cycle_ms;
-    unsigned int request_logging_cycle_ms = cfg.request_logging_cycle_ms;
-    unsigned int future_offset = cfg.future_offset;
-
-    // trace - debug - info - warn - error - fatal
-    std::string log_level = cfg.log_level;
-
-    // Put redis_url in REDIS_CONNECTION_STRING
-    std::string REDIS_CONNECTION_STRING = cfg.keydb_url;
-    Logger::init(log_level);
-
-    // Read server flags
-    const bool run_server = cfg.run_server;
-    unsigned int server_port_u = cfg.server_port;
-    if (run_server) {
-        if (server_port_u == 0 || server_port_u > 65535) {
-            Logger::get()->critical("Invalid server_port {}. Must be in 1..65535", server_port_u);
-            return -1;
-        }
-        const uint16_t server_port = static_cast<uint16_t>(server_port_u);
-        if (!StartQubicServer(server_port)) {
-            Logger::get()->critical("Failed to start embedded server on port {}", server_port);
-            return -1;
-        }
-        Logger::get()->info("Embedded server enabled on port {}", server_port);
-    }
-
-    {
-        // initialize gCurrentProcessingTick with 1st connection
-
-        db_connect(REDIS_CONNECTION_STRING);
-        uint32_t tick;
-        uint16_t epoch;
-        db_get_latest_tick_and_epoch(tick, epoch);
-        gCurrentFetchingTick = tick;
-        gCurrentProcessingEpoch = epoch;
-        uint16_t event_epoch;
-        db_get_latest_event_tick_and_epoch(tick, event_epoch);
-        gCurrentFetchingLogTick = tick;
-        Logger::get()->info("Loaded DB. DATA: Tick: {} | epoch: {}", gCurrentFetchingTick.load(), gCurrentProcessingEpoch.load());
-        Logger::get()->info("Loaded DB. EVENT: Tick: {} | epoch: {}", gCurrentFetchingLogTick.load(), event_epoch);
-    }
-    // Collect endpoints from config
-    std::vector<std::string> endpoints = cfg.trusted_nodes;
     // Try endpoints in order, connect to the first that works
-    ConnectionPool connPoolAll;
-    ConnectionPool connPoolWithPwd; // conn pool with passcode
+
     for (const auto& endpoint : endpoints) {
         // Parse ip:port[:pass0-pass1-pass2-pass3]
         auto p1 = endpoint.find(':');
@@ -272,8 +195,90 @@ int runBob(int argc, char *argv[])
                                 "bob still added this node to connection pool for future use", endpoint, e.what());
         }
         connPoolAll.add(conn);
-        if (has_passcode) connPoolWithPwd.add(conn);
+        if (has_passcode) connPoolTrustedNode.add(conn);
+        else connPoolP2P.add(conn);
     }
+}
+
+int runBob(int argc, char *argv[])
+{
+    // Ignore SIGPIPE so write/send on a closed socket doesn't terminate the process.
+    struct sigaction sa;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sa.sa_handler = SIG_IGN;
+    sigaction(SIGPIPE, &sa, nullptr);
+    // Load configuration from JSON
+    const std::string config_path = (argc > 1) ? std::string(argv[1]) : std::string("bob.json");
+    AppConfig cfg;
+    std::string cfg_error;
+    if (!LoadConfig(config_path, cfg, cfg_error)) {
+        printf("Failed to load config '%s': %s\n", config_path.c_str(), cfg_error.c_str());
+        return -1;
+    }
+
+    gIsTrustedNode = cfg.is_trusted_node;
+    if (cfg.is_trusted_node)
+    {
+        getSubseedFromSeed((uint8_t*)cfg.node_seed.c_str(), nodeSubseed.m256i_u8);
+        getPrivateKeyFromSubSeed(nodeSubseed.m256i_u8, nodePrivatekey.m256i_u8);
+        getPublicKeyFromPrivateKey(nodePrivatekey.m256i_u8, nodePublickey.m256i_u8);
+        char identity[64] = {0};
+        getIdentityFromPublicKey(nodePublickey.m256i_u8, identity, false);
+        Logger::get()->info("Trusted node identity: {}", identity);
+    }
+    gTrustedEntities = cfg.trustedEntities;
+
+    // Defaults for new knobs are already in AppConfig
+    unsigned int request_cycle_ms = cfg.request_cycle_ms;
+    unsigned int request_logging_cycle_ms = cfg.request_logging_cycle_ms;
+    unsigned int future_offset = cfg.future_offset;
+
+    // trace - debug - info - warn - error - fatal
+    std::string log_level = cfg.log_level;
+
+    // Put redis_url in REDIS_CONNECTION_STRING
+    std::string KEYDB_CONNECTION_STRING = cfg.keydb_url;
+    Logger::init(log_level);
+
+    // Read server flags
+    const bool run_server = cfg.run_server;
+    unsigned int server_port_u = cfg.server_port;
+    if (run_server) {
+        if (server_port_u == 0 || server_port_u > 65535) {
+            Logger::get()->critical("Invalid server_port {}. Must be in 1..65535", server_port_u);
+            return -1;
+        }
+        const uint16_t server_port = static_cast<uint16_t>(server_port_u);
+        if (!StartQubicServer(server_port)) {
+            Logger::get()->critical("Failed to start embedded server on port {}", server_port);
+            return -1;
+        }
+        Logger::get()->info("Embedded server enabled on port {}", server_port);
+    }
+
+    {
+        // initialize gCurrentProcessingTick with 1st connection
+
+        db_connect(KEYDB_CONNECTION_STRING);
+        uint32_t tick;
+        uint16_t epoch;
+        db_get_latest_tick_and_epoch(tick, epoch);
+        gCurrentFetchingTick = tick;
+        gCurrentProcessingEpoch = epoch;
+        uint16_t event_epoch;
+        db_get_latest_event_tick_and_epoch(tick, event_epoch);
+        gCurrentFetchingLogTick = tick;
+        Logger::get()->info("Loaded DB. DATA: Tick: {} | epoch: {}", gCurrentFetchingTick.load(), gCurrentProcessingEpoch.load());
+        Logger::get()->info("Loaded DB. EVENT: Tick: {} | epoch: {}", gCurrentFetchingLogTick.load(), event_epoch);
+    }
+    // Collect endpoints from config
+    ConnectionPool connPoolAll;
+    ConnectionPool connPoolTrustedNode; // conn pool with passcode
+    ConnectionPool connPoolP2P;
+    parseConnection(connPoolAll, connPoolTrustedNode, connPoolP2P, cfg.trusted_nodes, cfg);
+    parseConnection(connPoolAll, connPoolTrustedNode, connPoolP2P, cfg.p2p_nodes, cfg);
+
     stopFlag.store(false);
     auto request_thread = std::thread(
             [&](){
@@ -292,7 +297,7 @@ int runBob(int argc, char *argv[])
     });
     auto log_request_thread = std::thread([&](){
         set_this_thread_name("trusted-log-req");
-        EventRequestFromTrustedNode(std::ref(connPoolWithPwd), std::ref(stopFlag),
+        EventRequestFromTrustedNode(std::ref(connPoolTrustedNode), std::ref(stopFlag),
                                     std::chrono::milliseconds(request_logging_cycle_ms));
     });
     auto indexer_thread = std::thread([&](){

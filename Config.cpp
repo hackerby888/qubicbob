@@ -95,6 +95,11 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
         }
         out.arbitrator_identity = root["arbitrator-identity"].asString();
     }
+    else
+    {
+        error = "string required for key 'arbitrator-identity'";
+        return false;
+    }
 
     if (root.isMember("run-server")) {
         if (!root["run-server"].isBool()) {
