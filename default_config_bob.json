@@ -1,5 +1,5 @@
 {
-  "trusted-node": ["91.99.221.77:21842:0-0-0-0","23.88.1.189:21842:0-0-0-0"],
+  "p2p-nodes": ["23.88.1.189:21842"],
   "request-cycle-ms": 500,
   "request-logging-cycle-ms": 150,
   "future-offset": 3,
