@@ -30,25 +30,30 @@ For the trusted-node field, the expected format is `NODE_IP:NODE_PORT:PASSCODE_L
 - `run-server` means opening a server and listening at port `server-port` to serve a few important data (like the core baremetal)
 ```
 {
-  "trusted-node": ["127.0.0.1:21841:0-0-0-0","46.17.96.249:21841:0-0-0-0"],
-  "request-cycle-ms": 100,
+  "p2p-node": ["23.88.1.189:21842"],
+  "request-cycle-ms": 500,
+  "request-logging-cycle-ms": 150,
   "future-offset": 3,
   "log-level": "info",
-  "redis-url": "tcp://127.0.0.1:6379",
+  "keydb-url": "tcp://127.0.0.1:6379",
   "run-server": true,
   "server-port": 21842,
-  "verify-log-event": true,
-  "arbitrator-identity": "AFZPUAIYVPNUYGJRQVLUKOPPVLHAZQTGLYAAUUNBXFTVTAMSBKQBLEIEPCVJ"
+  "arbitrator-identity": "AFZPUAIYVPNUYGJRQVLUKOPPVLHAZQTGLYAAUUNBXFTVTAMSBKQBLEIEPCVJ",
+  "trusted-entities": ["QCTBOBEPDEZGBBCSOWGBYCAIZESDMEVRGLWVNBZAPBIZYEJFFZSPPIVGSCVL"],
+  "node-seed":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 }
 ```
 
 ### USEFUL RESOURCES
-
+#### Using bob
 - [What is logging event in Qubic?](LOGGING_IN_QUBIC.MD)
 - [REST API endpoints](REST_API.md)
 - [Mastering findlog method](FINDLOG.MD)
 - [Dealing with tx and logging in bob](DEAL_WITH_TX.MD)
 - Increase kernel buffer size to [improve the stability of lite node](KERN_BUF_SIZE.MD)
+#### Inside bob
+- [Anatomy of bob](ANATOMY_OF_BOB.MD)
+- [Indexer indexing Qubic data](INDEXER_INDEXING_DATA.MD)
 
 ### USAGE
 `./bob <config_path>`
