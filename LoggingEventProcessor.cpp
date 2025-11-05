@@ -361,6 +361,7 @@ static std::string bytes_to_hex_string(const unsigned char* bytes, size_t size) 
 void verifyLoggingEvent(std::atomic_bool& stopFlag)
 {
     gIsEndEpoch = false;
+    uint32_t endEpochTick = 0;
     uint32_t lastVerifiedTick = db_get_latest_verified_tick();
     std::string spectrumFilePath;
     std::string assetFilePath;
@@ -398,10 +399,23 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
     }
     while (!stopFlag.load())
     {
-        while (gCurrentVerifyLoggingTick >= (gCurrentFetchingLogTick - 1) && !stopFlag.load()) SLEEP(100);
+        while (gCurrentVerifyLoggingTick > (gCurrentFetchingLogTick - 1) && !stopFlag.load()) SLEEP(100);
         if (stopFlag.load()) return;
         uint32_t processFromTick = gCurrentVerifyLoggingTick;
         uint32_t processToTick = std::min(gCurrentVerifyLoggingTick + BATCH_VERIFICATION, gCurrentFetchingLogTick - 1);
+        // detect END_EPOCH
+        for (uint32_t tick = processFromTick; tick <= processToTick; tick++)
+        {
+            ResponseAllLogIdRangesFromTick lr{};
+            if (db_get_log_range_all_txs(tick, lr))
+            {
+                if (lr.fromLogId[SC_END_EPOCH_TX] != -1 && lr.length[SC_END_EPOCH_TX] != -1)
+                {
+                    if (processFromTick < tick) processToTick = tick - 1;
+                    Logger::get()->info("Detect end epoch at tick {}. Setting last batch to {}->{}", tick, processFromTick, processToTick);
+                }
+            }
+        }
         std::vector<LogEvent> vle;
         {
             PROFILE_SCOPE("db_get_logs_by_tick_range");
@@ -551,6 +565,9 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
                         if (msg == CUSTOM_MESSAGE_OP_END_EPOCH)
                         {
                             gIsEndEpoch = true;
+                            endEpochTick = le.getTick() - 1;
+                            Logger::get()->info("Detect END_EPOCH message at tick {}", endEpochTick);
+                            break;
                         }
                         break;
                     }
@@ -561,6 +578,7 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
         }
 
 verifyNodeStateDigest:
+        if (gIsEndEpoch) break;
         if (stopFlag.load()) break;
         m256i spectrumDigest, universeDigest;
         std::vector<TickVote> votes;
@@ -635,34 +653,35 @@ verifyNodeStateDigest:
             }
             gCurrentVerifyLoggingTick = processToTick + 1;
         }
-        if (gIsEndEpoch)
-        {
-            // begin epoch transition procedure
-            uint16_t nextEpoch = gCurrentProcessingEpoch + 1;
-            Logger::get()->info("Saving verified universe/spectrum for new epoch", nextEpoch);
-            std::string tickSpectrum = "spectrum." + std::to_string(nextEpoch);
-            std::string tickUniverse = "universe." + std::to_string(nextEpoch);
+    }
+    if (gIsEndEpoch)
+    {
+        gCurrentVerifyLoggingTick = endEpochTick + 1;
+        db_update_latest_verified_tick(gCurrentVerifyLoggingTick - 1);
+        // begin epoch transition procedure
+        uint16_t nextEpoch = gCurrentProcessingEpoch + 1;
+        Logger::get()->info("Saving verified universe/spectrum for new epoch", nextEpoch);
+        std::string tickSpectrum = "spectrum." + std::to_string(nextEpoch);
+        std::string tickUniverse = "universe." + std::to_string(nextEpoch);
 
-            FILE *f = fopen(tickSpectrum.c_str(), "wb");
-            if (!f) {
-                Logger::get()->error("Failed to open spectrum file for writing: {}", tickSpectrum);
-            } else {
-                if (fwrite(spectrum, sizeof(EntityRecord), SPECTRUM_CAPACITY, f) != SPECTRUM_CAPACITY) {
-                    Logger::get()->error("Failed to write spectrum file: {}", tickSpectrum);
-                }
-                fclose(f);
+        FILE *f = fopen(tickSpectrum.c_str(), "wb");
+        if (!f) {
+            Logger::get()->error("Failed to open spectrum file for writing: {}", tickSpectrum);
+        } else {
+            if (fwrite(spectrum, sizeof(EntityRecord), SPECTRUM_CAPACITY, f) != SPECTRUM_CAPACITY) {
+                Logger::get()->error("Failed to write spectrum file: {}", tickSpectrum);
             }
+            fclose(f);
+        }
 
-            f = fopen(tickUniverse.c_str(), "wb");
-            if (!f) {
-                Logger::get()->error("Failed to open universe file for writing: {}", tickUniverse);
-            } else {
-                if (fwrite(assets, sizeof(AssetRecord), ASSETS_CAPACITY, f) != ASSETS_CAPACITY) {
-                    Logger::get()->error("Failed to write universe file: {}", tickUniverse);
-                }
-                fclose(f);
+        f = fopen(tickUniverse.c_str(), "wb");
+        if (!f) {
+            Logger::get()->error("Failed to open universe file for writing: {}", tickUniverse);
+        } else {
+            if (fwrite(assets, sizeof(AssetRecord), ASSETS_CAPACITY, f) != ASSETS_CAPACITY) {
+                Logger::get()->error("Failed to write universe file: {}", tickUniverse);
             }
-            break;
+            fclose(f);
         }
     }
     Logger::get()->info("verifyLoggingEvent stopping gracefully.");

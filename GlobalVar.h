@@ -49,7 +49,7 @@ struct GlobalState {
     m256i nodePublickey;
     m256i nodePrivatekey;
 
-    bool gIsEndEpoch;
+    bool gIsEndEpoch = false;
 
     std::map<m256i, bool> gTrustedEntities;
 };

@@ -274,10 +274,11 @@ void indexVerifiedTicks(std::atomic_bool& stopFlag)
         if (nextTick == gCurrentVerifyLoggingTick && gIsEndEpoch)
         {
             // the final thread in bob 4-processors model
+            Logger::get()->info("Finish indexing last tick. Exiting...");
             stopFlag = true;
             break;
         }
-        while (nextTick >= gCurrentVerifyLoggingTick && !stopFlag.load(std::memory_order_relaxed))
+        if (nextTick >= gCurrentVerifyLoggingTick && !stopFlag.load(std::memory_order_relaxed))
         {
             SLEEP(10);
             continue;

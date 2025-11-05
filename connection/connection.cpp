@@ -514,9 +514,14 @@ void doHandshakeAndGetBootstrapInfo(ConnectionPool& cp, bool isTrusted, uint32_t
                 maxInitTick = std::max(maxInitTick, initTick);
                 maxInitEpoch = std::max(maxInitEpoch, initEpoch);
             }
+            else
+            {
+                conn->reconnect();
+            }
         }
         catch (...)
         {
+            conn->reconnect();
         }
     }
 }
@@ -536,21 +541,22 @@ void getComputorList(ConnectionPool& cp, std::string arbitratorIdentity)
                     uint8_t digest[32];
                     uint8_t arbitratorPublicKey[32];
                     getPublicKeyFromIdentity(arbitratorIdentity.c_str(), arbitratorPublicKey);
-                    KangarooTwelve((uint8_t*)&computorsList, sizeof(computorsList) - 64, digest, 32);
-                    if (verify(arbitratorPublicKey, digest, computorsList.signature))
+                    KangarooTwelve((uint8_t*)&comp, sizeof(comp) - 64, digest, 32);
+                    if (verify(arbitratorPublicKey, digest, comp.signature))
                     {
-                        db_insert_computors(computorsList);
-                        comp = computorsList;
+                        db_insert_computors(comp);
+                        computorsList = comp;
                     }
                     else
                     {
-                        Logger::get()->critical("Invalid signature in computor list");
+                        Logger::get()->critical("Invalid signature in computor list. ARB {}", arbitratorIdentity);
                     }
                 }
             }
         }
         catch (...)
         {
+            conn->reconnect();
         }
     }
 }
