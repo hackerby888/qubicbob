@@ -531,7 +531,8 @@ void getComputorList(ConnectionPool& cp, std::string arbitratorIdentity)
                 if (!db_get_computors(gCurrentProcessingEpoch.load(),computorsList))
                 {
                     Logger::get()->warn("Trying to get computor list for epoch {}...", gCurrentProcessingEpoch.load());
-                    conn->getComputorList(gCurrentProcessingEpoch.load(),computorsList);
+                    Computors comp{};
+                    conn->getComputorList(gCurrentProcessingEpoch.load(),comp);
                     uint8_t digest[32];
                     uint8_t arbitratorPublicKey[32];
                     getPublicKeyFromIdentity(arbitratorIdentity.c_str(), arbitratorPublicKey);
@@ -539,6 +540,7 @@ void getComputorList(ConnectionPool& cp, std::string arbitratorIdentity)
                     if (verify(arbitratorPublicKey, digest, computorsList.signature))
                     {
                         db_insert_computors(computorsList);
+                        comp = computorsList;
                     }
                     else
                     {
