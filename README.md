@@ -59,12 +59,14 @@ For the trusted-node field, the expected format is `NODE_IP:NODE_PORT:PASSCODE_L
 `./bob <config_path>`
 
 ### INSTALLATION SCRIPTS
+All in one batch file for the lazy:
 ```
 apt update && apt upgrade -y;
 apt install vim net-tools tmux cmake git libjsoncpp-dev build-essential cmake uuid-dev libhiredis-dev zlib1g-dev unzip -y;
 git clone https://github.com/krypdkat/qubicbob.git;
 cd qubicbob;
 mkdir build;
+cd build;
 cmake ..;
 make bob;
 curl -fsSL https://download.keydb.dev/open-source-dist/keyring.gpg | sudo gpg --dearmor -o /usr/share/keyrings/keydb-archive-keyring.gpg;
