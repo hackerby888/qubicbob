@@ -142,15 +142,21 @@ int runBob(int argc, char *argv[])
     parseConnection(connPoolAll, connPoolTrustedNode, connPoolP2P, cfg.p2p_nodes);
     uint32_t initTick = 0;
     uint16_t initEpoch = 0;
-
-    while (initTick == 0 || initEpoch < gCurrentProcessingEpoch)
+    uint32_t endEpochTick = 0;
+    std::string key = "end_epoch_tick:" + std::to_string(gCurrentProcessingEpoch);
+    bool isThisEpochAlreadyEnd = db_get_u32(key, endEpochTick);
+    while (initTick == 0 ||
+            ( (initEpoch < gCurrentProcessingEpoch && !isThisEpochAlreadyEnd) ||
+              (initEpoch <= gCurrentProcessingEpoch && isThisEpochAlreadyEnd)
+            )
+    )
     {
         doHandshakeAndGetBootstrapInfo(connPoolTrustedNode, true, initTick, initEpoch);
         doHandshakeAndGetBootstrapInfo(connPoolP2P, false, initTick, initEpoch);
-        Logger::get()->info("Doing handshakes and ask for bootstrap info | PeerInitTick: {} PeerInitEpoch {}...", initTick, initEpoch);
-        if (initTick == 0 || initEpoch < gCurrentProcessingEpoch) SLEEP(1000);
+        if (isThisEpochAlreadyEnd) Logger::get()->info("Waiting for new epoch info from peers | PeerInitTick: {} PeerInitEpoch {}...", initTick, initEpoch);
+        else Logger::get()->info("Doing handshakes and ask for bootstrap info | PeerInitTick: {} PeerInitEpoch {}...", initTick, initEpoch);
+        if (initTick == 0 || initEpoch <= gCurrentProcessingEpoch) SLEEP(1000);
     }
-
 
     gInitialTick = initTick;
     if (initTick > gCurrentFetchingTick.load())

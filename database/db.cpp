@@ -1242,3 +1242,55 @@ bool db_get_log_range_sig(uint32_t tick, uint8_t* pubkey, uint8_t* signature) {
     return true;
 }
 
+bool db_rename(const std::string &key1, const std::string &key2) {
+    if (!g_redis) return false;
+    try {
+        g_redis->rename(key1, key2);
+        return true;
+    } catch (const sw::redis::Error &e) {
+        Logger::get()->error("Redis error in db_rename: {} {}=>{}\n", e.what(), key1, key2);
+        return false;
+    }
+}
+
+bool db_insert_u32(const std::string &key, uint32_t value) {
+    if (!g_redis) return false;
+    try {
+        g_redis->set(key, std::to_string(value));
+        return true;
+    } catch (const sw::redis::Error &e) {
+        Logger::get()->error("Redis error in db_insert_u32: {}\n", e.what());
+        return false;
+    }
+}
+
+
+
+bool db_key_exists(const std::string &key) {
+    if (!g_redis) return false;
+    try {
+        return g_redis->exists(key);
+    } catch (const sw::redis::Error &e) {
+        Logger::get()->error("Redis error in db_key_exists: {}\n", e.what());
+        return false;
+    }
+}
+
+bool db_get_u32(const std::string &key, uint32_t &value) {
+    if (!g_redis) return false;
+    try {
+        auto val = g_redis->get(key);
+        if (!val) {
+            return false;
+        }
+        value = static_cast<uint32_t>(std::stoul(*val));
+        return true;
+    } catch (const sw::redis::Error &e) {
+        Logger::get()->error("Redis error in db_get_u32: {}\n", e.what());
+        return false;
+    } catch (const std::logic_error &e) {
+        Logger::get()->error("Parsing error in db_get_u32: {}\n", e.what());
+        return false;
+    }
+}
+

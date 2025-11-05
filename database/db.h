@@ -329,3 +329,8 @@ bool db_get_log_range_sig(uint32_t tick, uint8_t* pubkey, uint8_t* signature);
 
 bool db_insert_bootstrap_info(uint16_t epoch, const BootstrapInfo &info);
 bool db_get_bootstrap_info(uint16_t epoch, BootstrapInfo &info);
+
+bool db_insert_u32(const std::string &key, uint32_t value);
+bool db_get_u32(const std::string &key, uint32_t &value);
+bool db_rename(const std::string &key1, const std::string &key2);
+bool db_key_exists(const std::string &key);
