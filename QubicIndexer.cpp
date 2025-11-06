@@ -80,7 +80,7 @@ static void indexTick(uint32_t tick, const TickData &td) {
     {
         std::string key = "itx:" + std::to_string(tick) + "_" + std::to_string(i);
         db_set_indexed_tx(key.c_str(), i, logrange.fromLogId[i],
-                          logrange.fromLogId[i] + logrange.length[i] - 1,
+                          logrange.fromLogId[i] + logrange.length[i] - 1, timestamp,
                           true);
     }
 
