@@ -286,5 +286,6 @@ std::string bobGetStatus()
            ",\"currentFetchingLogTick\":" + std::to_string(gCurrentFetchingLogTick) +
            ",\"currentVerifyLoggingTick\":" + std::to_string(gCurrentVerifyLoggingTick) +
            ",\"currentIndexingTick\":" + std::to_string(gCurrentIndexingTick) +
+            ",\"initialTick\":" + std::to_string(gInitialTick) +
            "}";
 }
