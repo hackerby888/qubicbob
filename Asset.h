@@ -551,3 +551,96 @@ static bool transferShareManagementRights(int sourceOwnershipIndex, int sourcePo
         goto iteration;
     }
 }
+
+static void assetsEndEpoch()
+{
+
+    ACQUIRE(universeLock);
+    std::vector<uint8_t> reorgBuffer(SPECTRUM_CAPACITY * sizeof(AssetRecord));
+    // rebuild asset hash map, getting rid of all elements with zero shares
+    AssetRecord* reorgAssets = (AssetRecord*)reorgBuffer.data();
+    setMem(reorgAssets, ASSETS_CAPACITY * sizeof(AssetRecord), 0);
+    for (unsigned int i = 0; i < ASSETS_CAPACITY; i++)
+    {
+        if (assets[i].varStruct.possession.type == POSSESSION
+            && assets[i].varStruct.possession.numberOfShares > 0)
+        {
+            const unsigned int oldOwnershipIndex = assets[i].varStruct.possession.ownershipIndex;
+            const unsigned int oldIssuanceIndex = assets[oldOwnershipIndex].varStruct.ownership.issuanceIndex;
+            const m256i& issuerPublicKey = assets[oldIssuanceIndex].varStruct.issuance.publicKey;
+            char* name = assets[oldIssuanceIndex].varStruct.issuance.name;
+            int issuanceIndex = issuerPublicKey.m256i_u32[0] & (ASSETS_CAPACITY - 1);
+            iteration2:
+            if (reorgAssets[issuanceIndex].varStruct.issuance.type == EMPTY
+                || (reorgAssets[issuanceIndex].varStruct.issuance.type == ISSUANCE
+                    && ((*((unsigned long long*)reorgAssets[issuanceIndex].varStruct.issuance.name)) & 0xFFFFFFFFFFFFFF) == ((*((unsigned long long*)name)) & 0xFFFFFFFFFFFFFF)
+                    && reorgAssets[issuanceIndex].varStruct.issuance.publicKey == issuerPublicKey))
+            {
+                if (reorgAssets[issuanceIndex].varStruct.issuance.type == EMPTY)
+                {
+                    copyMem(&reorgAssets[issuanceIndex], &assets[oldIssuanceIndex], sizeof(AssetRecord));
+                }
+
+                const m256i& ownerPublicKey = assets[oldOwnershipIndex].varStruct.ownership.publicKey;
+                int ownershipIndex = ownerPublicKey.m256i_u32[0] & (ASSETS_CAPACITY - 1);
+                iteration3:
+                if (reorgAssets[ownershipIndex].varStruct.ownership.type == EMPTY
+                    || (reorgAssets[ownershipIndex].varStruct.ownership.type == OWNERSHIP
+                        && reorgAssets[ownershipIndex].varStruct.ownership.managingContractIndex == assets[oldOwnershipIndex].varStruct.ownership.managingContractIndex
+                        && reorgAssets[ownershipIndex].varStruct.ownership.issuanceIndex == issuanceIndex
+                        && reorgAssets[ownershipIndex].varStruct.ownership.publicKey == ownerPublicKey))
+                {
+                    if (reorgAssets[ownershipIndex].varStruct.ownership.type == EMPTY)
+                    {
+                        reorgAssets[ownershipIndex].varStruct.ownership.publicKey = ownerPublicKey;
+                        reorgAssets[ownershipIndex].varStruct.ownership.type = OWNERSHIP;
+                        reorgAssets[ownershipIndex].varStruct.ownership.managingContractIndex = assets[oldOwnershipIndex].varStruct.ownership.managingContractIndex;
+                        reorgAssets[ownershipIndex].varStruct.ownership.issuanceIndex = issuanceIndex;
+                    }
+                    reorgAssets[ownershipIndex].varStruct.ownership.numberOfShares += assets[i].varStruct.possession.numberOfShares;
+
+                    int possessionIndex = assets[i].varStruct.possession.publicKey.m256i_u32[0] & (ASSETS_CAPACITY - 1);
+                    iteration4:
+                    if (reorgAssets[possessionIndex].varStruct.possession.type == EMPTY
+                        || (reorgAssets[possessionIndex].varStruct.possession.type == POSSESSION
+                            && reorgAssets[possessionIndex].varStruct.possession.managingContractIndex == assets[i].varStruct.possession.managingContractIndex
+                            && reorgAssets[possessionIndex].varStruct.possession.ownershipIndex == ownershipIndex
+                            && reorgAssets[possessionIndex].varStruct.possession.publicKey == assets[i].varStruct.possession.publicKey))
+                    {
+                        if (reorgAssets[possessionIndex].varStruct.possession.type == EMPTY)
+                        {
+                            reorgAssets[possessionIndex].varStruct.possession.publicKey = assets[i].varStruct.possession.publicKey;
+                            reorgAssets[possessionIndex].varStruct.possession.type = POSSESSION;
+                            reorgAssets[possessionIndex].varStruct.possession.managingContractIndex = assets[i].varStruct.possession.managingContractIndex;
+                            reorgAssets[possessionIndex].varStruct.possession.ownershipIndex = ownershipIndex;
+                        }
+                        reorgAssets[possessionIndex].varStruct.possession.numberOfShares += assets[i].varStruct.possession.numberOfShares;
+                    }
+                    else
+                    {
+                        possessionIndex = (possessionIndex + 1) & (ASSETS_CAPACITY - 1);
+
+                        goto iteration4;
+                    }
+                }
+                else
+                {
+                    ownershipIndex = (ownershipIndex + 1) & (ASSETS_CAPACITY - 1);
+
+                    goto iteration3;
+                }
+            }
+            else
+            {
+                issuanceIndex = (issuanceIndex + 1) & (ASSETS_CAPACITY - 1);
+
+                goto iteration2;
+            }
+        }
+    }
+    copyMem(assets, reorgAssets, ASSETS_CAPACITY * sizeof(AssetRecord));
+
+    setMem(assetChangeFlags, ASSETS_CAPACITY / 8, 0xFF);
+
+    RELEASE(universeLock);
+}

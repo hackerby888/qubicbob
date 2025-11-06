@@ -115,3 +115,32 @@ static int spectrumIndex(const m256i& publicKey)
         }
     }
 }
+
+static void reorganizeSpectrum()
+{
+
+    std::vector<uint8_t> reorgBuffer(SPECTRUM_CAPACITY * sizeof(EntityRecord));
+
+    EntityRecord* reorgSpectrum = (EntityRecord*)reorgBuffer.data();
+    setMem(reorgSpectrum, SPECTRUM_CAPACITY * sizeof(EntityRecord), 0);
+    for (unsigned int i = 0; i < SPECTRUM_CAPACITY; i++)
+    {
+        if (spectrum[i].incomingAmount - spectrum[i].outgoingAmount)
+        {
+            unsigned int index = spectrum[i].publicKey.m256i_u32[0] & (SPECTRUM_CAPACITY - 1);
+
+            iteration:
+            if (isZero(reorgSpectrum[index].publicKey))
+            {
+                copyMem(&reorgSpectrum[index], &spectrum[i], sizeof(EntityRecord));
+            }
+            else
+            {
+                index = (index + 1) & (SPECTRUM_CAPACITY - 1);
+
+                goto iteration;
+            }
+        }
+    }
+    copyMem(spectrum, reorgSpectrum, SPECTRUM_CAPACITY * sizeof(EntityRecord));
+}

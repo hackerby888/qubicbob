@@ -1242,18 +1242,29 @@ bool db_get_log_range_sig(uint32_t tick, uint8_t* pubkey, uint8_t* signature) {
     return true;
 }
 
+bool db_update_field(const std::string key, const std::string field, const std::string value) {
+    if (!g_redis) return false;
+    try {
+        g_redis->hset(key, field, value);
+        return true;
+    } catch (const sw::redis::Error &e) {
+        Logger::get()->error("Redis error in db_update_field: {}\n", e.what());
+        return false;
+    }
+}
+
 bool db_rename(const std::string &key1, const std::string &key2) {
     if (!g_redis) return false;
     try {
         g_redis->rename(key1, key2);
         return true;
     } catch (const sw::redis::Error &e) {
-        Logger::get()->error("Redis error in db_rename: {} {}=>{}\n", e.what(), key1, key2);
+//        Logger::get()->error("Redis error in db_rename: {} {}=>{}\n", e.what(), key1, key2);
         return false;
     }
 }
 
-bool db_insert_u32(const std::string &key, uint32_t value) {
+bool db_insert_u32(const std::string key, uint32_t value) {
     if (!g_redis) return false;
     try {
         g_redis->set(key, std::to_string(value));

@@ -322,12 +322,15 @@ int runBob(int argc, char *argv[])
     }
     Logger::get()->info("Exited data threads");
     garbage_thread.join();
+    if (gIsEndEpoch)
+    {
+        Logger::get()->info("Received END_EPOCH message. Closing BOB");
+    }
     db_close();
     // Stop embedded server (if it was started) before shutting down logger
     StopQubicServer();
     stopRESTServer();
     ProfilerRegistry::instance().printSummary();
-    if (gIsEndEpoch) Logger::get()->info("Received END_EPOCH message. Closing BOB.");
     Logger::get()->info("Shutting down logger");
     spdlog::shutdown();
     return 0;

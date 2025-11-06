@@ -311,12 +311,8 @@ static bool loadFile(const std::string& path,
 
 #define SAVE_PERIOD 1000
 
-void saveState(uint32_t& tracker, uint32_t lastVerified)
+void saveFiles(const std::string tickSpectrum, const std::string tickUniverse)
 {
-    Logger::get()->info("Saving verified universe/spectrum {} - Do not shutdown", lastVerified);
-    std::string tickSpectrum = "spectrum." + std::to_string(lastVerified);
-    std::string tickUniverse = "universe." + std::to_string(lastVerified);
-
     FILE *f = fopen(tickSpectrum.c_str(), "wb");
     if (!f) {
         Logger::get()->error("Failed to open spectrum file for writing: {}", tickSpectrum);
@@ -336,6 +332,14 @@ void saveState(uint32_t& tracker, uint32_t lastVerified)
         }
         fclose(f);
     }
+}
+
+void saveState(uint32_t& tracker, uint32_t lastVerified)
+{
+    Logger::get()->info("Saving verified universe/spectrum {} - Do not shutdown", lastVerified);
+    std::string tickSpectrum = "spectrum." + std::to_string(lastVerified);
+    std::string tickUniverse = "universe." + std::to_string(lastVerified);
+    saveFiles(tickSpectrum, tickUniverse);
     db_update_latest_verified_tick(lastVerified);
     tickSpectrum = "spectrum." + std::to_string(tracker);
     tickUniverse = "universe." + std::to_string(tracker);
@@ -361,12 +365,13 @@ static std::string bytes_to_hex_string(const unsigned char* bytes, size_t size) 
 void verifyLoggingEvent(std::atomic_bool& stopFlag)
 {
     gIsEndEpoch = false;
+    bool saveLastTick = false;
     uint32_t lastQuorumTick = 0;
     uint32_t lastVerifiedTick = db_get_latest_verified_tick();
     std::string spectrumFilePath;
     std::string assetFilePath;
     // Choose default files based on lastVerifiedTick; fallback to epoch files if any is missing.
-    if (lastVerifiedTick != -1 || lastVerifiedTick < gInitialTick) {
+    if (lastVerifiedTick != -1 && lastVerifiedTick >= gInitialTick) {
         std::string tickSpectrum = "spectrum." + std::to_string(lastVerifiedTick);
         std::string tickUniverse = "universe." + std::to_string(lastVerifiedTick);
         if (std::filesystem::exists(tickSpectrum) && std::filesystem::exists(tickUniverse)) {
@@ -411,6 +416,13 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
             {
                 if (lr.fromLogId[SC_END_EPOCH_TX] != -1 && lr.length[SC_END_EPOCH_TX] != -1)
                 {
+                    if (!saveLastTick)
+                    {
+                        saveLastTick = true;
+                        Logger::get()->info("Saving verified universe/spectrum 1 tick before new epoch");
+                        saveState(lastVerifiedTick, gCurrentVerifyLoggingTick - 1);
+                        saveFiles("spectrum."+std::to_string(tick-1), "universe."+std::to_string(tick-1));
+                    }
                     if (processFromTick < tick) processToTick = tick - 1;
                     Logger::get()->info("Detect end epoch at tick {}. Setting last batch to {}->{}", tick, processFromTick, processToTick);
                 }
@@ -656,9 +668,10 @@ verifyNodeStateDigest:
     }
     if (gIsEndEpoch)
     {
+        Logger::get()->info("Reorg spectrum and universe...");
+        reorganizeSpectrum();
+        assetsEndEpoch();
         gCurrentVerifyLoggingTick = lastQuorumTick + 1;
-        Logger::get()->info("Saving verified universe/spectrum 1 tick before new epoch");
-        saveState(lastVerifiedTick, gCurrentVerifyLoggingTick - 1);
         // begin epoch transition procedure
         uint16_t nextEpoch = gCurrentProcessingEpoch + 1;
         Logger::get()->info("Saving universe/spectrum for new epoch", nextEpoch);
@@ -685,7 +698,7 @@ verifyNodeStateDigest:
             fclose(f);
         }
 
-        // the end_epoch tick is a virtual tick, we need to migrate its data to new keys:
+        // the endTick tick is a virtual tick, we need to migrate its data to new keys:
         uint32_t endTick = lastQuorumTick + 1; // the system just "borrow" this tick index
         db_rename("log_range_sig:" + std::to_string(endTick),
                       "end_epoch:" + std::to_string(gCurrentProcessingEpoch) + ":log_range_sig");
@@ -708,6 +721,8 @@ verifyNodeStateDigest:
                       "end_epoch:log_ranges");
         std::string key = "end_epoch_tick:" + std::to_string(gCurrentProcessingEpoch);
         db_insert_u32(key, endTick);
+        // end epoch tick is a virtual tick for logging, we set it back to lastQuorumTick
+        db_update_field("db_status", "latest_event_tick", std::to_string(lastQuorumTick));
     }
     Logger::get()->info("verifyLoggingEvent stopping gracefully.");
 }
