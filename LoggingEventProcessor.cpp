@@ -349,6 +349,7 @@ void saveState(uint32_t& tracker, uint32_t lastVerified)
     }
     Logger::get()->info("Saved checkpoints. Deleted old verified universe/spectrum {}. ", lastVerified);
     tracker = lastVerified;
+    db_insert_u32("verified_history:" + std::to_string(gCurrentProcessingEpoch), lastVerified);
 }
 
 // Helper to convert byte array to hex string
@@ -723,6 +724,7 @@ verifyNodeStateDigest:
         db_insert_u32(key, endTick);
         // end epoch tick is a virtual tick for logging, we set it back to lastQuorumTick
         db_update_field("db_status", "latest_event_tick", std::to_string(lastQuorumTick));
+        db_insert_u32("verified_history:" + std::to_string(gCurrentProcessingEpoch), lastQuorumTick); // update historical tracker
     }
     Logger::get()->info("verifyLoggingEvent stopping gracefully.");
 }
