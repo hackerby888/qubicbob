@@ -1045,7 +1045,7 @@ bool db_set_indexed_tx(const char *key,
         fields["from_log_id"] = std::to_string(from_log_id);
         fields["to_log_id"] = std::to_string(to_log_id);
         fields["executed"] = executed ? "1" : "0";
-        fields["timestamp"] = timestamp;
+        fields["timestamp"] = std::to_string(timestamp);
 
         g_redis->hmset(key, fields.begin(), fields.end());
         return true;
