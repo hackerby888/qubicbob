@@ -32,22 +32,22 @@ static int getTransactionIndexFromLogId(const ResponseAllLogIdRangesFromTick &lo
 // Index a single verified tick. Extend this to build/search indexes as needed.
 static uint64_t calculateUnixTimestamp(const TickData &td) {
     std::tm timeinfo = {};
-    timeinfo.tm_year = td.year + 100;  // Year since 1900
-    timeinfo.tm_mon = td.month - 1;    // Month (0-11)
+    timeinfo.tm_year = int(td.year) + 2000 - 1900;  // Convert from 2-digit year to years since 1900
+    timeinfo.tm_mon = td.month - 1;    // Month (0-11)  
     timeinfo.tm_mday = td.day;
     timeinfo.tm_hour = td.hour;
     timeinfo.tm_min = td.minute;
     timeinfo.tm_sec = td.second;
+    timeinfo.tm_isdst = -1;
+    time_t t = timegm(&timeinfo);
 
-    time_t timestamp = std::mktime(&timeinfo);
-    return (timestamp * 1000LL) + td.millisecond;
+    uint64_t millis = static_cast<uint64_t>(t) * 1000u + static_cast<uint64_t>(td.millisecond);
+    return millis;
 }
 
 static void indexTick(uint32_t tick, const TickData &td) {
     ResponseAllLogIdRangesFromTick logrange{};
     uint64_t timestamp = calculateUnixTimestamp(td);
-
-
     db_get_log_range_all_txs(tick, logrange);
     if (td.tick == tick)
     {
