@@ -80,7 +80,6 @@ std::string bobGetTransaction(const char* txHash)
                    "\"to\":\"" + getIdentity(tx->destinationPublicKey, false) + "\"," +
                    "\"amount\":" + std::to_string(tx->amount) + "," +
                    "\"tick\":" + std::to_string(tx->tick) + "," +
-                    "\"timestamp\":" + std::to_string(timestamp) + "," +
                     "\"inputSize\":" + std::to_string(tx->inputSize) + "," +
                     "\"inputType\":" + std::to_string(tx->inputType) + "," +
                     "\"inputData\":\"" + inputData + "\"" +
@@ -97,6 +96,7 @@ std::string bobGetTransaction(const char* txHash)
                 "\"logIdTo\":" + std::to_string(to_log_id) + "," +
                 "\"transactionIndex\":" + std::to_string(tx_index) + "," +
                 "\"executed\":" + (executed ? "true" : "false") + "," +
+                "\"timestamp\":" + std::to_string(timestamp) + "," +
                 "\"inputSize\":" + std::to_string(tx->inputSize) + "," +
                 "\"inputType\":" + std::to_string(tx->inputType) + "," +
                 "\"inputData\":\"" + inputData + "\"" +
