@@ -57,15 +57,30 @@ namespace sw { namespace redis { class Redis; }}
 
 /**
  * Connects to the Redis server and prepares the DB layer for use.
- * - connectionString example: "tcp://127.0.0.1:6379"
- * Throws:
+ *
+ * Notes
+ * - Safe to call multiple times; subsequent calls are no-ops if already connected.
+ *
+ * Parameters
+ * - connectionString: Redis (or KeyDB) URI. Example: "tcp://127.0.0.1:6379"
+ *   Implementation may append connection options (e.g., pool sizing).
+ *
+ * Return Value
+ * - None
+ *
+ * Throws
  * - std::runtime_error on connection or authentication failure.
  */
 void db_connect(const std::string& connectionString);
 
 /**
  * Closes the Redis connection and releases any associated resources.
- * Safe to call multiple times.
+ *
+ * Notes
+ * - Safe to call multiple times; it is a no-op if the connection is already closed.
+ *
+ * Return Value
+ * - None
  */
 void db_close();
 
@@ -73,54 +88,108 @@ void db_close();
 
 /**
  * Inserts a TickVote as a binary blob.
- * Key format: tick_vote:{tick}:{computorIndex}:{hash}
- * Returns:
+ *
+ * Key Format
+ * - tick_vote:{tick}:{computorIndex}:{hash}
+ *
+ * Parameters
+ * - vote: The TickVote to persist.
+ *
+ * Return Value
  * - true on success
- * - false if the write fails
+ * - false if the write fails or DB is unavailable
  */
 bool db_insert_tick_vote(const TickVote& vote);
 
 /**
  * Inserts a TickData as a binary blob.
- * Key format: tick_data:{tick}:{computorIndex}:{hash}
- * Returns:
+ *
+ * Key Format
+ * - tick_data:{tick}:{computorIndex}:{hash}
+ *   (Implementations may use simplified or deduplicated keys.)
+ *
+ * Parameters
+ * - data: The TickData to persist.
+ *
+ * Return Value
  * - true on success
- * - false on write failure
+ * - false on write failure or DB unavailable
  */
 bool db_insert_tick_data(const TickData& data);
 
 /**
  * Inserts a Transaction payload.
- * Key format: transaction:{tick}:{hash}
- * Returns:
+ *
+ * Key Format
+ * - transaction:{tick}:{hash}
+ *   (Implementations may store by hash only.)
+ *
+ * Parameters
+ * - tx: Pointer to a Transaction structure in memory. The stored size commonly
+ *       includes the Transaction header/body, input payload (inputSize), and a signature.
+ *
+ * Return Value
  * - true on success
  * - false on write failure or invalid input
+ *
+ * Preconditions
+ * - tx must be non-null and point to a valid Transaction instance.
  */
 bool db_insert_transaction(const Transaction* tx);
 
 /**
  * Inserts a log event payload.
- * Expected content layout begins with a 26-byte packed header (see LogEvent).
- * Key format: log:{epoch}:{tick}:{txHash}:{type}:{logId}:{hash}
- * Returns:
+ *
+ * Content Layout
+ * - Expected to start with a 26-byte packed header (see LogEvent::PackedHeaderSize),
+ *   followed by the body.
+ *
+ * Key Format
+ * - log:{epoch}:{tick}:{txHash}:{type}:{logId}:{hash}
+ *   (Implementations may normalize to a minimal form.)
+ *
+ * Parameters
+ * - epoch: Epoch of the log event
+ * - tick: Tick of the log event
+ * - logId: Monotonically increasing log identifier (per producer/epoch)
+ * - logSize: Total byte size of the content buffer (header + body)
+ * - content: Pointer to the raw content buffer
+ *
+ * Return Value
  * - true on success
- * - false on write failure
+ * - false on write failure or DB unavailable
  */
 bool db_insert_log(uint16_t epoch, uint32_t tick, uint64_t logId, int logSize, const uint8_t* content);
 
 /**
  * Inserts the per-tx log-id range for a given tick.
- * Key format: log_range:{tick}:{txId}
- * Returns:
+ *
+ * Key Format
+ * - log_range:{tick}:{txId}
+ *   (Implementations may also store a per-tick summary.)
+ *
+ * Parameters
+ * - tick: The tick the ranges belong to
+ * - logRange: Struct that contains per-transaction [from, length] ranges within the tick
+ *
+ * Return Value
  * - true on success
- * - false on write failure
+ * - false on write failure or invalid data
  */
 bool db_insert_log_range(uint32_t tick, const ResponseAllLogIdRangesFromTick& logRange);
 
 /**
  * Atomically updates the latest tick and epoch in the global DB status if and only if
  * the provided tick is strictly greater than the stored value.
- * Returns:
+ *
+ * Monotonicity
+ * - This helper must enforce monotonic updates (e.g., via Redis-side atomicity).
+ *
+ * Parameters
+ * - tick: Candidate latest tick
+ * - epoch: Associated epoch for the tick
+ *
+ * Return Value
  * - true if updated or if an equal/higher value is already stored
  * - false on failure
  */
@@ -130,7 +199,12 @@ bool db_update_latest_tick_and_epoch(uint32_t tick, uint16_t epoch);
 
 /**
  * Reads the latest tick and epoch from the global DB status.
- * Returns:
+ *
+ * Parameters
+ * - tick [out]: Receives the stored latest tick
+ * - epoch [out]: Receives the stored latest epoch
+ *
+ * Return Value
  * - true on success (outputs are set)
  * - false on failure or if not present
  */
@@ -139,7 +213,12 @@ bool db_get_latest_tick_and_epoch(uint32_t& tick, uint16_t& epoch);
 /**
  * Atomically updates the latest logging event tick/epoch in DB status, only if the
  * new tick is strictly greater than the stored event tick.
- * Returns:
+ *
+ * Parameters
+ * - tick: Candidate latest log event tick
+ * - epoch: Associated epoch of that event
+ *
+ * Return Value
  * - true if updated or already up-to-date
  * - false on failure
  */
@@ -147,7 +226,12 @@ bool db_update_latest_event_tick_and_epoch(uint32_t tick, uint16_t epoch);
 
 /**
  * Reads the latest logging event tick/epoch from DB status.
- * Returns:
+ *
+ * Parameters
+ * - tick [out]: Receives the latest log event tick
+ * - epoch [out]: Receives the latest log event epoch
+ *
+ * Return Value
  * - true on success (outputs are set)
  * - false on failure or if fields are absent
  */
@@ -155,16 +239,31 @@ bool db_get_latest_event_tick_and_epoch(uint32_t& tick, uint16_t& epoch);
 
 /**
  * Update the latest log id for a specific epoch.
- * Stored at: db_status:epoch:{epoch} field latest_log_id
- * Returns true on success.
+ *
+ * Storage
+ * - db_status:epoch:{epoch} field latest_log_id
+ *
+ * Parameters
+ * - epoch: Epoch key
+ * - logId: Latest log id to store (monotonic)
+ *
+ * Return Value
+ * - true on success
+ * - false on failure
  */
 bool db_update_latest_log_id(uint16_t epoch, long long logId);
 
 /**
  * Get the latest log id for a specific epoch.
- * Reads: db_status:epoch:{epoch} field latest_log_id
- * Returns:
- * - >= 0 on success
+ *
+ * Reads
+ * - db_status:epoch:{epoch} field latest_log_id
+ *
+ * Parameters
+ * - epoch: Epoch to query
+ *
+ * Return Value
+ * - >= 0 on success (the latest log id)
  * - -1 on error or if the field is absent
  */
 long long db_get_latest_log_id(uint16_t epoch);
@@ -173,16 +272,32 @@ long long db_get_latest_log_id(uint16_t epoch);
 
 /**
  * Update the latest verified tick for a specific epoch.
- * Stored at: db_status:epoch:{epoch} field latest_verified_tick
- * Only updates if the new tick > stored value.
- * Returns true on success.
+ *
+ * Storage
+ * - db_status:epoch:{epoch} field latest_verified_tick
+ *
+ * Monotonicity
+ * - Only updates if the new tick > stored value.
+ *
+ * Parameters
+ * - tick: Candidate latest verified tick (implicitly associated with current epoch)
+ *
+ * Return Value
+ * - true on success
+ * - false on failure
  */
 bool db_update_latest_verified_tick(uint32_t tick);
 
 /**
  * Get the latest verified tick for a specific epoch.
- * Reads: db_status:epoch:{epoch} field latest_verified_tick
- * Returns:
+ *
+ * Reads
+ * - db_status:epoch:{epoch} field latest_verified_tick
+ *
+ * Parameters
+ * - None (implementation may infer current epoch)
+ *
+ * Return Value
  * - >= 0 on success
  * - -1 if not present or on error
  */
@@ -190,15 +305,25 @@ long long db_get_latest_verified_tick();
 
 /**
  * Count the number of votes for a given tick.
- * Returns:
- * - >= 0 vote count
+ *
+ * Parameters
+ * - tick: Tick for which to count votes
+ *
+ * Return Value
+ * - >= 0 number of votes
  * - -1 on error
  */
 long long db_get_tick_vote_count(uint32_t tick);
 
 /**
  * Retrieve a single TickVote for a given tick and computor index.
- * Returns:
+ *
+ * Parameters
+ * - tick: Target tick
+ * - computorIndex: Index in the computor set (implementation-defined bounds)
+ * - vote [out]: Populated with the vote if found
+ *
+ * Return Value
  * - true if found (vote is populated)
  * - false if not found or on error
  */
@@ -206,14 +331,23 @@ bool db_get_tick_vote(uint32_t tick, uint16_t computorIndex, TickVote& vote);
 
 /**
  * Retrieve all TickVotes for a given tick.
- * Returns:
+ *
+ * Parameters
+ * - tick: Target tick
+ *
+ * Return Value
  * - vector of votes (empty on failure or if none exist)
+ *   Note: Returned vector may contain fewer than the total computor count if sparse.
  */
 std::vector<TickVote> db_get_tick_votes(uint32_t tick);
 
 /**
  * Count the number of transactions for a specific tick.
- * Returns:
+ *
+ * Parameters
+ * - tick: Target tick
+ *
+ * Return Value
  * - >= 0 transaction count
  * - -1 on error
  */
@@ -221,30 +355,46 @@ long long db_get_tick_transaction_count(uint32_t tick);
 
 /**
  * Retrieve all log events for a transaction hash.
- * Returns a vector of LogEvent; empty on failure or if none exist.
+ *
+ * Parameters
+ * - txHash: Transaction hash string in canonical representation
+ *
+ * Return Value
+ * - Vector of LogEvent. Empty on failure or if none exist.
  */
 std::vector<LogEvent> db_get_logs_by_tx_hash(const std::string& txHash);
 
 /**
  * Retrieve log events within an epoch and tick range [start_tick, end_tick].
- * Returns a vector of LogEvent; empty on failure or if none exist.
+ *
+ * Parameters
+ * - epoch: Epoch to query
+ * - start_tick: Inclusive lower bound of tick range
+ * - end_tick: Inclusive upper bound of tick range
+ *
+ * Return Value
+ * - Vector of LogEvent. Empty on failure or if none exist.
  */
 std::vector<LogEvent> db_get_logs_by_tick_range(uint16_t epoch, uint32_t start_tick, uint32_t end_tick);
 
 /**
  * Retrieve TickData for a specific tick.
- * Implementations are expected to ensure consistency across redundant copies if stored.
- * Returns:
+ *
+ * Consistency
+ * - Implementations are expected to ensure consistency across redundant copies if stored.
+ *
+ * Parameters
+ * - tick: Target tick to load
+ * - data [out]: Receives the loaded TickData on success
+ *
+ * Return Value
  * - true if found and consistent (data is populated)
- * - false otherwise
+ * - false otherwise (absent, inconsistent, or error)
  */
 bool db_get_tick_data(uint32_t tick, TickData& data);
 
 /**
- * Retrieve the raw binary data of a transaction by hash.
- * Returns:
- * - true if found (tx_data populated)
- * - false if not found or on error
+ * Retrieve the raw binary data of a transaction by
  */
 
 bool db_check_log_range(uint32_t tick);
