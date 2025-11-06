@@ -30,8 +30,22 @@ static int getTransactionIndexFromLogId(const ResponseAllLogIdRangesFromTick &lo
 }
 
 // Index a single verified tick. Extend this to build/search indexes as needed.
+static uint64_t calculateUnixTimestamp(const TickData &td) {
+    std::tm timeinfo = {};
+    timeinfo.tm_year = td.year + 100;  // Year since 1900
+    timeinfo.tm_mon = td.month - 1;    // Month (0-11)
+    timeinfo.tm_mday = td.day;
+    timeinfo.tm_hour = td.hour;
+    timeinfo.tm_min = td.minute;
+    timeinfo.tm_sec = td.second;
+
+    time_t timestamp = std::mktime(&timeinfo);
+    return (timestamp * 1000LL) + td.millisecond;
+}
+
 static void indexTick(uint32_t tick, const TickData &td) {
     ResponseAllLogIdRangesFromTick logrange{};
+    uint64_t timestamp = calculateUnixTimestamp(td);
 
 
     db_get_log_range_all_txs(tick, logrange);
@@ -56,7 +70,7 @@ static void indexTick(uint32_t tick, const TickData &td) {
                 }
             }
             db_set_indexed_tx(key.c_str(), i, logrange.fromLogId[i],
-                              logrange.fromLogId[i] + logrange.length[i] - 1,
+                              logrange.fromLogId[i] + logrange.length[i] - 1, timestamp,
                               isExecuted);
         }
     }
@@ -244,19 +258,6 @@ static void indexTick(uint32_t tick, const TickData &td) {
     Logger::get()->trace("Indexed verified tick {}", tick);
 }
 
-bool tryGetTickData(uint32_t tick, TickData& data) {
-    if (db_get_tick_data(tick, data)) {
-        return true;
-    }
-    FullTickStruct full;
-    if (db_get_vtick(tick, full)) {
-        data = full.td;
-        return true;
-    }
-    memset((void*)&data, 0, sizeof(TickData));
-    return true;
-}
-
 void indexVerifiedTicks(std::atomic_bool& stopFlag)
 {
     using namespace std::chrono_literals;
@@ -287,7 +288,7 @@ void indexVerifiedTicks(std::atomic_bool& stopFlag)
 
         // Only proceed when the verified-compressed record exists.
         TickData td;
-        tryGetTickData(nextTick, td);
+        db_try_get_TickData(nextTick, td);
         indexTick(nextTick, td);
 
         // Persist progress.

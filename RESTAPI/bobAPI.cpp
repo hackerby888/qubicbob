@@ -71,14 +71,16 @@ std::string bobGetTransaction(const char* txHash)
         int tx_index;
         long long from_log_id;
         long long to_log_id;
+        uint64_t timestamp;
         bool executed;
-        if (!db_get_indexed_tx(txHash, tx_index, from_log_id, to_log_id, executed)) {
+        if (!db_get_indexed_tx(txHash, tx_index, from_log_id, to_log_id, timestamp, executed)) {
             return std::string("{") +
                    "\"hash\":\"" + txHash + "\"," +
                    "\"from\":\"" + getIdentity(tx->sourcePublicKey, false) + "\"," +
                    "\"to\":\"" + getIdentity(tx->destinationPublicKey, false) + "\"," +
                    "\"amount\":" + std::to_string(tx->amount) + "," +
                    "\"tick\":" + std::to_string(tx->tick) + "," +
+                    "\"timestamp\":" + std::to_string(timestamp) + "," +
                     "\"inputSize\":" + std::to_string(tx->inputSize) + "," +
                     "\"inputType\":" + std::to_string(tx->inputType) + "," +
                     "\"inputData\":\"" + inputData + "\"" +

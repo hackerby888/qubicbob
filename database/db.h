@@ -450,12 +450,14 @@ bool db_set_indexed_tx(const char* key,
                        int tx_index,
                        long long from_log_id,
                        long long to_log_id,
+                       uint64_t timestamp,
                        bool executed);
 
 bool db_get_indexed_tx(const char* tx_hash,
                        int& tx_index,
                        long long& from_log_id,
                        long long& to_log_id,
+                       uint64_t& timestamp,
                        bool& executed);
 
 
@@ -485,3 +487,5 @@ bool db_get_u32(const std::string &key, uint32_t &value);
 bool db_rename(const std::string &key1, const std::string &key2);
 bool db_key_exists(const std::string &key);
 bool db_update_field(const std::string key, const std::string field, const std::string value);
+
+bool db_try_get_TickData(uint32_t tick, TickData& data);

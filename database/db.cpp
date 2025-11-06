@@ -1029,6 +1029,7 @@ bool db_set_indexed_tx(const char *key,
                        int tx_index,
                        long long from_log_id,
                        long long to_log_id,
+                       uint64_t timestamp,
                        bool executed) {
     if (!g_redis) return false;
     try {
@@ -1044,6 +1045,7 @@ bool db_set_indexed_tx(const char *key,
         fields["from_log_id"] = std::to_string(from_log_id);
         fields["to_log_id"] = std::to_string(to_log_id);
         fields["executed"] = executed ? "1" : "0";
+        fields["timestamp"] = timestamp;
 
         g_redis->hmset(key, fields.begin(), fields.end());
         return true;
@@ -1057,36 +1059,61 @@ bool db_get_indexed_tx(const char* tx_hash,
                        int& tx_index,
                        long long& from_log_id,
                        long long& to_log_id,
-                       bool& executed) {
+                       uint64_t& timestamp,
+                       bool& executed)
+{
     if (!g_redis) return false;
+
     try {
         const std::string key = std::string("itx:") + tx_hash;
+
+        // Try to fetch all fields, including the newly added "timestamp".
+        // Some older keys might not have "timestamp" -> handle gracefully.
         std::vector<sw::redis::Optional<std::string>> vals;
-        g_redis->hmget(key, {"tx_index", "from_log_id", "to_log_id", "executed"}, std::back_inserter(vals));
+        g_redis->hmget(key,
+                       {"tx_index", "from_log_id", "to_log_id", "timestamp", "executed"},
+                       std::back_inserter(vals));
 
-        if (vals.size() != 4 || !vals[0] || !vals[1] || !vals[2] || !vals[3]) {
-            tx_index = -1;
-            from_log_id = -1;
-            to_log_id = -1;
+        // Essential fields must exist
+        if (vals.size() < 3 || !vals[0] || !vals[1] || !vals[2]) {
+            return false;
+        }
+
+        // Parse required fields
+        tx_index    = std::stoi(*vals[0]);
+        from_log_id = std::stoll(*vals[1]);
+        to_log_id   = std::stoll(*vals[2]);
+
+        // Parse optional "timestamp" (backward compatibility: default to 0 if missing)
+        if (vals.size() >= 4 && vals[3]) {
+            try {
+                timestamp = std::stoull(*vals[3]);
+            } catch (const std::exception&) {
+                // If the field exists but is malformed, fall back to 0 and continue
+                timestamp = 0;
+            }
+        } else {
+            timestamp = 0;
+        }
+
+        // Parse "executed" (optional; default false if missing)
+        if (vals.size() >= 5 && vals[4]) {
+            const auto &s = *vals[4];
+            executed = (s == "1" || s == "true" || s == "True");
+        } else {
             executed = false;
-            return false;
         }
 
-        try {
-            tx_index   = std::stoi(*vals[0]);
-            from_log_id = std::stoll(*vals[1]);
-            to_log_id   = std::stoll(*vals[2]);
-            executed    = (*vals[3] == std::string("1"));
-            return true;
-        } catch (const std::logic_error& e) {
-            Logger::get()->error("Parsing error in db_get_indexed_tx: %s\n", e.what());
-            return false;
-        }
-    } catch (const sw::redis::Error& e) {
+        return true;
+    } catch (const sw::redis::Error &e) {
         Logger::get()->error("Redis error in db_get_indexed_tx: %s\n", e.what());
+        return false;
+    } catch (const std::exception &e) {
+        Logger::get()->error("Parsing error in db_get_indexed_tx: %s\n", e.what());
         return false;
     }
 }
+
 
 std::vector<uint32_t> db_search_log(uint32_t scIndex, uint32_t scLogType, uint32_t fromTick, uint32_t toTick,
                                     std::string topic1, std::string topic2, std::string topic3)
@@ -1305,3 +1332,16 @@ bool db_get_u32(const std::string &key, uint32_t &value) {
     }
 }
 
+bool db_try_get_TickData(uint32_t tick, TickData& data)
+{
+    if (db_get_tick_data(tick, data)) {
+        return true;
+    }
+    FullTickStruct full;
+    if (db_get_vtick(tick, full)) {
+        data = full.td;
+        return true;
+    }
+    memset((void*)&data, 0, sizeof(TickData));
+    return true;
+}
