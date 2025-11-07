@@ -28,6 +28,10 @@ void processTickVote(uint8_t* ptr)
     {
         return;
     }
+    if (vote->tick < gCurrentVerifyLoggingTick - 1)
+    {
+        return; // already verified
+    }
     uint8_t* compPubkey = computorsList.publicKeys[vote->computorIndex].m256i_u8;
     vote->computorIndex ^= 3;
     bool ok = verifySignature((void *) vote, compPubkey, sizeof(TickVote));
@@ -50,6 +54,10 @@ void processTickData(uint8_t* ptr)
     if (data->epoch != gCurrentProcessingEpoch) // may also tell that epoch switch
     {
         return;
+    }
+    if (data->tick < gCurrentVerifyLoggingTick - 1)
+    {
+        return; // already verified
     }
     uint8_t* compPubkey = computorsList.publicKeys[data->computorIndex].m256i_u8;
     data->computorIndex ^= 8;
@@ -76,6 +84,11 @@ void processTransaction(const uint8_t* ptr)
         Logger::get()->warn("Malformed transaction data");
         return;
     }
+    if (tx->tick < gCurrentVerifyLoggingTick - 1)
+    {
+        return; // already verified
+    }
+    // TODO: check if tx is in a tickData to avoid flooding attack
     memcpy(buffer+sizeof(Transaction),ptr+sizeof(Transaction), tx->inputSize + SIGNATURE_SIZE);
     auto* pubkey = (uint8_t*)tx->sourcePublicKey;
     if (verifySignature((void *) buffer, pubkey, sizeof(Transaction) + tx->inputSize + SIGNATURE_SIZE))
