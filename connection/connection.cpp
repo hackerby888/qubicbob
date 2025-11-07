@@ -409,6 +409,7 @@ QubicConnection::QubicConnection(int existingSocket)
     }
 
     initSendThread();
+    nodeType = "client";
 }
 
 void parseConnection(ConnectionPool& connPoolAll,
@@ -419,26 +420,40 @@ void parseConnection(ConnectionPool& connPoolAll,
     // Try endpoints in order, connect to the first that works
 
     for (const auto& endpoint : endpoints) {
-        // Parse ip:port[:pass0-pass1-pass2-pass3]
-        auto p1 = endpoint.find(':');
-        if (p1 == std::string::npos || p1 == 0 || p1 == endpoint.size() - 1) {
-            Logger::get()->warn("Skipping invalid endpoint '{}', expected ip:port or ip:port:pass0-pass1-pass2-pass3", endpoint);
+        // Expected format: nodeType:ip:port[:pass0-pass1-pass2-pass3]
+        // nodeType must be "BM" (baremetal) or "bob"
+        auto p0 = endpoint.find(':');
+        if (p0 == std::string::npos || p0 == 0 || p0 == endpoint.size() - 1) {
+            Logger::get()->warn("Skipping invalid endpoint '{}', expected nodeType:ip:port or nodeType:ip:port:pass0-pass1-pass2-pass3", endpoint);
             continue;
         }
-        auto p2 = endpoint.find(':', p1 + 1);
-        std::string ip = endpoint.substr(0, p1);
+        std::string nodeType = endpoint.substr(0, p0);
+        if (nodeType != "BM" && nodeType != "bob") {
+            Logger::get()->warn("Skipping endpoint '{}': nodeType must be 'BM' or 'bob'", endpoint);
+            continue;
+        }
+        std::string rest = endpoint.substr(p0 + 1);
+
+        // Parse ip:port[:pass0-pass1-pass2-pass3] from rest
+        auto p1 = rest.find(':');
+        if (p1 == std::string::npos || p1 == 0 || p1 == rest.size() - 1) {
+            Logger::get()->warn("Skipping invalid endpoint '{}', expected nodeType:ip:port or nodeType:ip:port:pass0-pass1-pass2-pass3", endpoint);
+            continue;
+        }
+        auto p2 = rest.find(':', p1 + 1);
+        std::string ip = rest.substr(0, p1);
         std::string port_str;
         std::string passcode_str;
 
         if (p2 == std::string::npos) {
-            port_str = endpoint.substr(p1 + 1);
+            port_str = rest.substr(p1 + 1);
         } else {
-            if (p2 == endpoint.size() - 1) {
+            if (p2 == rest.size() - 1) {
                 Logger::get()->warn("Skipping endpoint '{}': missing passcode after second ':'", endpoint);
                 continue;
             }
-            port_str = endpoint.substr(p1 + 1, p2 - (p1 + 1));
-            passcode_str = endpoint.substr(p2 + 1);
+            port_str = rest.substr(p1 + 1, p2 - (p1 + 1));
+            passcode_str = rest.substr(p2 + 1);
         }
 
         int port = 0;
@@ -482,13 +497,17 @@ void parseConnection(ConnectionPool& connPoolAll,
                 continue;
             }
         }
+
         QCPtr conn = make_qc(ip.c_str(), port);
+        conn->setNodeType(nodeType);
         if (has_passcode) {
             conn->updatePasscode(passcode_arr);
         }
         connPoolAll.add(conn);
         if (has_passcode) connPoolTrustedNode.add(conn);
         else connPoolP2P.add(conn);
+
+        Logger::get()->info("Added {} node {}:{}{}", nodeType, ip, port, has_passcode ? " (trusted)" : "");
     }
 }
 

@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <utility>
 #include <vector>
 #include <memory>
 #include <random>
@@ -34,6 +35,7 @@ public:
     void doHandshake();
     void getComputorList(const uint16_t epoch, Computors& compList);
     void sendEndPacket(uint32_t dejavu = 0xffffffff);
+    void setNodeType(std::string _nodeType) { nodeType = std::move(_nodeType); }
 private:
     char mNodeIp[32];
     int mNodePort;
@@ -41,6 +43,7 @@ private:
     std::unique_ptr<MutexRoundBuffer> mBuffer;
     uint64_t mPasscode[4]; // for loggingEvent
     bool mReconnectable;   // whether reconnect() is allowed
+    std::string nodeType;
 
     void initSendThread();
     void sendThread();
