@@ -287,6 +287,7 @@ int runBob(int argc, char *argv[])
                 gCurrentVerifyLoggingTick.load(), verify_le_speed);
         requestMapperFrom.clean();
         requestMapperTo.clean();
+        responseSCData.clean(10);
 
         int count = 0;
         while (count++ < sleep_time*10 && !stopFlag.load()) SLEEP(100);

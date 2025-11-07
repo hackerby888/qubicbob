@@ -56,7 +56,7 @@ public:
     }
 
     // Remove entries older than 60 seconds.
-    void clean()
+    void clean(uint32_t period = 60)
     {
         std::lock_guard<std::mutex> lock(mtx_);
 
@@ -66,7 +66,7 @@ public:
                         .count());
         for (auto it = mem.begin(); it != mem.end(); ) {
             const uint64_t age = (now >= it->second.timestamp) ? (now - it->second.timestamp) : 0;
-            if (age > 60) {
+            if (age > period) {
                 it = mem.erase(it);
             } else {
                 ++it;
