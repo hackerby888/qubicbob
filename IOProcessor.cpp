@@ -409,7 +409,6 @@ void connReceiver(QCPtr& conn, const bool isTrustedNode, std::atomic_bool& stopF
         } catch (const std::logic_error& ex) {
             if (!conn->isReconnectable()) return;
             Logger::get()->trace("connReceiver error on : {}. Disconnecting", conn->getNodeIp());
-            Logger::get()->info("error {}", ex.what());
             conn->disconnect();
             SLEEP(errorBackoff);
             conn->reconnect();

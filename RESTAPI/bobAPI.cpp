@@ -9,6 +9,38 @@
 #include <sstream>
 #include <iomanip>
 
+// helper: hex-encode
+static std::string toHex(const std::vector<uint8_t>& data) {
+    std::stringstream ss;
+    ss << std::hex << std::setfill('0');
+    for (const auto &byte : data) {
+        ss << std::setw(2) << static_cast<int>(byte);
+    }
+    return ss.str();
+}
+
+// Non-blocking enqueue: send a SC query and return immediately
+bool enqueueSmartContractRequest(uint32_t nonce, uint32_t scIndex, uint32_t funcNumber, const uint8_t* data, uint32_t dataSize)
+{
+    std::vector<uint8_t> vdata(dataSize + sizeof(RequestContractFunction) + sizeof(RequestResponseHeader));
+    RequestContractFunction rcf{};
+    rcf.contractIndex = scIndex;
+    rcf.inputSize = dataSize;
+    rcf.inputType = funcNumber;
+
+    auto header = (RequestResponseHeader*)vdata.data();
+    header->setType(RequestContractFunction::type);
+    header->setSize(dataSize + sizeof(RequestResponseHeader) + sizeof(RequestContractFunction));
+    header->setDejavu(nonce);
+
+    memcpy(vdata.data() + sizeof(RequestResponseHeader), &rcf, sizeof(RequestResponseHeader));
+    if (dataSize)
+        memcpy(vdata.data() + sizeof(RequestResponseHeader) + sizeof(RequestContractFunction), data, dataSize);
+
+    // fire-and-forget to SC thread
+    return MRB_SC.EnqueuePacket(vdata.data());
+}
+
 std::string bobGetBalance(const char* identity)
 {
     if (!identity) return "{\"error\": \"Wrong identity format\"}";
@@ -294,47 +326,20 @@ std::string bobGetStatus()
 
 std::string querySmartContract(uint32_t nonce, uint32_t scIndex, uint32_t funcNumber, uint8_t* data, uint32_t dataSize)
 {
-    std::vector<uint8_t> vdata(dataSize + sizeof(RequestContractFunction) + sizeof(RequestResponseHeader));
-    RequestContractFunction rcf{};
-    rcf.contractIndex = scIndex;
-    rcf.inputSize = dataSize;
-    rcf.inputType = funcNumber;
-
-    auto header = (RequestResponseHeader*)vdata.data();
-    header->setType(RequestContractFunction::type);
-    header->setSize(dataSize + sizeof(RequestResponseHeader) + sizeof(RequestContractFunction));
-    header->setDejavu(nonce);
-
-    memcpy(vdata.data() + sizeof(RequestResponseHeader), &rcf, sizeof(RequestResponseHeader));
-
-    memcpy(vdata.data() + sizeof(RequestResponseHeader) + sizeof(RequestContractFunction), data, dataSize);
-
-    int count = 0;
+    // Preserve existing sync API for backwards compatibility,
+    // but avoid blocking the thread for long: do a single immediate check, else enqueue and return pending.
     std::vector<uint8_t> dataOut;
     Json::Value root;
-    bool getReplied = responseSCData.get(nonce, dataOut);
-    if (!getReplied) MRB_SC.EnqueuePacket(vdata.data());
-    while (count++ < 10)
-    {
-        if (responseSCData.get(nonce, dataOut))
-        {
-            std::stringstream ss;
-            ss << std::hex << std::setfill('0');
-            for (const auto &byte: dataOut) {
-                ss << std::setw(2) << static_cast<int>(byte);
-            }
-            root["nonce"] = nonce;
-            root["data"] = ss.str();
-            getReplied = true;
-            break;
-        }
-        SLEEP(1); // waiting maximum 10ms
+
+    if (responseSCData.get(nonce, dataOut)) {
+        root["nonce"] = nonce;
+        root["data"] = toHex(dataOut);
+    } else {
+        enqueueSmartContractRequest(nonce, scIndex, funcNumber, data, dataSize);
+        root["error"] = "pending";
+        root["message"] = "Query enqueued; try again shortly with the same nonce";
     }
-    if (!getReplied)
-    {
-        root["error"] = "Bob is querying. Trying again in a second.";
-    }
-    // Convert to string
+
     Json::FastWriter writer;
     return writer.write(root);
 }

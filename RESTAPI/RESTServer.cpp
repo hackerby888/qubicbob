@@ -8,9 +8,11 @@
 #include <mutex>
 #include <atomic>
 #include <cstdint>
+#include <iomanip>
 
 #include "bob.h"
 #include "Logger.h"
+#include "shim.h"
 
 namespace {
     std::once_flag g_startOnce;
@@ -177,86 +179,126 @@ namespace {
         app().registerHandler(
                 "/querySmartContract",
                 [](const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback) {
-                    try {
-                        auto jsonPtr = req->getJsonObject();
-                        if (!jsonPtr) {
-                            callback(makeError("Invalid or missing JSON body"));
-                            return;
-                        }
-                        const auto &j = *jsonPtr;
+    try {
+        auto jsonPtr = req->getJsonObject();
+        if (!jsonPtr) {
+            callback(makeError("Invalid or missing JSON body"));
+            return;
+        }
+        const auto &j = *jsonPtr;
 
-                        // Validate required fields and types
-                        if (!j.isMember("nonce") || !j["nonce"].isUInt64()) {
-                            callback(makeError("nonce (uint32) is required"));
-                            return;
-                        }
-                        if (!j.isMember("scIndex") || !j["scIndex"].isUInt()) {
-                            callback(makeError("scIndex (uint32) is required"));
-                            return;
-                        }
-                        if (!j.isMember("funcNumber") || !j["funcNumber"].isUInt()) {
-                            callback(makeError("funcNumber (uint32) is required"));
-                            return;
-                        }
-                        if (!j.isMember("data") || !j["data"].isString()) {
-                            callback(makeError("data (hex string) is required"));
-                            return;
-                        }
+        if (!j.isMember("nonce") || !j["nonce"].isUInt64()) {
+            callback(makeError("nonce (uint32) is required"));
+            return;
+        }
+        if (!j.isMember("scIndex") || !j["scIndex"].isUInt()) {
+            callback(makeError("scIndex (uint32) is required"));
+            return;
+        }
+        if (!j.isMember("funcNumber") || !j["funcNumber"].isUInt()) {
+            callback(makeError("funcNumber (uint32) is required"));
+            return;
+        }
+        if (!j.isMember("data") || !j["data"].isString()) {
+            callback(makeError("data (hex string) is required"));
+            return;
+        }
 
-                        uint64_t nonce = j["nonce"].asUInt64();
-                        unsigned long long scIndexULL = j["scIndex"].asUInt();
-                        unsigned long long funcNumberULL = j["funcNumber"].asUInt();
-                        const std::string dataHex = j["data"].asString();
+        const uint32_t nonce = static_cast<uint32_t>(j["nonce"].asUInt64());
+        const uint32_t scIndex = static_cast<uint32_t>(j["scIndex"].asUInt());
+        const uint32_t funcNumber = static_cast<uint32_t>(j["funcNumber"].asUInt());
+        std::string hex = j["data"].asString();
 
-                        // Range check for uint32
-                        if (scIndexULL > std::numeric_limits<uint32_t>::max()) {
-                            callback(makeError("scIndex out of uint32 range"));
-                            return;
-                        }
-                        if (funcNumberULL > std::numeric_limits<uint32_t>::max()) {
-                            callback(makeError("funcNumber out of uint32 range"));
-                            return;
-                        }
+        // normalize hex
+        if (hex.rfind("0x", 0) == 0 || hex.rfind("0X", 0) == 0) hex = hex.substr(2);
+        if (hex.size() % 2 != 0) {
+            callback(makeError("data hex length must be even"));
+            return;
+        }
+        auto isHex = [](char c) {
+            return (c >= '0' && c <= '9') ||
+                   (c >= 'a' && c <= 'f') ||
+                   (c >= 'A' && c <= 'F');
+        };
+        for (char c : hex) {
+            if (!isHex(c)) {
+                callback(makeError("data must be a hex string"));
+                return;
+            }
+        }
+        std::vector<uint8_t> dataBytes;
+        dataBytes.reserve(hex.length() / 2);
+        for (size_t i = 0; i < hex.length(); i += 2) {
+            uint8_t byte = static_cast<uint8_t>(std::stoi(hex.substr(i, 2), nullptr, 16));
+            dataBytes.push_back(byte);
+        }
 
-                        // Basic hex validation for data
-                        auto isHex = [](char c) {
-                            return (c >= '0' && c <= '9') ||
-                                   (c >= 'a' && c <= 'f') ||
-                                   (c >= 'A' && c <= 'F');
-                        };
-                        std::string hex = dataHex;
-                        if (hex.rfind("0x", 0) == 0 || hex.rfind("0X", 0) == 0) {
-                            hex = hex.substr(2);
-                        }
-                        if (!hex.empty()) {
-                            if (hex.size() % 2 != 0) {
-                                callback(makeError("data hex length must be even"));
-                                return;
-                            }
-                            for (char c : hex) {
-                                if (!isHex(c)) {
-                                    callback(makeError("data must be a hex string"));
-                                    return;
-                                }
-                            }
-                        }
+        // 1) Try immediate cache hit
+        {
+            std::vector<uint8_t> out;
+            if (responseSCData.get(nonce, out)) {
+                Json::Value root;
+                root["nonce"] = nonce;
+                // reuse helper from bobAPI.cpp if exposed, otherwise inline:
+                {
+                    std::stringstream ss;
+                    ss << std::hex << std::setfill('0');
+                    for (const auto& b : out) ss << std::setw(2) << static_cast<int>(b);
+                    root["data"] = ss.str();
+                }
+                Json::FastWriter writer;
+                callback(makeJsonResponse(writer.write(root)));
+                return;
+            }
+        }
 
-                        // Convert hex string to bytes
-                        std::vector<uint8_t> dataBytes;
-                        dataBytes.reserve(hex.length() / 2);
-                        for (size_t i = 0; i < hex.length(); i += 2) {
-                            uint8_t byte = (std::stoi(hex.substr(i, 2), nullptr, 16));
-                            dataBytes.push_back(byte);
-                        }
+        // 2) Enqueue the request (non-blocking)
+        enqueueSmartContractRequest(nonce, scIndex, funcNumber, dataBytes.data(), static_cast<uint32_t>(dataBytes.size()));
 
-                        std::string result = querySmartContract(nonce, scIndexULL, funcNumberULL, dataBytes.data(), dataBytes.size());
-                        callback(makeJsonResponse(result));
-                    } catch (const std::exception &ex) {
-                        callback(makeError(std::string("querySmartContract error: ") + ex.what(), k500InternalServerError));
-                    }
-                },
-                {Post}
-        );
+        // 3) Async wait up to 100ms with 5ms steps, on the event loop
+        auto loop = drogon::app().getLoop();
+        struct State {
+            uint32_t nonce;
+            int attempts = 0;       // 20 attempts x 5ms = 100ms
+            std::function<void(const HttpResponsePtr &)> cb;
+        };
+        auto st = std::make_shared<State>(State{nonce, 0, std::move(callback)});
+
+        // Use a shared function holder to avoid self-capture of an uninitialized std::function
+        auto task = std::make_shared<std::function<void()>>();
+        *task = [st, loop, task]() {
+            std::vector<uint8_t> out;
+            if (responseSCData.get(st->nonce, out)) {
+                Json::Value root;
+                root["nonce"] = st->nonce;
+                std::stringstream ss;
+                ss << std::hex << std::setfill('0');
+                for (const auto& b : out) ss << std::setw(2) << static_cast<int>(b);
+                root["data"] = ss.str();
+                Json::FastWriter writer;
+                st->cb(makeJsonResponse(writer.write(root)));
+                return;
+            }
+            if (++st->attempts >= 20) {
+                // timeout ~100ms
+                Json::Value root;
+                root["error"] = "pending";
+                root["message"] = "Query enqueued; try again with the same nonce";
+                root["nonce"] = st->nonce;
+                Json::FastWriter writer;
+                st->cb(makeJsonResponse(writer.write(root), k202Accepted));
+                return;
+            }
+            // schedule next check after 5ms
+            loop->runAfter(0.005, [task]() { (*task)(); });
+        };
+
+        // kick off the first check quickly (no blocking)
+        loop->runAfter(0.0, [task]() { (*task)(); });
+    } catch (const std::exception &ex) {
+        callback(makeError(std::string("querySmartContract error: ") + ex.what(), k500InternalServerError));
+    }
+});
 
     }
 
