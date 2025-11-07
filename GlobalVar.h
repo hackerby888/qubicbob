@@ -12,8 +12,10 @@
 struct GlobalState {
     MutexRoundBuffer MRB_Data{128 * 1024u * 1024u};
     MutexRoundBuffer MRB_Request{64u * 1024u * 1024u};
+    MutexRoundBuffer MRB_SC{64u * 1024u * 1024u}; // smart contract reader
     RequestMap requestMapperFrom;
     RequestMap requestMapperTo;
+    RequestMap responseSCData;
 
     std::atomic<uint32_t> gCurrentProcessingTick{0};
     std::atomic<uint16_t> gCurrentProcessingEpoch{0};

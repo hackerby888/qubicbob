@@ -20,14 +20,20 @@ public:
     void receiveAFullPacket(RequestResponseHeader& header, std::vector<uint8_t>& buffer);
     bool reconnect();
     void disconnect();
-    [[nodiscard]] bool isSocketValid() const{ return mSocket>=0;}
+    bool isSocketValid()
+    {
+        return mSocket>=0;
+    }
     char* getNodeIp() { return mNodeIp;}
     void updatePasscode(const uint64_t passcode[4]){ memcpy(mPasscode, passcode, 8*4); }
     void getPasscode(uint64_t* passcode){ memcpy(passcode, mPasscode, 8*4); }
     // Construct from an already-open socket; this connection is NON-reconnectable.
     QubicConnection(int existingSocket);
     // Expose whether this connection is allowed to reconnect.
-    [[nodiscard]] bool isReconnectable() const { return mReconnectable; }
+    bool isReconnectable()
+    {
+        return mReconnectable;
+    }
 
     // non-thread safe operation, only use these functions for bootstrap
     void getTickInfoFromTrustedNode(uint32_t& tick, uint16_t& epoch);
@@ -36,7 +42,10 @@ public:
     void getComputorList(const uint16_t epoch, Computors& compList);
     void sendEndPacket(uint32_t dejavu = 0xffffffff);
     void setNodeType(std::string _nodeType) { nodeType = std::move(_nodeType); }
-    bool isBM(){ return nodeType == "BM";}
+    bool isBM()
+    {
+        return nodeType == "BM";
+    }
     bool isBob(){ return nodeType == "bob";}
 private:
     char mNodeIp[32];
@@ -79,6 +88,45 @@ public:
 
     std::size_t size() const { return conns_.size(); }
     QCPtr& get(int i) { return conns_[i];}
+
+    // Sends to one random valid connection. Returns bytes sent, or -1 if none could be used.
+    int sendToRandomBM(uint8_t* buffer, int sz, uint8_t type, bool randomDejavu) {
+        if (conns_.empty()) return -1;
+
+        // Build an index list of currently valid connections
+        std::vector<std::size_t> idx;
+        idx.reserve(conns_.size());
+        for (std::size_t i = 0; i < conns_.size(); ++i) {
+            if (conns_[i] && conns_[i]->isSocketValid() && conns_[i]->isBM()) {
+                idx.push_back(i);
+            }
+        }
+        if (idx.empty()) return -1;
+
+        std::uniform_int_distribution<std::size_t> dist(0, idx.size() - 1);
+        auto chosen = idx[dist(rng_)];
+        return conns_[chosen]->enqueueWithHeader(buffer, sz, type, randomDejavu);
+    }
+
+    // Sends to one random valid connection. Returns bytes sent, or -1 if none could be used.
+    int sendToRandomBM(uint8_t* buffer, int sz) {
+        if (conns_.empty()) return -1;
+
+        // Build an index list of currently valid connections
+        std::vector<std::size_t> idx;
+        idx.reserve(conns_.size());
+        for (std::size_t i = 0; i < conns_.size(); ++i) {
+            if (conns_[i] && conns_[i]->isSocketValid() && conns_[i]->isBM()) {
+                idx.push_back(i);
+            }
+        }
+        if (idx.empty()) return -1;
+
+        std::uniform_int_distribution<std::size_t> dist(0, idx.size() - 1);
+        auto chosen = idx[dist(rng_)];
+        return conns_[chosen]->enqueueSend(buffer, sz);
+    }
+    
     // Sends to one random valid connection. Returns bytes sent, or -1 if none could be used.
     int sendToRandom(uint8_t* buffer, int sz, uint8_t type, bool randomDejavu) {
         if (conns_.empty()) return -1;

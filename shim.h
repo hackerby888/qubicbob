@@ -3,8 +3,12 @@
 
 #define MRB_Data                   (GS().MRB_Data)
 #define MRB_Request                (GS().MRB_Request)
+#define MRB_SC                      (GS().MRB_SC)
+
 #define requestMapperFrom          (GS().requestMapperFrom)
 #define requestMapperTo            (GS().requestMapperTo)
+#define responseSCData              (GS().responseSCData)
+
 #define gCurrentFetchingTick     (GS().gCurrentProcessingTick)
 #define gCurrentProcessingEpoch    (GS().gCurrentProcessingEpoch)
 #define gInitialTick               (GS().gInitialTick)

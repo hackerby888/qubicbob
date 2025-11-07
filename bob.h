@@ -21,7 +21,7 @@ std::string bobFindLog(uint32_t scIndex, uint32_t logType,
                        const std::string& st1, const std::string& st2, const std::string& st3,
                        uint32_t fromTick, uint32_t toTick);
 std::string bobGetStatus();
-std::string querySmartContract(uint64_t nonce, uint32_t scIndex, uint32_t funcNumber, uint8_t* data);
+std::string querySmartContract(uint32_t nonce, uint32_t scIndex, uint32_t funcNumber, uint8_t* data, uint32_t dataSize);
 // no one request for C ABI atm, add later if needed
 //#ifdef __cplusplus
 //}

@@ -94,6 +94,7 @@ QubicConnection::QubicConnection(const char* nodeIp, int nodePort)
     mSocket = do_connect(mNodeIp, mNodePort);
     mReconnectable = true;
     initSendThread();
+    nodeType = "null";
 }
 QubicConnection::~QubicConnection()
 {
@@ -187,6 +188,7 @@ void QubicConnection::sendThread()
                 buffer += numberOfBytes;
                 size   -= numberOfBytes;
             }
+
         }
         else
         {
@@ -395,7 +397,7 @@ QubicConnection::QubicConnection(int existingSocket)
     if (mSocket >= 0) {
         // Configure timeouts (best-effort)
         struct timeval tv;
-        tv.tv_sec = 1;
+        tv.tv_sec = 2;
         tv.tv_usec = 0;
         if (setsockopt(mSocket, SOL_SOCKET, SO_RCVTIMEO, (const void*)&tv, sizeof tv) < 0) {
             Logger::get()->warn("setsockopt(SO_RCVTIMEO) failed: {} ({})", errno, strerror(errno));

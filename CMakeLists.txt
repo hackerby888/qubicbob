@@ -120,6 +120,7 @@ SET(FILES ${CMAKE_SOURCE_DIR}/connection/connection.cpp
 		  ${CMAKE_SOURCE_DIR}/LogEvent.cpp
 
 		${CMAKE_SOURCE_DIR}/RESTAPI/bobAPI.cpp
+		${CMAKE_SOURCE_DIR}/RESTAPI/querySmartContract.cpp
 		${CMAKE_SOURCE_DIR}/RESTAPI/RESTServer.cpp
 )
 

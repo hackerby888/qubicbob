@@ -292,7 +292,49 @@ std::string bobGetStatus()
            "}";
 }
 
-std::string querySmartContract(uint64_t nonce, uint32_t scIndex, uint32_t funcNumber, uint8_t* data)
+std::string querySmartContract(uint32_t nonce, uint32_t scIndex, uint32_t funcNumber, uint8_t* data, uint32_t dataSize)
 {
-    return "null"; // not yet implemented
+    std::vector<uint8_t> vdata(dataSize + sizeof(RequestContractFunction) + sizeof(RequestResponseHeader));
+    RequestContractFunction rcf{};
+    rcf.contractIndex = scIndex;
+    rcf.inputSize = dataSize;
+    rcf.inputType = funcNumber;
+
+    auto header = (RequestResponseHeader*)vdata.data();
+    header->setType(RequestContractFunction::type);
+    header->setSize(dataSize + sizeof(RequestResponseHeader) + sizeof(RequestContractFunction));
+    header->setDejavu(nonce);
+
+    memcpy(vdata.data() + sizeof(RequestResponseHeader), &rcf, sizeof(RequestResponseHeader));
+
+    memcpy(vdata.data() + sizeof(RequestResponseHeader) + sizeof(RequestContractFunction), data, dataSize);
+
+    int count = 0;
+    std::vector<uint8_t> dataOut;
+    Json::Value root;
+    bool getReplied = responseSCData.get(nonce, dataOut);
+    if (!getReplied) MRB_SC.EnqueuePacket(vdata.data());
+    while (count++ < 10)
+    {
+        if (responseSCData.get(nonce, dataOut))
+        {
+            std::stringstream ss;
+            ss << std::hex << std::setfill('0');
+            for (const auto &byte: dataOut) {
+                ss << std::setw(2) << static_cast<int>(byte);
+            }
+            root["nonce"] = nonce;
+            root["data"] = ss.str();
+            getReplied = true;
+            break;
+        }
+        SLEEP(1); // waiting maximum 10ms
+    }
+    if (!getReplied)
+    {
+        root["error"] = "Bob is querying. Trying again in a second.";
+    }
+    // Convert to string
+    Json::FastWriter writer;
+    return writer.write(root);
 }

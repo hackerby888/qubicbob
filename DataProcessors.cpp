@@ -221,6 +221,11 @@ void processLogRangesSignature(RequestResponseHeader& header, const uint8_t* ptr
     }
 }
 
+void recordSmartContractResponse(uint32_t size, uint32_t dejavu, const uint8_t* ptr)
+{
+    responseSCData.add(dejavu, ptr, size, nullptr);
+}
+
 void DataProcessorThread(std::atomic_bool& exitFlag)
 {
     std::vector<uint8_t> buf;
@@ -261,6 +266,9 @@ void DataProcessorThread(std::atomic_bool& exitFlag)
                 break;
             case ResponseLogRangeSignature::type(): // logID ranges
                 processLogRangesSignature(header, payload);
+                break;
+            case RespondContractFunction::type:
+                recordSmartContractResponse(header.size(), header.getDejavu(), payload);
                 break;
             default:
                 break;

@@ -187,7 +187,7 @@ namespace {
 
                         // Validate required fields and types
                         if (!j.isMember("nonce") || !j["nonce"].isUInt64()) {
-                            callback(makeError("nonce (uint64) is required"));
+                            callback(makeError("nonce (uint32) is required"));
                             return;
                         }
                         if (!j.isMember("scIndex") || !j["scIndex"].isUInt()) {
@@ -241,19 +241,16 @@ namespace {
                             }
                         }
 
-                        // At this point input is validated. Implementation hook goes here.
-                        // If/when query logic is implemented, replace response below with the actual result.
-                        Json::Value resp;
-                        resp["ok"] = false;
-                        resp["error"] = "querySmartContract not implemented";
-                        resp["nonce"] = Json::UInt64(nonce);
-                        resp["scIndex"] = Json::UInt(scIndexULL);
-                        resp["funcNumber"] = Json::UInt(funcNumberULL);
-                        resp["data"] = dataHex;
+                        // Convert hex string to bytes
+                        std::vector<uint8_t> dataBytes;
+                        dataBytes.reserve(hex.length() / 2);
+                        for (size_t i = 0; i < hex.length(); i += 2) {
+                            uint8_t byte = (std::stoi(hex.substr(i, 2), nullptr, 16));
+                            dataBytes.push_back(byte);
+                        }
 
-                        auto httpResp = drogon::HttpResponse::newHttpJsonResponse(resp);
-                        httpResp->setStatusCode(drogon::k501NotImplemented);
-                        callback(httpResp);
+                        std::string result = querySmartContract(nonce, scIndexULL, funcNumberULL, dataBytes.data(), dataBytes.size());
+                        callback(makeJsonResponse(result));
                     } catch (const std::exception &ex) {
                         callback(makeError(std::string("querySmartContract error: ") + ex.what(), k500InternalServerError));
                     }

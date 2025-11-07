@@ -346,6 +346,7 @@ static bool isDataType(int type)
     if (type == ResponseAllLogIdRangesFromTick::type()) return true;  // logrange
     if (type == ResponseLogSignature::type()) return true;
     if (type == ResponseLogRangeSignature::type()) return true;
+    if (type == RespondContractFunction::type) return true;
     return false;
 }
 
@@ -364,7 +365,6 @@ void connReceiver(QCPtr& conn, const bool isTrustedNode, std::atomic_bool& stopF
             // Blocking receive of a complete packet from the connection.
             RequestResponseHeader hdr{};
             conn->receiveAFullPacket(hdr, packet);
-
             if (packet.empty()) {
                 // Defensive check; shouldn't happen if receiveAFullPacket succeeds.
                 if (!conn->isReconnectable()) return;
@@ -409,6 +409,7 @@ void connReceiver(QCPtr& conn, const bool isTrustedNode, std::atomic_bool& stopF
         } catch (const std::logic_error& ex) {
             if (!conn->isReconnectable()) return;
             Logger::get()->trace("connReceiver error on : {}. Disconnecting", conn->getNodeIp());
+            Logger::get()->info("error {}", ex.what());
             conn->disconnect();
             SLEEP(errorBackoff);
             conn->reconnect();

@@ -68,7 +68,6 @@ public:
         cv_not_full_.wait(lock, [this, packet_size] {
             return capacity_ - size_ >= packet_size;
         });
-
         // Write the packet data into the buffer, handling wraparound if necessary.
         if (tail_ + packet_size <= capacity_) {
             // The packet fits without wrapping around.
@@ -159,7 +158,6 @@ public:
         RequestResponseHeader header;
         peek_data(reinterpret_cast<uint8_t *>(&header), sizeof(RequestResponseHeader));
         const uint32_t packet_size = header.size();
-
         // Check if the entire packet is available
         if (size_ < packet_size) {
             return false;

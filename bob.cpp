@@ -27,6 +27,7 @@ void RequestProcessorThread(std::atomic_bool& exitFlag);
 void verifyLoggingEvent(std::atomic_bool& stopFlag);
 void indexVerifiedTicks(std::atomic_bool& stopFlag);
 bool cleanRawTick(uint32_t fromTick, uint32_t toTick);
+void querySmartContractThread(ConnectionPool& connPoolAll, std::atomic_bool& stopFlag);
 std::atomic_bool stopFlag{false};
 
 // Public helpers from QubicServer.cpp
@@ -140,6 +141,13 @@ int runBob(int argc, char *argv[])
     ConnectionPool connPoolP2P;
     parseConnection(connPoolAll, connPoolTrustedNode, connPoolP2P, cfg.trusted_nodes);
     parseConnection(connPoolAll, connPoolTrustedNode, connPoolP2P, cfg.p2p_nodes);
+    if (connPoolAll.size() == 0)
+    {
+        Logger::get()->error("0 valid connection");
+        exit(1);
+    }
+
+
     uint32_t initTick = 0;
     uint16_t initEpoch = 0;
     uint32_t endEpochTick = 0;
@@ -211,6 +219,10 @@ int runBob(int argc, char *argv[])
     auto indexer_thread = std::thread([&](){
         set_this_thread_name("indexer");
         indexVerifiedTicks(std::ref(stopFlag));
+    });
+    auto sc_thread = std::thread([&](){
+        set_this_thread_name("sc");
+        querySmartContractThread(connPoolAll, std::ref(stopFlag));
     });
     int pool_size = connPoolAll.size();
     std::vector<std::thread> v_recv_thread;
@@ -292,6 +304,7 @@ int runBob(int argc, char *argv[])
     Logger::get()->info("Exited LogEventRequestP2P thread");
     indexer_thread.join();
     Logger::get()->info("Exited indexer thread");
+    sc_thread.join();
     if (log_event_verifier_thread.joinable())
     {
         Logger::get()->info("Exiting verifyLoggingEvent thread");
