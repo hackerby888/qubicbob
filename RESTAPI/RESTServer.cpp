@@ -173,6 +173,94 @@ namespace {
                 {Get}
         );
 
+        // POST /querySmartContract
+        app().registerHandler(
+                "/querySmartContract",
+                [](const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback) {
+                    try {
+                        auto jsonPtr = req->getJsonObject();
+                        if (!jsonPtr) {
+                            callback(makeError("Invalid or missing JSON body"));
+                            return;
+                        }
+                        const auto &j = *jsonPtr;
+
+                        // Validate required fields and types
+                        if (!j.isMember("nonce") || !j["nonce"].isUInt64()) {
+                            callback(makeError("nonce (uint64) is required"));
+                            return;
+                        }
+                        if (!j.isMember("scIndex") || !j["scIndex"].isUInt()) {
+                            callback(makeError("scIndex (uint32) is required"));
+                            return;
+                        }
+                        if (!j.isMember("funcNumber") || !j["funcNumber"].isUInt()) {
+                            callback(makeError("funcNumber (uint32) is required"));
+                            return;
+                        }
+                        if (!j.isMember("data") || !j["data"].isString()) {
+                            callback(makeError("data (hex string) is required"));
+                            return;
+                        }
+
+                        uint64_t nonce = j["nonce"].asUInt64();
+                        unsigned long long scIndexULL = j["scIndex"].asUInt();
+                        unsigned long long funcNumberULL = j["funcNumber"].asUInt();
+                        const std::string dataHex = j["data"].asString();
+
+                        // Range check for uint32
+                        if (scIndexULL > std::numeric_limits<uint32_t>::max()) {
+                            callback(makeError("scIndex out of uint32 range"));
+                            return;
+                        }
+                        if (funcNumberULL > std::numeric_limits<uint32_t>::max()) {
+                            callback(makeError("funcNumber out of uint32 range"));
+                            return;
+                        }
+
+                        // Basic hex validation for data
+                        auto isHex = [](char c) {
+                            return (c >= '0' && c <= '9') ||
+                                   (c >= 'a' && c <= 'f') ||
+                                   (c >= 'A' && c <= 'F');
+                        };
+                        std::string hex = dataHex;
+                        if (hex.rfind("0x", 0) == 0 || hex.rfind("0X", 0) == 0) {
+                            hex = hex.substr(2);
+                        }
+                        if (!hex.empty()) {
+                            if (hex.size() % 2 != 0) {
+                                callback(makeError("data hex length must be even"));
+                                return;
+                            }
+                            for (char c : hex) {
+                                if (!isHex(c)) {
+                                    callback(makeError("data must be a hex string"));
+                                    return;
+                                }
+                            }
+                        }
+
+                        // At this point input is validated. Implementation hook goes here.
+                        // If/when query logic is implemented, replace response below with the actual result.
+                        Json::Value resp;
+                        resp["ok"] = false;
+                        resp["error"] = "querySmartContract not implemented";
+                        resp["nonce"] = Json::UInt64(nonce);
+                        resp["scIndex"] = Json::UInt(scIndexULL);
+                        resp["funcNumber"] = Json::UInt(funcNumberULL);
+                        resp["data"] = dataHex;
+
+                        auto httpResp = drogon::HttpResponse::newHttpJsonResponse(resp);
+                        httpResp->setStatusCode(drogon::k501NotImplemented);
+                        callback(httpResp);
+                    } catch (const std::exception &ex) {
+                        callback(makeError(std::string("querySmartContract error: ") + ex.what(), k500InternalServerError));
+                    }
+                },
+                {Post}
+        );
+
     }
 
     void startServerIfNeeded() {

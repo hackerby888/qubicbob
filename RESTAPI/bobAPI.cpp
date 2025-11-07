@@ -291,3 +291,8 @@ std::string bobGetStatus()
             ",\"initialTick\":" + std::to_string(gInitialTick) +
            "}";
 }
+
+std::string querySmartContract(uint64_t nonce, uint32_t scIndex, uint32_t funcNumber, uint8_t* data)
+{
+    return "null"; // not yet implemented
+}
