@@ -36,6 +36,8 @@ public:
     void getComputorList(const uint16_t epoch, Computors& compList);
     void sendEndPacket(uint32_t dejavu = 0xffffffff);
     void setNodeType(std::string _nodeType) { nodeType = std::move(_nodeType); }
+    bool isBM(){ return nodeType == "BM";}
+    bool isBob(){ return nodeType == "bob";}
 private:
     char mNodeIp[32];
     int mNodePort;
