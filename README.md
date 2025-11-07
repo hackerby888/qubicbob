@@ -30,7 +30,7 @@ For the trusted-node field, the expected format is `NODE_IP:NODE_PORT:PASSCODE_L
 - `run-server` means opening a server and listening at port `server-port` to serve a few important data (like the core baremetal)
 ```
 {
-  "p2p-node": ["23.88.1.189:21842"],
+  "p2p-node": ["bob:23.88.1.189:21842"],
   "request-cycle-ms": 500,
   "request-logging-cycle-ms": 150,
   "future-offset": 3,
