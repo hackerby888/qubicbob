@@ -22,6 +22,7 @@ struct AppConfig {
     std::string node_seed = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
     std::map<m256i, bool> trustedEntities;
+    bool not_save_tickvote = false;
 };
 
 // Returns true on success; on failure returns false and fills error with a human-readable message.

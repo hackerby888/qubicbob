@@ -117,6 +117,15 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
         out.is_testnet = root["is-testnet"].asBool();
     }
 
+    // New optional boolean: 'not-save-tickvote' (default false)
+    if (root.isMember("not-save-tickvote")) {
+        if (!root["not-save-tickvote"].isBool()) {
+            error = "Invalid type: boolean required for key 'not-save-tickvote'";
+            return false;
+        }
+        out.not_save_tickvote = root["not-save-tickvote"].asBool();
+    }
+
     auto validate_uint = [&](const char* key, unsigned& target) -> bool {
         if (!root.isMember(key)) return true;
         const auto& v = root[key];
