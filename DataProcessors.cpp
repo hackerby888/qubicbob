@@ -88,8 +88,28 @@ void processTransaction(const uint8_t* ptr)
     {
         return; // already verified
     }
-    // TODO: check if tx is in a tickData to avoid flooding attack
+    TickData td{};
+    if (!db_try_get_TickData(tx->tick, td))
+    {
+        return;
+    }
+
     memcpy(buffer+sizeof(Transaction),ptr+sizeof(Transaction), tx->inputSize + SIGNATURE_SIZE);
+    m256i tx_digest;
+    KangarooTwelve(buffer, sizeof(Transaction) + tx->inputSize + SIGNATURE_SIZE, tx_digest.m256i_u8, 32);
+    bool found = false;
+    for (int i = 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK; i++)
+    {
+        if (td.transactionDigests[i] != m256i::zero() && td.transactionDigests[i] == tx_digest)
+        {
+            found = true;
+            break;
+        }
+    }
+    if (!found)
+    {
+        return;
+    }
     auto* pubkey = (uint8_t*)tx->sourcePublicKey;
     if (verifySignature((void *) buffer, pubkey, sizeof(Transaction) + tx->inputSize + SIGNATURE_SIZE))
     {

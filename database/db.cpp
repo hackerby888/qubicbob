@@ -1343,5 +1343,5 @@ bool db_try_get_TickData(uint32_t tick, TickData& data)
         return true;
     }
     memset((void*)&data, 0, sizeof(TickData));
-    return true;
+    return false;
 }
