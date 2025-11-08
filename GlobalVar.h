@@ -52,6 +52,7 @@ struct GlobalState {
     m256i nodePrivatekey;
 
     bool gIsEndEpoch = false;
+    bool gNotSaveTickVote = false;
 
     std::map<m256i, bool> gTrustedEntities;
 };
