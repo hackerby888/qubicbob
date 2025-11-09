@@ -300,6 +300,62 @@ namespace {
     }
 });
 
+        // POST /broadcastTransaction
+        app().registerHandler(
+                "/broadcastTransaction",
+                [](const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback) {
+                    try {
+                        auto jsonPtr = req->getJsonObject();
+                        if (!jsonPtr) {
+                            callback(makeError("Invalid or missing JSON body"));
+                            return;
+                        }
+                        const auto &j = *jsonPtr;
+
+                        if (!j.isMember("data") || !j["data"].isString()) {
+                            callback(makeError("data (hex string) is required"));
+                            return;
+                        }
+
+                        std::string hex = j["data"].asString();
+                        if (hex.rfind("0x", 0) == 0 || hex.rfind("0X", 0) == 0) hex = hex.substr(2);
+                        if (hex.size() % 2 != 0) {
+                            callback(makeError("data hex length must be even"));
+                            return;
+                        }
+
+                        auto isHex = [](char c) {
+                            return (c >= '0' && c <= '9') ||
+                                   (c >= 'a' && c <= 'f') ||
+                                   (c >= 'A' && c <= 'F');
+                        };
+                        for (char c: hex) {
+                            if (!isHex(c)) {
+                                callback(makeError("data must be a hex string"));
+                                return;
+                            }
+                        }
+
+                        std::vector<uint8_t> txData;
+                        txData.resize(sizeof(RequestResponseHeader) + hex.length() / 2);
+                        auto hdr = (RequestResponseHeader*)txData.data();
+                        hdr->setType(BROADCAST_TRANSACTION);
+                        hdr->randomizeDejavu();
+                        hdr->setSize(txData.size());
+                        for (int i = 0, count = 0; i < hex.length(); i += 2, count++) {
+                            uint8_t byte = static_cast<uint8_t>(std::stoi(hex.substr(i, 2), nullptr, 16));
+                            txData[count+8] = byte;
+                        }
+
+                        std::string result = broadcastTransaction(txData.data(), txData.size());
+                        callback(makeJsonResponse(result));
+                    } catch (const std::exception &ex) {
+                        callback(makeError(std::string("broadcast error: ") + ex.what(), k500InternalServerError));
+                    }
+                },
+                {Post}
+        );
+
     }
 
     void startServerIfNeeded() {

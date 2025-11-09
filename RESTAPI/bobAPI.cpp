@@ -343,3 +343,26 @@ std::string querySmartContract(uint32_t nonce, uint32_t scIndex, uint32_t funcNu
     Json::FastWriter writer;
     return writer.write(root);
 }
+
+
+std::string broadcastTransaction(uint8_t* txDataWithHeader, int size)
+{
+    auto tx = (Transaction*)(txDataWithHeader+sizeof(RequestResponseHeader));
+    if (tx->inputSize + sizeof(Transaction) + sizeof(RequestResponseHeader) != size)
+    {
+        return "{\"error\": \"Invalid size\"}";
+    }
+    m256i digest{};
+    uint8_t* signature = txDataWithHeader + sizeof(RequestResponseHeader) + sizeof(Transaction) + tx->inputSize;
+    KangarooTwelve(reinterpret_cast<const uint8_t *>(tx), size - sizeof(RequestResponseHeader) - SIGNATURE_SIZE, digest.m256i_u8, 32);
+    if (!verify(tx->sourcePublicKey, digest.m256i_u8, signature))
+    {
+        return "{\"error\": \"Invalid signature\"}";
+    }
+    MRB_SC.EnqueuePacket(txDataWithHeader);
+    KangarooTwelve(reinterpret_cast<const uint8_t *>(tx), size - sizeof(RequestResponseHeader), digest.m256i_u8, 32);
+    char hash[64]={0};
+    getIdentityFromPublicKey(digest.m256i_u8, hash, true);
+    std::string txHash(hash);
+    return txHash;
+}
