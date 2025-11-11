@@ -13,6 +13,14 @@ std::string LogEvent::parseToJson()
         }
         return out;
     };
+    auto trim_zero_bytes = [](const char* data, size_t len) -> std::string {
+        std::string out;
+        out.reserve(len);
+        for (size_t i = 0; i < len; ++i) {
+            if (data[i] != '\0') out.push_back(data[i]);
+        }
+        return out;
+    };
 
     Json::Value root(Json::objectValue);
 
@@ -100,7 +108,7 @@ std::string LogEvent::parseToJson()
                 root["logTypename"] = "ASSET_OWNERSHIP_CHANGE";
                 body["sourcePublicKey"] = a->sourcePublicKey.toQubicHashUpperCase();
                 body["destinationPublicKey"] = a->destinationPublicKey.toQubicHashUpperCase();
-                body["assetName"] = std::string(a->name, 7);
+                body["assetName"] = trim_zero_bytes(a->name, 7);
                 body["numberOfShares"] = Json::Int64(a->numberOfShares);
                 filled = true;
             }
@@ -117,7 +125,7 @@ std::string LogEvent::parseToJson()
                 root["logTypename"] = "ASSET_POSSESSION_CHANGE";
                 body["sourcePublicKey"] = a->sourcePublicKey.toQubicHashUpperCase();
                 body["destinationPublicKey"] = a->destinationPublicKey.toQubicHashUpperCase();
-                body["assetName"] = std::string(a->name, 7);
+                body["assetName"] = trim_zero_bytes(a->name, 7);
                 body["numberOfShares"] = Json::Int64(a->numberOfShares);
                 filled = true;
             }
