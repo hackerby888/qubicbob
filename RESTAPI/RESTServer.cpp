@@ -340,7 +340,7 @@ namespace {
                         txData.resize(sizeof(RequestResponseHeader) + hex.length() / 2);
                         auto hdr = (RequestResponseHeader*)txData.data();
                         hdr->setType(BROADCAST_TRANSACTION);
-                        hdr->randomizeDejavu();
+                        hdr->zeroDejavu();
                         hdr->setSize(txData.size());
                         for (int i = 0, count = 0; i < hex.length(); i += 2, count++) {
                             uint8_t byte = static_cast<uint8_t>(std::stoi(hex.substr(i, 2), nullptr, 16));

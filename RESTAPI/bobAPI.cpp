@@ -348,7 +348,7 @@ std::string querySmartContract(uint32_t nonce, uint32_t scIndex, uint32_t funcNu
 std::string broadcastTransaction(uint8_t* txDataWithHeader, int size)
 {
     auto tx = (Transaction*)(txDataWithHeader+sizeof(RequestResponseHeader));
-    if (tx->inputSize + sizeof(Transaction) + sizeof(RequestResponseHeader) != size)
+    if (tx->inputSize + sizeof(Transaction) + sizeof(RequestResponseHeader) + SIGNATURE_SIZE != size)
     {
         return "{\"error\": \"Invalid size\"}";
     }
@@ -364,5 +364,5 @@ std::string broadcastTransaction(uint8_t* txDataWithHeader, int size)
     char hash[64]={0};
     getIdentityFromPublicKey(digest.m256i_u8, hash, true);
     std::string txHash(hash);
-    return txHash;
+    return "{\"txHash\": \"" + txHash + "\"}";
 }

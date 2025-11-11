@@ -10,15 +10,28 @@ void querySmartContractThread(ConnectionPool& connPoolAll, std::atomic_bool& sto
     while (!stopFlag.load())
     {
         buffer.resize(0xffffff);
-        MRB_SC.GetPacket(buffer.data(), size);
-        buffer.resize(size);
-        if (size)
+        if (MRB_SC.TryGetPacket(buffer.data(), size))
         {
-            auto header = (RequestResponseHeader*)buffer.data();
-            if (header->size() == size && header->type() == RequestContractFunction::type)
+            buffer.resize(size);
+            if (size)
             {
-                connPoolAll.sendToRandomBM(buffer.data(), buffer.size());
+                auto header = (RequestResponseHeader*)buffer.data();
+                if (header->size() == size)
+                {
+                    if (header->type() == RequestContractFunction::type)
+                    {
+                        connPoolAll.sendToRandomBM(buffer.data(), buffer.size());
+                    }
+                    if (header->type() == BROADCAST_TRANSACTION)
+                    {
+                        connPoolAll.sendToRandomBM(buffer.data(), buffer.size());
+                    }
+                }
             }
+        }
+        else
+        {
+            SLEEP(5);
         }
     }
 }

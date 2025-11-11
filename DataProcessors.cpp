@@ -288,7 +288,7 @@ void DataProcessorThread(std::atomic_bool& exitFlag)
                 processLogRangesSignature(header, payload);
                 break;
             case RespondContractFunction::type:
-                recordSmartContractResponse(header.size(), header.getDejavu(), payload);
+                recordSmartContractResponse(header.size() - sizeof(RequestResponseHeader), header.getDejavu(), payload);
                 break;
             default:
                 break;
