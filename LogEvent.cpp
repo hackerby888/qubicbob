@@ -45,7 +45,7 @@ std::string LogEvent::parseToJson()
     root["tick"] = tick;
     root["type"] = type;
     root["logId"] = Json::UInt64(logId);
-    root["logDigest"] = Json::UInt64(digest);
+    root["logDigest"] = hex_encode(reinterpret_cast<const uint8_t *>(&digest), sizeof(digest));
     root["bodySize"] = bodySize;
 
     Json::Value body(Json::objectValue);
