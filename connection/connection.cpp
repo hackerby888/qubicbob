@@ -348,6 +348,7 @@ void QubicConnection::getBootstrapInfo(uint32_t& tick, uint16_t& epoch)
                     {
                         tick = bi.initialTick;
                         epoch = bi.epoch;
+                        db_insert_bootstrap_info(epoch, bi);
                         break;
                     }
                 }

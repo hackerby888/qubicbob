@@ -166,7 +166,7 @@ int runBob(int argc, char *argv[])
         else Logger::get()->info("Doing handshakes and ask for bootstrap info | PeerInitTick: {} PeerInitEpoch {}...", initTick, initEpoch);
         if (initTick == 0 || initEpoch <= gCurrentProcessingEpoch) SLEEP(1000);
     }
-
+    db_insert_u32("init_tick:"+std::to_string(initEpoch), initTick);
     gInitialTick = initTick;
     if (initTick > gCurrentFetchingTick.load())
     {

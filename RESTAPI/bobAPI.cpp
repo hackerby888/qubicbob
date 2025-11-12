@@ -372,13 +372,14 @@ std::string bobGetEpochInfo(uint16_t epoch)
     Json::Value root;
     uint32_t end_epoch_tick = 0;
     auto es = std::to_string(epoch);
-    BootstrapInfo bi{};
     long long length = -1, start = -1;
+    uint32_t initTick = 0;
     db_get_u32("end_epoch_tick" + es, end_epoch_tick);
-    db_get_end_epoch_log_range(epoch, length, start);
-    db_get_bootstrap_info(epoch, bi);
+    db_get_end_epoch_log_range(epoch, start, length);
+    db_insert_u32("init_tick:"+std::to_string(epoch), initTick);
+
     root["epoch"] = epoch;
-    root["initialTick"] = bi.initialTick;
+    root["initialTick"] = initTick;
     root["endTick"] = end_epoch_tick;
     root["endTickStartLogId"] = Json::Int64(start);
     root["endTickEndLogId"] = Json::Int64(start + length - 1);
