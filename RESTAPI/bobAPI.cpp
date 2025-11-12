@@ -380,8 +380,8 @@ std::string bobGetEpochInfo(uint16_t epoch)
     root["epoch"] = epoch;
     root["initialTick"] = bi.initialTick;
     root["endTick"] = end_epoch_tick;
-    root["endTickStartLogId"] = start;
-    root["endTickEndLogId"] = start + length - 1;
+    root["endTickStartLogId"] = Json::Int64(start);
+    root["endTickEndLogId"] = Json::Int64(start + length - 1);
     Json::FastWriter writer;
     return writer.write(root);
 }
