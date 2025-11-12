@@ -286,7 +286,9 @@ namespace {
                 root["message"] = "Query enqueued; try again with the same nonce";
                 root["nonce"] = st->nonce;
                 Json::FastWriter writer;
-                st->cb(makeJsonResponse(writer.write(root), k202Accepted));
+                auto resp = makeJsonResponse(writer.write(root), k202Accepted);
+                resp->setCloseConnection(true);
+                st->cb(resp);
                 return;
             }
             // schedule next check after 5ms
@@ -369,6 +371,8 @@ namespace {
                 .setLogLevel(trantor::Logger::kInfo)
                 .addListener("0.0.0.0", 40420)  // listen at port 40420
                 .setThreadNum(std::max(2u, std::thread::hardware_concurrency()))
+                .setIdleConnectionTimeout(10)
+                .setKeepaliveRequestsNumber(200)
                 .disableSigtermHandling();
 
             // Run Drogon in a background thread so it doesn't block the main program

@@ -180,7 +180,7 @@ static void indexTick(uint32_t tick, const TickData &td) {
             case CONTRACT_INFORMATION_MESSAGE:
             case CONTRACT_DEBUG_MESSAGE:
             {
-                auto ptr = le.getRawPtr();
+                auto ptr = le.getLogBodyPtr();
                 int le_sz = le.getLogSize();
                 if (le_sz >= 8)
                 {
