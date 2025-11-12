@@ -62,14 +62,17 @@ bool verifyQuorum(uint32_t tick, TickData& td, std::vector<TickVote>& votes)
     };
     std::map<ConsensusData, int> digestCount;
     for (const auto &vote: votes) {
-        ConsensusData cd{};
-        cd.prevResourceTestingDigest = vote.prevResourceTestingDigest;
-        cd.prevTransactionBodyDigest = vote.prevTransactionBodyDigest;
-        cd.prevSpectrumDigest = vote.prevSpectrumDigest;
-        cd.prevUniverseDigest = vote.prevUniverseDigest;
-        cd.prevComputerDigest = vote.prevComputerDigest;
-        cd.transactionDigest = vote.transactionDigest;
-        digestCount[cd]++;
+        if (vote.tick == tick && vote.epoch == gCurrentProcessingEpoch)
+        {
+            ConsensusData cd{};
+            cd.prevResourceTestingDigest = vote.prevResourceTestingDigest;
+            cd.prevTransactionBodyDigest = vote.prevTransactionBodyDigest;
+            cd.prevSpectrumDigest = vote.prevSpectrumDigest;
+            cd.prevUniverseDigest = vote.prevUniverseDigest;
+            cd.prevComputerDigest = vote.prevComputerDigest;
+            cd.transactionDigest = vote.transactionDigest;
+            digestCount[cd]++;
+        }
     }
 
     int maxCount = 0;
