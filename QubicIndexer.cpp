@@ -61,11 +61,11 @@ static void indexTick(uint32_t tick, const TickData &td) {
             if (logrange.length[i] > 0) {
                 db_get_log(td.epoch, logrange.fromLogId[i], firstEvent);
                 if (firstEvent.getType() == QU_TRANSFER) { // QuTransfer type
-                    auto transfer = (QuTransfer *) firstEvent.getLogBodyPtr();
+                    QuTransfer transfer = *((QuTransfer *) firstEvent.getLogBodyPtr());
                     std::vector<uint8_t> tx_data;
                     if (db_get_transaction(txHash, tx_data)) {
                         auto tx = (Transaction*)tx_data.data();
-                        isExecuted = matchesTransaction(*transfer, *tx);
+                        isExecuted = matchesTransaction(transfer, *tx);
                     }
                 }
             }
