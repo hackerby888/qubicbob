@@ -170,7 +170,7 @@ static void indexTick(uint32_t tick, const TickData &td) {
                 SC_index = 0; logType = type;
                 auto e = le.getStruct<Burning>();
                 topic1 = e->sourcePublicKey;
-                topic2 = m256i::zero();
+                topic2 = m256i(0,0,0,e->contractIndexBurnedFor);
                 topic3 = m256i::zero();
                 break;
             }

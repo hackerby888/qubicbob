@@ -142,6 +142,7 @@ std::string LogEvent::parseToJson()
                 root["logTypename"] = "BURNING";
                 body["publicKey"] = b->sourcePublicKey.toQubicHashUpperCase();
                 body["amount"] = Json::Int64(b->amount);
+                body["contractIndexBurnedFor"] = Json::Int64(b->contractIndexBurnedFor);
                 filled = true;
             }
             break;

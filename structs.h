@@ -419,6 +419,7 @@ struct Burning
 {
     m256i sourcePublicKey;
     long long amount;
+    unsigned int contractIndexBurnedFor;
 };
 
 #pragma pack(push,1)
