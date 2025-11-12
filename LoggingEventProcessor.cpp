@@ -716,10 +716,10 @@ verifyNodeStateDigest:
         }
 
         db_rename("tick_log_range:" + std::to_string(endTick),
-                      "end_epoch:tick_log_range");
-
+                      "end_epoch:tick_log_range:"+std::to_string(gCurrentProcessingEpoch));
+//TODO: add epoch to this key
         db_rename("log_ranges:" + std::to_string(endTick),
-                      "end_epoch:log_ranges");
+                      "end_epoch:log_ranges:"+std::to_string(gCurrentProcessingEpoch));
         std::string key = "end_epoch_tick:" + std::to_string(gCurrentProcessingEpoch);
         db_insert_u32(key, endTick);
         // end epoch tick is a virtual tick for logging, we set it back to lastQuorumTick
