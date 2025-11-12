@@ -200,6 +200,7 @@ static void indexTick(uint32_t tick, const TickData &td) {
                         SC_index = 0xffffffff;
                     }
                 }
+                break;
             }
             case SPECTRUM_STATS:
                 // nothing to do
@@ -231,7 +232,7 @@ static void indexTick(uint32_t tick, const TickData &td) {
             }
             // populate all scenarios with topic1,2,3
             // 3 bits => 0=>7
-            for (int bit = 0; bit < 8; bit++)
+            for (int bit = 1; bit < 8; bit++) // case 0,0,0 is already handled above
             {
                 key = "indexed:" + std::to_string(SC_index) + ":" + std::to_string(logType) + ":";
                 int isSet = 0;

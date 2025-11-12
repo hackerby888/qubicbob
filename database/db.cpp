@@ -1125,15 +1125,32 @@ std::vector<uint32_t> db_search_log(uint32_t scIndex, uint32_t scLogType, uint32
         auto toPart = [](const std::string& t) -> std::string {
             return (t == "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaafxib") ? std::string("ANY") : t;
         };
-
-        const std::string key =
-                std::string("indexed:") +
-                std::to_string(scIndex) + ":" +
-                std::to_string(scLogType) + ":" +
-                toPart(topic1) + ":" +
-                toPart(topic2) + ":" +
-                toPart(topic3);
-
+        std::string key = "";
+        if (topic1 == "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaafxib" &&
+                topic2 == "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaafxib" &&
+                topic3 == "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaafxib")
+        {
+            // all topic is empty
+            if (scLogType == 0xffffffff)
+            {
+                // log type is also empty
+                key = "indexed:" + std::to_string(scIndex);
+            }
+            else
+            {
+                key = "indexed:" + std::to_string(scIndex) + ":" + std::to_string(scLogType) ;
+            }
+        }
+        else
+        {
+            // have at least 1 non zero topic
+            key =   std::string("indexed:") +
+                    std::to_string(scIndex) + ":" +
+                    std::to_string(scLogType) + ":" +
+                    toPart(topic1) + ":" +
+                    toPart(topic2) + ":" +
+                    toPart(topic3);
+        }
         std::vector<std::string> members;
         sw::redis::BoundedInterval<double> range(fromTick, toTick,
                                                  sw::redis::BoundType::CLOSED);
