@@ -374,7 +374,7 @@ std::string bobGetEpochInfo(uint16_t epoch)
     auto es = std::to_string(epoch);
     long long length = -1, start = -1;
     uint32_t initTick = 0;
-    db_get_u32("end_epoch_tick" + es, end_epoch_tick);
+    db_get_u32("end_epoch_tick:" + es, end_epoch_tick);
     db_get_end_epoch_log_range(epoch, start, length);
     db_insert_u32("init_tick:"+std::to_string(epoch), initTick);
 
