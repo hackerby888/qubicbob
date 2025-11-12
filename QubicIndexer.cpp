@@ -61,7 +61,8 @@ static void indexTick(uint32_t tick, const TickData &td) {
             if (logrange.length[i] > 0) {
                 db_get_log(td.epoch, logrange.fromLogId[i], firstEvent);
                 if (firstEvent.getType() == QU_TRANSFER) { // QuTransfer type
-                    QuTransfer transfer = *((QuTransfer *) firstEvent.getLogBodyPtr());
+                    QuTransfer transfer{};
+                    memcpy((void*)&transfer, firstEvent.getLogBodyPtr(), sizeof(QuTransfer));
                     std::vector<uint8_t> tx_data;
                     if (db_get_transaction(txHash, tx_data)) {
                         auto tx = (Transaction*)tx_data.data();
