@@ -414,7 +414,7 @@ struct AssetPossessionManagingContractChange
 
     
 };
-#pragma pack(pop)
+
 struct Burning
 {
     m256i sourcePublicKey;
@@ -422,7 +422,7 @@ struct Burning
     unsigned int contractIndexBurnedFor;
 };
 
-#pragma pack(push,1)
+
 struct Computors
 {
     // TODO: Padding
