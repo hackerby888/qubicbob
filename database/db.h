@@ -483,9 +483,10 @@ bool db_insert_bootstrap_info(uint16_t epoch, const BootstrapInfo &info);
 bool db_get_bootstrap_info(uint16_t epoch, BootstrapInfo &info);
 
 bool db_insert_u32(const std::string key, uint32_t value);
-bool db_get_u32(const std::string &key, uint32_t &value);
+bool db_get_u32(const std::string key, uint32_t &value);
 bool db_rename(const std::string &key1, const std::string &key2);
 bool db_key_exists(const std::string &key);
 bool db_update_field(const std::string key, const std::string field, const std::string value);
 
 bool db_try_get_TickData(uint32_t tick, TickData& data);
+bool db_get_end_epoch_log_range(uint16_t epoch, long long &fromLogId, long long &length);

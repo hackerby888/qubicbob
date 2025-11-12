@@ -24,7 +24,7 @@ std::string bobGetStatus();
 std::string querySmartContract(uint32_t nonce, uint32_t scIndex, uint32_t funcNumber, uint8_t* data, uint32_t dataSize);
 bool enqueueSmartContractRequest(uint32_t nonce, uint32_t scIndex, uint32_t funcNumber, const uint8_t* data, uint32_t dataSize);
 std::string broadcastTransaction(uint8_t* txDataWithHeader, int size);
-
+std::string bobGetEpochInfo(uint16_t epoch);
 // no one request for C ABI atm, add later if needed
 //#ifdef __cplusplus
 //}

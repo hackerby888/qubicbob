@@ -365,6 +365,27 @@ bool db_get_latest_event_tick_and_epoch(uint32_t& tick, uint16_t& epoch)
     return true;
 }
 
+bool db_get_end_epoch_log_range(uint16_t epoch, long long &fromLogId, long long &length) {
+    fromLogId = -1;
+    length = -1;
+    if (!g_redis) return false;
+    try {
+        const std::string key = "end_epoch:tick_log_range:" + std::to_string(epoch);
+        std::vector<sw::redis::Optional<std::string>> vals;
+        g_redis->hmget(key, {"fromLogId", "length"}, std::back_inserter(vals));
+        if (vals.size() == 2 && vals[0] && vals[1]) {
+            fromLogId = std::stoll(*vals[0]);
+            length = std::stoll(*vals[1]);
+            return true;
+        }
+    } catch (const sw::redis::Error &e) {
+        Logger::get()->error("Redis error in db_get_end_epoch_log_range: %s\n", e.what());
+    } catch (const std::logic_error &e) {
+        Logger::get()->error("Parsing error in db_get_end_epoch_log_range: %s\n", e.what());
+    }
+    return false;
+}
+
 bool db_update_latest_log_id(uint64_t logId) {
     if (!g_redis) return false;
     try {
@@ -1331,7 +1352,7 @@ bool db_key_exists(const std::string &key) {
     }
 }
 
-bool db_get_u32(const std::string &key, uint32_t &value) {
+bool db_get_u32(const std::string key, uint32_t &value) {
     if (!g_redis) return false;
     try {
         auto val = g_redis->get(key);
@@ -1362,3 +1383,4 @@ bool db_try_get_TickData(uint32_t tick, TickData& data)
     memset((void*)&data, 0, sizeof(TickData));
     return false;
 }
+

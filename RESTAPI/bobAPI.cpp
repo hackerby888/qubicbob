@@ -366,3 +366,22 @@ std::string broadcastTransaction(uint8_t* txDataWithHeader, int size)
     std::string txHash(hash);
     return "{\"txHash\": \"" + txHash + "\"}";
 }
+
+std::string bobGetEpochInfo(uint16_t epoch)
+{
+    Json::Value root;
+    uint32_t end_epoch_tick = 0;
+    auto es = std::to_string(epoch);
+    BootstrapInfo bi{};
+    long long length = -1, start = -1;
+    db_get_u32("end_epoch_tick" + es, end_epoch_tick);
+    db_get_end_epoch_log_range(epoch, length, start);
+    db_get_bootstrap_info(epoch, bi);
+    root["epoch"] = epoch;
+    root["initialTick"] = bi.initialTick;
+    root["endTick"] = end_epoch_tick;
+    root["endTickStartLogId"] = start;
+    root["endTickEndLogId"] = start + length - 1;
+    Json::FastWriter writer;
+    return writer.write(root);
+}

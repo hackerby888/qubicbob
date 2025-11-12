@@ -1,6 +1,6 @@
 # Qubic Network REST API
 
-This document provides an overview of the REST API endpoints for querying bob
+This document provides an overview of the REST API endpoints for querying bob (`default: PORT 40420`)
 
 ---
 
