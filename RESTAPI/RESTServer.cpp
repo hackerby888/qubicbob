@@ -188,6 +188,55 @@ namespace {
                 },
                 {Post}
         );
+        app().registerHandler(
+                "/getlogcustom",
+                [](const HttpRequestPtr& req, std::function<void (const HttpResponsePtr &)> &&callback) {
+                    try {
+                        auto jsonPtr = req->getJsonObject();
+                        if (!jsonPtr) {
+                            callback(makeError("Invalid or missing JSON body"));
+                            return;
+                        }
+                        const auto& j = *jsonPtr;
+
+                        auto getU32 = [&](const char* key, uint32_t& out) -> bool {
+                            if (!j.isMember(key) || !(j[key].isUInt() || j[key].isUInt64())) return false;
+                            unsigned long long v = j[key].asUInt64();
+                            if (v > std::numeric_limits<uint32_t>::max()) return false;
+                            out = static_cast<uint32_t>(v);
+                            return true;
+                        };
+
+                        uint32_t tick, scIndex, logType;
+                        uint32_t epoch;
+                        if (!getU32("tick", tick) ||
+                            !getU32("scIndex", scIndex) ||
+                            !getU32("logType", logType) ||
+                            !getU32("epoch", epoch)) {
+                            callback(makeError("All numeric fields must be uint32: tick, scIndex, logType"));
+                            return;
+                        }
+
+                        if (!j.isMember("topic1") || !j["topic1"].isString() ||
+                            !j.isMember("topic2") || !j["topic2"].isString() ||
+                            !j.isMember("topic3") || !j["topic3"].isString()) {
+                            callback(makeError("topic1, topic2, topic3 (strings) are required"));
+                            return;
+                        }
+
+                        const std::string topic1 = j["topic1"].asString();
+                        const std::string topic2 = j["topic2"].asString();
+                        const std::string topic3 = j["topic3"].asString();
+
+                        // Reuse the existing find API with a single-tick window
+                        std::string result = getCustomLog(scIndex, logType, topic1, topic2, topic3, epoch, tick);
+                        callback(makeJsonResponse(result));
+                    } catch (const std::exception& ex) {
+                        callback(makeError(std::string("getlogcustom error: ") + ex.what(), drogon::k500InternalServerError));
+                    }
+                },
+                {Post}
+        );
 
 
         // GET /status - Returns node status information

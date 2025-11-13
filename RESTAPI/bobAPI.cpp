@@ -312,6 +312,52 @@ std::string bobFindLog(uint32_t scIndex, uint32_t logType,
     return result;
 }
 
+std::string getCustomLog(uint32_t scIndex, uint32_t logType,
+                         const std::string& st1, const std::string& st2, const std::string& st3,
+                         uint16_t epoch, uint32_t tick)
+{
+    m256i topic[3];
+    getPublicKeyFromIdentity(st1.data(), topic[0].m256i_u8);
+    getPublicKeyFromIdentity(st2.data(), topic[1].m256i_u8);
+    getPublicKeyFromIdentity(st3.data(), topic[2].m256i_u8);
+    auto logs = db_get_logs_by_tick_range(epoch, tick, tick);
+    std::string result = "[";
+    for (auto& le : logs)
+    {
+        if (scIndex == 0) // protocol log
+        {
+            if (le.getType() == logType)
+            {
+                result += le.parseToJson();
+            }
+        }
+        else // smart contract
+        {
+            auto le_sz = le.getLogSize();
+            if (le_sz >= 8)
+            {
+                auto logBody = le.getLogBodyPtr();
+                uint32_t tmp;
+                memcpy(&tmp, logBody, 4);
+                if (tmp == scIndex)
+                {
+                    memcpy(&tmp, logBody + 4, 4);
+                    bool match_topic = true;
+                    if (topic[0] != m256i::zero() && le_sz >= 40) match_topic &= (memcmp(topic[0].m256i_u8, logBody + 8, 32) == 0);
+                    if (topic[1] != m256i::zero() && le_sz >= 72) match_topic &= (memcmp(topic[1].m256i_u8, logBody + 40, 32) == 0);
+                    if (topic[2] != m256i::zero() && le_sz >= 96) match_topic &= (memcmp(topic[2].m256i_u8, logBody + 72, 32) == 0);
+                    if (match_topic)
+                    {
+                        result += le.parseToJson();
+                    }
+                }
+            }
+        }
+    }
+    result += "]";
+    return result;
+}
+
 std::string bobGetStatus()
 {
     return std::string("{") +
