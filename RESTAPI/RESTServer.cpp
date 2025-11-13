@@ -137,49 +137,58 @@ namespace {
             {Get}
         );
         app().registerHandler(
-                "/findLog/{1}/{2}/{3}/{4}/{5}/{6}/{7}",
-                [](const HttpRequestPtr& req,
-                   std::function<void (const HttpResponsePtr &)> &&callback,
-                   const std::string& fromTickStr,
-                   const std::string& toTickStr,
-                   const std::string& scIndexStr,
-                   const std::string& logTypeStr,
-                   const std::string& topic1Str,
-                   const std::string& topic2Str,
-                   const std::string& topic3Str) {
+                "/findLog",
+                [](const HttpRequestPtr& req, std::function<void (const HttpResponsePtr &)> &&callback) {
                     try {
-                        auto parseU32 = [](const std::string& s, const char* name) -> uint32_t {
-                            unsigned long long v = std::stoull(s);
-                            if (v > std::numeric_limits<uint32_t>::max()) {
-                                throw std::out_of_range(std::string(name) + " out of uint32 range");
-                            }
-                            return static_cast<uint32_t>(v);
+                        auto jsonPtr = req->getJsonObject();
+                        if (!jsonPtr) {
+                            callback(makeError("Invalid or missing JSON body"));
+                            return;
+                        }
+                        const auto& j = *jsonPtr;
+
+                        auto getU32 = [&](const char* key, uint32_t& out) -> bool {
+                            if (!j.isMember(key) || !(j[key].isUInt() || j[key].isUInt64())) return false;
+                            unsigned long long v = j[key].asUInt64();
+                            if (v > std::numeric_limits<uint32_t>::max()) return false;
+                            out = static_cast<uint32_t>(v);
+                            return true;
                         };
 
-                        uint32_t fromTick = parseU32(fromTickStr, "fromTick");
-                        uint32_t toTick   = parseU32(toTickStr,   "toTick");
-                        uint32_t scIndex  = parseU32(scIndexStr,  "SC_INDEX");
-                        uint32_t logType  = parseU32(logTypeStr,  "LOG_TYPE");
+                        uint32_t fromTick, toTick, scIndex, logType;
+                        if (!getU32("fromTick", fromTick) ||
+                            !getU32("toTick", toTick) ||
+                            !getU32("scIndex", scIndex) ||
+                            !getU32("logType", logType)) {
+                            callback(makeError("All numeric fields must be uint32: fromTick, toTick, scIndex, logType"));
+                            return;
+                        }
+
+                        if (!j.isMember("topic1") || !j["topic1"].isString() ||
+                            !j.isMember("topic2") || !j["topic2"].isString() ||
+                            !j.isMember("topic3") || !j["topic3"].isString()) {
+                            callback(makeError("topic1, topic2, topic3 (strings) are required"));
+                            return;
+                        }
 
                         if (fromTick > toTick) {
                             callback(makeError("fromTick must be <= toTick"));
                             return;
                         }
 
-                        std::string result = bobFindLog(scIndex, logType,
-                                                        topic1Str, topic2Str, topic3Str,
-                                                        fromTick, toTick);
+                        const std::string topic1 = j["topic1"].asString();
+                        const std::string topic2 = j["topic2"].asString();
+                        const std::string topic3 = j["topic3"].asString();
+
+                        std::string result = bobFindLog(scIndex, logType, topic1, topic2, topic3, fromTick, toTick);
                         callback(makeJsonResponse(result));
-                    } catch (const std::invalid_argument&) {
-                        callback(makeError("All numeric path params must be integers: fromTick, toTick, SC_INDEX, LOG_TYPE"));
-                    } catch (const std::out_of_range& ex) {
-                        callback(makeError(ex.what()));
                     } catch (const std::exception& ex) {
-                        callback(makeError(std::string("findLog error: ") + ex.what(), k500InternalServerError));
+                        callback(makeError(std::string("findLog error: ") + ex.what(), drogon::k500InternalServerError));
                     }
                 },
-                {Get}
+                {Post}
         );
+
 
         // GET /status - Returns node status information
         app().registerHandler(
