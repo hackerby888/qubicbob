@@ -324,14 +324,14 @@ std::string getCustomLog(uint32_t scIndex, uint32_t logType,
     std::string result = "[";
     for (auto& le : logs)
     {
-        if (scIndex == 0) // protocol log
+        if (scIndex == 0 && !le.isSCType()) // protocol log
         {
             if (le.getType() == logType)
             {
-                result += le.parseToJson();
+                result += le.parseToJson() + ",";
             }
         }
-        else // smart contract
+        else if (le.isSCType()) // smart contract
         {
             auto le_sz = le.getLogSize();
             if (le_sz >= 8)
@@ -348,11 +348,15 @@ std::string getCustomLog(uint32_t scIndex, uint32_t logType,
                     if (topic[2] != m256i::zero() && le_sz >= 96) match_topic &= (memcmp(topic[2].m256i_u8, logBody + 72, 32) == 0);
                     if (match_topic)
                     {
-                        result += le.parseToJson();
+                        result += le.parseToJson() + ",";
                     }
                 }
             }
         }
+    }
+
+    if (!result.empty() && result.back() == ',') {
+        result.pop_back();
     }
     result += "]";
     return result;

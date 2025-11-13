@@ -2,6 +2,7 @@
 #include "structs.h"
 #include "Logger.h"
 #include "stdint.h"
+#include "GlobalVar.h"
 
 // ---- Data Structures to be Stored ----
 
@@ -60,6 +61,12 @@ public:
         memcpy(&combo, content.data() + 6, sizeof(combo));
         return (combo >> 24) & 0xFFu;
     }
+
+    uint32_t isSCType() const {
+        auto type = getType();
+        return type >= CONTRACT_ERROR_MESSAGE && type <= CONTRACT_DEBUG_MESSAGE;
+    }
+
     template <typename T>
     const T* getStruct()
     {
