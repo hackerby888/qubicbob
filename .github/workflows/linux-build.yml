@@ -35,7 +35,7 @@ jobs:
       # Install dependencies
       - name: Install CMake and dependencies
         run: |
-          apt install vim net-tools tmux cmake git libjsoncpp-dev build-essential cmake uuid-dev libhiredis-dev zlib1g-dev unzip -y;
+          sudo apt install vim net-tools tmux cmake git libjsoncpp-dev build-essential cmake uuid-dev libhiredis-dev zlib1g-dev unzip -y;
 
       # Configure the project
       - name: Configure with CMake
