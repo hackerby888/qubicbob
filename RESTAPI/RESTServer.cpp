@@ -52,6 +52,32 @@ namespace {
             {Get}
         );
 
+        // GET /asset/{identity}/{issuer}/{asset_name}/{manageSCIndex}
+        app().registerHandler(
+                "/asset/{1}/{2}/{3}/{4}",
+                [](const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback,
+                   const std::string &identity, const std::string &issuer, const std::string &assetName,
+                   const std::string &manageSCIndexStr) {
+                    try {
+                        unsigned long long v = std::stoull(manageSCIndexStr);
+                        if (v > std::numeric_limits<uint32_t>::max()) {
+                            callback(makeError("manageSCIndex out of uint32 range"));
+                            return;
+                        }
+                        uint32_t manageSCIndex = static_cast<uint32_t>(v);
+                        std::string result = bobGetAsset(identity, assetName, issuer, manageSCIndex);
+                        callback(makeJsonResponse(result));
+                    } catch (const std::invalid_argument &) {
+                        callback(makeError("manageSCIndex must be an integer"));
+                    } catch (const std::out_of_range &) {
+                        callback(makeError("manageSCIndex out of range"));
+                    } catch (const std::exception &ex) {
+                        callback(makeError(std::string("asset error: ") + ex.what(), k500InternalServerError));
+                    }
+                },
+                {Get}
+        );
+
         // GET /epochinfo/{epoch}
         app().registerHandler(
                 "/epochinfo/{1}",

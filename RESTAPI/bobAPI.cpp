@@ -4,6 +4,7 @@
 #include "shim.h"
 #include "Entity.h"
 #include "database/db.h"
+#include "Asset.h"
 #include <json/json.h>
 #include <vector>
 #include <sstream>
@@ -71,9 +72,20 @@ std::string bobGetBalance(const char* identity)
            "}";
 }
 
-std::string bobGetAsset(const char* identity)
+std::string bobGetAsset(const std::string identity, const std::string assetName, const std::string assetIssuer, uint32_t manageSCIndex)
 {
-    return "{\"error\": \"Not yet implemented\"}";
+    m256i pk, issuer;
+    uint64_t asset_name = 0;
+    getPublicKeyFromIdentity(identity.c_str(), pk.m256i_u8);
+    getPublicKeyFromIdentity(assetIssuer.c_str(), issuer.m256i_u8);
+    memcpy(&asset_name, assetName.data(), std::min(7, int(assetName.size())));
+    long long ownershipBalance, possessionBalance;
+    getAssetBalances(pk, issuer, asset_name, manageSCIndex, ownershipBalance, possessionBalance);
+    Json::Value root;
+    root["ownershipBalance"] = ownershipBalance;
+    root["possessionBalance"] = possessionBalance;
+    Json::FastWriter writer;
+    return writer.write(root);
 }
 
 std::string bobGetTransaction(const char* txHash)

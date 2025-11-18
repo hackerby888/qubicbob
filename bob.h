@@ -13,7 +13,7 @@ void requestToExitBob();
 void startRESTServer();
 void stopRESTServer();
 std::string bobGetBalance(const char* identity);
-std::string bobGetAsset(const char* identity);
+std::string bobGetAsset(const std::string identity, const std::string assetName, const std::string issuer, uint32_t manageSCIndex);
 std::string bobGetTransaction(const char* txHash);
 std::string bobGetLog(uint16_t epoch, int64_t start, int64_t end); // inclusive
 std::string bobGetTick(const uint32_t tick); // return Data And Votes and LogRanges

@@ -490,3 +490,9 @@ bool db_update_field(const std::string key, const std::string field, const std::
 
 bool db_try_get_TickData(uint32_t tick, TickData& data);
 bool db_get_end_epoch_log_range(uint16_t epoch, long long &fromLogId, long long &length);
+
+
+
+
+bool db_migrate_vtick(uint32_t tick);
+void db_kvrocks_connect(const std::string &connectionString);

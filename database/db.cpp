@@ -12,6 +12,7 @@
 
 // Global Redis client handle
 static std::unique_ptr<sw::redis::Redis> g_redis = nullptr;
+static std::unique_ptr<sw::redis::Redis> g_kvrocks = nullptr;
 
 void db_connect(const std::string& connectionString) {
     if (g_redis) {
@@ -35,6 +36,28 @@ void db_connect(const std::string& connectionString) {
         throw std::runtime_error("Cannot connect to Redis: " + std::string(e.what()));
     }
     Logger::get()->trace("Connected to DB!");
+}
+
+void db_kvrocks_connect(const std::string &connectionString) {
+    if (g_kvrocks) {
+        Logger::get()->info("Kvrocks connection already open.\n");
+        return;
+    }
+    try {
+        std::string uri_with_pool = connectionString;
+        if (uri_with_pool.find('?') == std::string::npos) {
+            uri_with_pool += "?pool_size=32";
+        } else {
+            uri_with_pool += "&pool_size=32";
+        }
+
+        g_kvrocks = std::make_unique<sw::redis::Redis>(uri_with_pool);
+        g_kvrocks->ping();
+    } catch (const sw::redis::Error &e) {
+        g_kvrocks.reset();
+        throw std::runtime_error("Cannot connect to Kvrocks: " + std::string(e.what()));
+    }
+    Logger::get()->trace("Connected to Kvrocks!");
 }
 
 void db_close() {
@@ -1384,3 +1407,31 @@ bool db_try_get_TickData(uint32_t tick, TickData& data)
     return false;
 }
 
+/* MIGRATION SECTION - CODE TO MOVE DATA FROM KEYDB TO KVROCKS*/
+
+bool db_migrate_vtick(uint32_t tick) {
+    if (!g_redis || !g_kvrocks) return false;
+
+    try {
+        const std::string key = "vtick:" + std::to_string(tick);
+
+        // Read the original compressed blob from KeyDB
+        auto val = g_redis->get(key);
+        if (!val) {
+            return false; // nothing to migrate for this tick
+        }
+
+        // Write the exact same blob to Kvrocks
+        sw::redis::StringView view(val->data(), val->size());
+        g_kvrocks->set(key, view);
+
+        // Remove the source key from KeyDB
+        std::vector<std::string> delKeys{key};
+        g_redis->unlink(delKeys.begin(), delKeys.end());
+
+        return true;
+    } catch (const sw::redis::Error &e) {
+        Logger::get()->error("Redis error in db_migrate_vtick: {}\n", e.what());
+        return false;
+    }
+}
