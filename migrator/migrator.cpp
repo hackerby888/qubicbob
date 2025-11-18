@@ -59,44 +59,6 @@ int main(int argc, char** argv) {
         Logger::get()->info("Starting migration. epoch={}, range=[{}, {}]", epoch, fromTick, toTick);
 
         // ---------------------------------------------
-        // Section 1: tickData and tickVote unlink on KeyDB
-        // ---------------------------------------------
-        Logger::get()->info("Section 1: Unlink tick_data and tick_vote on KeyDB...");
-        {
-            const unsigned int kThreads = 4;
-            const uint32_t kBatchSize = 1000; // each batch call deletes up to 1000 ticks
-            std::atomic<uint32_t> nextTick(fromTick);
-            std::vector<std::thread> workers;
-            workers.reserve(kThreads);
-
-            for (unsigned int i = 0; i < kThreads; ++i) {
-                workers.emplace_back([&]() {
-                    while (true) {
-                        // Fetch the next batch start
-                        uint32_t start = nextTick.fetch_add(kBatchSize, std::memory_order_relaxed);
-                        if (start > toTick) break;
-
-                        // Cap the batch to the remaining ticks
-                        uint32_t count = std::min<uint32_t>(kBatchSize, toTick - start + 1);
-
-                        // Batch delete tick_data and tick_vote for [start, start+count-1]
-                        if (db_delete_tick_data_batch(start, count))
-                        {
-                            Logger::get()->info("Unlinked tickData from {} to {}", start, start + count);
-                        }
-                        if (db_delete_tick_vote_batch(start, count))
-                        {
-                            Logger::get()->info("Unlinked tickVote from {} to {}", start, start + count);
-                        }
-                    }
-                });
-            }
-
-            for (auto &t : workers) t.join();
-        }
-        Logger::get()->info("Section 1 complete.");
-
-        // ---------------------------------------------
         // Section 2: vtick migration
         // - read vtick from KeyDB (db_get_vtick inside db_migrate_vtick)
         // - set the same key in Kvrocks
@@ -105,10 +67,10 @@ int main(int argc, char** argv) {
         Logger::get()->info("Section 2: vtick migration KeyDB -> Kvrocks...");
         // ---------------------------------------------
         // Section 2: vtick migration
-        // Parallelized with 16 threads
+        // Parallelized with 4 threads
         // ---------------------------------------------
         {
-            const unsigned int kThreads = 16;
+            const unsigned int kThreads = 4;
             std::atomic<uint32_t> nextTick(fromTick);
             std::atomic<size_t> migrated{0};
             std::atomic<size_t> txMigrated{0};
@@ -148,7 +110,7 @@ int main(int argc, char** argv) {
                             }
                         }
 
-                        if ((tick - fromTick) % 10000 == 0) {
+                        if ((tick - fromTick) % 100 == 0) {
                             Logger::get()->info(
                                 "Migrated {} vtick entries and {} transactions. Latest tick={}",
                                 migrated.load(std::memory_order_relaxed),
@@ -177,10 +139,10 @@ int main(int argc, char** argv) {
         Logger::get()->info("Section 3: log migration KeyDB -> Kvrocks...");
         // ---------------------------------------------
         // Section 3: log migration
-        // Parallelized with 16 threads
+        // Parallelized with 4 threads
         // ---------------------------------------------
         {
-            const unsigned int kThreads = 16;
+            const unsigned int kThreads = 4;
             std::atomic<uint32_t> nextTick(fromTick);
             std::atomic<size_t> logsMigrated{0};
             std::atomic<size_t> rangesMigrated{0};
