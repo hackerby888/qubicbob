@@ -496,3 +496,6 @@ bool db_get_end_epoch_log_range(uint16_t epoch, long long &fromLogId, long long 
 
 bool db_migrate_vtick(uint32_t tick);
 void db_kvrocks_connect(const std::string &connectionString);
+bool db_migrate_log_ranges(uint32_t tick);
+bool db_migrate_log(uint16_t epoch, uint64_t logId);
+bool db_migrate_transaction(const std::string &tx_hash);

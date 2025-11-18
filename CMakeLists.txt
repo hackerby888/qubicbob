@@ -140,9 +140,8 @@ target_link_libraries(bob_lib PRIVATE redis++_static hiredis spdlog::spdlog cxxo
 ADD_EXECUTABLE(bob main.cpp)
 target_link_libraries(bob PRIVATE bob_lib)
 
-ADD_EXECUTABLE(migrator migrator/migrator.cpp
-						database/db.cpp)
-target_link_libraries(migrator PRIVATE redis++_static hiredis spdlog::spdlog)
+ADD_EXECUTABLE(migrator migrator/migrator.cpp)
+target_link_libraries(migrator PRIVATE bob_lib)
 # --- Testing with Google Test ---
 enable_testing()
 include(GoogleTest)

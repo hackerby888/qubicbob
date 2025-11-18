@@ -6,8 +6,6 @@
 #include "cxxopts.hpp"
 #include "Logger.h"
 
-#include "sw/redis++/redis++.h"
-
 #include "database/db.h"       // for db_connect/db_get_vtick/db_delete_tick_* and FullTickStruct/TickData/TickVote
 #include "zstd.h"     // compression for vtick re-serialization
 
@@ -76,15 +74,32 @@ int main(int argc, char** argv) {
         // ---------------------------------------------
         Logger::get()->info("Section 2: vtick migration KeyDB -> Kvrocks...");
         size_t migrated = 0;
+        size_t txMigrated = 0;
         for (uint32_t tick = fromTick; tick <= toTick; ++tick) {
-            if (db_migrate_vtick(tick)) {
-                ++migrated;
-                if (migrated % 10000 == 0) {
-                    Logger::get()->info("Migrated {} vtick entries. Latest tick={}", migrated, tick);
+            // Read vtick content to access TickData and migrate transactions
+            FullTickStruct fullTick;
+            if (db_get_vtick(tick, fullTick)) {
+                m256i zeroDigest(m256i::zero());
+                for (int i = 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK; ++i) {
+                    // Skip empty placeholders
+                    if (fullTick.td.transactionDigests[i] != zeroDigest) {
+                        std::string txHash = fullTick.td.transactionDigests[i].toQubicHash(); // required for canonical tx hash
+                        if (db_migrate_transaction(txHash)) {
+                            ++txMigrated;
+                        }
+                    }
+                }
+                bool vtickOk = db_migrate_vtick(tick);
+                if (vtickOk) {
+                    ++migrated;
                 }
             }
+
+            if ((tick - fromTick) % 10000 == 0) {
+                Logger::get()->info("Migrated {} vtick entries and {} transactions. Latest tick={}", migrated, txMigrated, tick);
+            }
         }
-        Logger::get()->info("Section 2 complete. Migrated {} vtick entries.", migrated);
+        Logger::get()->info("Section 2 complete. Migrated {} vtick entries and {} transactions.", migrated, txMigrated);
 
         db_close();
         Logger::get()->info("Migration finished successfully.");
