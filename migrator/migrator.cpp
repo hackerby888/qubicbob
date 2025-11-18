@@ -101,6 +101,48 @@ int main(int argc, char** argv) {
         }
         Logger::get()->info("Section 2 complete. Migrated {} vtick entries and {} transactions.", migrated, txMigrated);
 
+        // ---------------------------------------------
+        // Section 3: log migration
+        // - read tick_log_range from KeyDB to know the log range of that tick
+        // - migrate all logs in that range to Kvrocks
+        // - migrate all log_ranges for the tick to Kvrocks
+        // ---------------------------------------------
+        Logger::get()->info("Section 3: log migration KeyDB -> Kvrocks...");
+        size_t logsMigrated = 0;
+        size_t rangesMigrated = 0;
+
+        for (uint32_t tick = fromTick; tick <= toTick; ++tick) {
+            long long fromLogId = -1;
+            long long length = -1;
+
+            // Read the aggregated per-tick log range
+            if (!db_get_log_range_for_tick(tick, fromLogId, length)) {
+                // Could not read range for this tick; continue to next tick
+                continue;
+            }
+
+            // Migrate per-tick/per-tx log range artifacts regardless of whether logs exist
+            if (db_migrate_log_ranges(tick)) {
+                ++rangesMigrated;
+            }
+
+            // If the tick has logs, migrate each log by id
+            if (fromLogId != -1 && length > 0) {
+                const uint64_t startId = static_cast<uint64_t>(fromLogId);
+                const uint64_t endId   = static_cast<uint64_t>(fromLogId + length - 1);
+                for (uint64_t logId = startId; logId <= endId; ++logId) {
+                    if (db_migrate_log(epoch, logId)) {
+                        ++logsMigrated;
+                    }
+                }
+            }
+
+            if ((tick - fromTick) % 10000 == 0) {
+                Logger::get()->info("Section 3 progress: migrated {} logs and {} log_range entries. Latest tick={}", logsMigrated, rangesMigrated, tick);
+            }
+        }
+        Logger::get()->info("Section 3 complete. Migrated {} logs and {} log_range entries.", logsMigrated, rangesMigrated);
+
         db_close();
         Logger::get()->info("Migration finished successfully.");
         return 0;
