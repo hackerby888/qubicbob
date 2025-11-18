@@ -19,6 +19,7 @@ int main(int argc, char** argv) {
                 ("epoch", "Epoch to migrate (for bookkeeping/logging)", cxxopts::value<uint16_t>())
                 ("from", "From tick (inclusive)", cxxopts::value<uint32_t>())
                 ("to", "To tick (inclusive)", cxxopts::value<uint32_t>())
+                ("l,log-level", "Log level (trace|debug|info|warn|error|critical)", cxxopts::value<std::string>()->default_value("info"))
                 ("h,help", "Show help");
 
         auto result = options.parse(argc, argv);
@@ -33,11 +34,14 @@ int main(int argc, char** argv) {
         const uint16_t epoch        = result["epoch"].as<uint16_t>();
         const uint32_t fromTick     = result["from"].as<uint32_t>();
         const uint32_t toTick       = result["to"].as<uint32_t>();
+        const std::string logLevel  = result["log-level"].as<std::string>();
 
         if (fromTick > toTick) {
             std::cerr << "Invalid range: from > to" << std::endl;
             return 1;
         }
+
+        Logger::init(logLevel);
 
         if (kvrocksUri.find('?') == std::string::npos) {
             kvrocksUri += "?pool_size=16";
