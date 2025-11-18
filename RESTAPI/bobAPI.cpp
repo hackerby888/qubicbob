@@ -82,8 +82,8 @@ std::string bobGetAsset(const std::string identity, const std::string assetName,
     long long ownershipBalance, possessionBalance;
     getAssetBalances(pk, issuer, asset_name, manageSCIndex, ownershipBalance, possessionBalance);
     Json::Value root;
-    root["ownershipBalance"] = ownershipBalance;
-    root["possessionBalance"] = possessionBalance;
+    root["ownershipBalance"] = Json::Int64(ownershipBalance);
+    root["possessionBalance"] = Json::Int64(possessionBalance);
     Json::FastWriter writer;
     return writer.write(root);
 }
