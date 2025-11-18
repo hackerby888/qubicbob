@@ -64,7 +64,7 @@ int main(int argc, char** argv) {
             (void)db_delete_tick_data(tick);
             (void)db_delete_tick_vote(tick);
 
-            if ((tick - fromTick) % 10000 == 0) {
+            if ((tick - fromTick) % 100 == 0) {
                 Logger::get()->info("Unlinked up to tick {}", tick);
             }
         }
