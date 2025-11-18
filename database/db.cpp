@@ -879,6 +879,26 @@ bool db_delete_tick_data(uint32_t tick) {
     }
 }
 
+bool db_delete_tick_data_batch(uint32_t tick, uint32_t batch)
+{
+    if (!g_redis) return false;
+    try {
+        std::vector<std::string> keys;
+        keys.reserve(batch);
+        for (uint32_t i = 0; i < batch; i++) {
+            keys.push_back("tick_data:" + std::to_string(tick + i));
+        }
+        if (!keys.empty()) {
+            g_redis->unlink(keys.begin(), keys.end());
+        }
+        return true;
+    } catch (const sw::redis::Error &e) {
+        Logger::get()->error("Redis error in db_delete_tick_data_batch: %s\n", e.what());
+        return false;
+    }
+}
+
+
 bool db_delete_tick_vote(uint32_t tick, uint16_t computorIndex) {
     if (!g_redis) return false;
     try {
@@ -915,7 +935,32 @@ bool db_delete_tick_vote(uint32_t tick) {
         return false;
     }
 }
+bool db_delete_tick_vote_batch(uint32_t tick, uint32_t batch)
+{
+    if (!g_redis) return false;
+    try {
+        // Delete all tick vote records for computor indices 0-675
+        constexpr int MAX_COMPUTORS = 676;
+        std::vector<std::string> keys;
+        keys.reserve(MAX_COMPUTORS * batch);
+        for (int t = tick; t < tick + batch; t++)
+        {
+            const std::string prefix = "tick_vote:" + std::to_string(t) + ":";
+            // Build deterministic set of keys to delete
+            for (int i = 0; i < MAX_COMPUTORS; i++) {
+                keys.push_back(prefix + std::to_string(i));
+            }
+        }
 
+        if (!keys.empty()) {
+            g_redis->unlink(keys.begin(), keys.end());
+        }
+        return true;
+    } catch (const sw::redis::Error &e) {
+        Logger::get()->error("Redis error in db_delete_tick_vote: %s\n", e.what());
+        return false;
+    }
+}
 // Insert FullTickStruct compressed with zstd under key "vtick:<tick>"
 bool db_insert_vtick(uint32_t tick, const FullTickStruct& fullTick)
 {

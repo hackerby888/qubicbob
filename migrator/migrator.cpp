@@ -63,7 +63,8 @@ int main(int argc, char** argv) {
         // ---------------------------------------------
         Logger::get()->info("Section 1: Unlink tick_data and tick_vote on KeyDB...");
         {
-            const unsigned int kThreads = 16;
+            const unsigned int kThreads = 4;
+            const uint32_t kBatchSize = 1000; // each batch call deletes up to 1000 ticks
             std::atomic<uint32_t> nextTick(fromTick);
             std::vector<std::thread> workers;
             workers.reserve(kThreads);
@@ -71,14 +72,21 @@ int main(int argc, char** argv) {
             for (unsigned int i = 0; i < kThreads; ++i) {
                 workers.emplace_back([&]() {
                     while (true) {
-                        uint32_t tick = nextTick.fetch_add(1, std::memory_order_relaxed);
-                        if (tick > toTick) break;
+                        // Fetch the next batch start
+                        uint32_t start = nextTick.fetch_add(kBatchSize, std::memory_order_relaxed);
+                        if (start > toTick) break;
 
-                        (void)db_delete_tick_data(tick);
-                        (void)db_delete_tick_vote(tick);
+                        // Cap the batch to the remaining ticks
+                        uint32_t count = std::min<uint32_t>(kBatchSize, toTick - start + 1);
 
-                        if ((tick - fromTick) % 10000 == 0) {
-                            Logger::get()->info("Unlinked up to tick {}", tick);
+                        // Batch delete tick_data and tick_vote for [start, start+count-1]
+                        if (db_delete_tick_data_batch(start, count))
+                        {
+                            Logger::get()->info("Unlinked tickData from {} to {}", start, start + count);
+                        }
+                        if (db_delete_tick_vote_batch(start, count))
+                        {
+                            Logger::get()->info("Unlinked tickVote from {} to {}", start, start + count);
                         }
                     }
                 });

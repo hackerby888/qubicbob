@@ -499,3 +499,5 @@ void db_kvrocks_connect(const std::string &connectionString);
 bool db_migrate_log_ranges(uint32_t tick);
 bool db_migrate_log(uint16_t epoch, uint64_t logId);
 bool db_migrate_transaction(const std::string &tx_hash);
+bool db_delete_tick_data_batch(uint32_t tick, uint32_t batch);
+bool db_delete_tick_vote_batch(uint32_t tick, uint32_t batch);
