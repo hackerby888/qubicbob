@@ -2,6 +2,8 @@
 #include <string>
 #include <vector>
 #include <stdexcept>
+#include <thread>
+#include <atomic>
 
 #include "cxxopts.hpp"
 #include "Logger.h"
@@ -60,13 +62,29 @@ int main(int argc, char** argv) {
         // Section 1: tickData and tickVote unlink on KeyDB
         // ---------------------------------------------
         Logger::get()->info("Section 1: Unlink tick_data and tick_vote on KeyDB...");
-        for (uint32_t tick = fromTick; tick <= toTick; ++tick) {
-            (void)db_delete_tick_data(tick);
-            (void)db_delete_tick_vote(tick);
+        {
+            const unsigned int kThreads = 16;
+            std::atomic<uint32_t> nextTick(fromTick);
+            std::vector<std::thread> workers;
+            workers.reserve(kThreads);
 
-            if ((tick - fromTick) % 100 == 0) {
-                Logger::get()->info("Unlinked up to tick {}", tick);
+            for (unsigned int i = 0; i < kThreads; ++i) {
+                workers.emplace_back([&]() {
+                    while (true) {
+                        uint32_t tick = nextTick.fetch_add(1, std::memory_order_relaxed);
+                        if (tick > toTick) break;
+
+                        (void)db_delete_tick_data(tick);
+                        (void)db_delete_tick_vote(tick);
+
+                        if ((tick - fromTick) % 10000 == 0) {
+                            Logger::get()->info("Unlinked up to tick {}", tick);
+                        }
+                    }
+                });
             }
+
+            for (auto &t : workers) t.join();
         }
         Logger::get()->info("Section 1 complete.");
 
@@ -77,75 +95,146 @@ int main(int argc, char** argv) {
         // - unlink source key from KeyDB
         // ---------------------------------------------
         Logger::get()->info("Section 2: vtick migration KeyDB -> Kvrocks...");
-        size_t migrated = 0;
-        size_t txMigrated = 0;
-        for (uint32_t tick = fromTick; tick <= toTick; ++tick) {
-            // Read vtick content to access TickData and migrate transactions
-            FullTickStruct fullTick;
-            if (db_get_vtick(tick, fullTick)) {
-                m256i zeroDigest(m256i::zero());
-                for (int i = 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK; ++i) {
-                    // Skip empty placeholders
-                    if (fullTick.td.transactionDigests[i] != zeroDigest) {
-                        std::string txHash = fullTick.td.transactionDigests[i].toQubicHash(); // required for canonical tx hash
-                        if (db_migrate_transaction(txHash)) {
-                            ++txMigrated;
+        // ---------------------------------------------
+        // Section 2: vtick migration
+        // Parallelized with 16 threads
+        // ---------------------------------------------
+        {
+            const unsigned int kThreads = 16;
+            std::atomic<uint32_t> nextTick(fromTick);
+            std::atomic<size_t> migrated{0};
+            std::atomic<size_t> txMigrated{0};
+
+            std::vector<std::thread> workers;
+            workers.reserve(kThreads);
+
+            for (unsigned int i = 0; i < kThreads; ++i) {
+                workers.emplace_back([&]() {
+                    while (true) {
+                        uint32_t tick = nextTick.fetch_add(1, std::memory_order_relaxed);
+                        if (tick > toTick) break;
+
+                        // Read vtick content to access TickData and migrate transactions
+                        FullTickStruct fullTick;
+                        if (db_get_vtick(tick, fullTick)) {
+                            m256i zeroDigest(m256i::zero());
+                            size_t localTxMigrated = 0;
+
+                            for (int i = 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK; ++i) {
+                                // Skip empty placeholders
+                                if (fullTick.td.transactionDigests[i] != zeroDigest) {
+                                    std::string txHash = fullTick.td.transactionDigests[i].toQubicHash(); // required for canonical tx hash
+                                    if (db_migrate_transaction(txHash)) {
+                                        ++localTxMigrated;
+                                    }
+                                }
+                            }
+
+                            if (localTxMigrated) {
+                                txMigrated.fetch_add(localTxMigrated, std::memory_order_relaxed);
+                            }
+
+                            bool vtickOk = db_migrate_vtick(tick);
+                            if (vtickOk) {
+                                migrated.fetch_add(1, std::memory_order_relaxed);
+                            }
+                        }
+
+                        if ((tick - fromTick) % 10000 == 0) {
+                            Logger::get()->info(
+                                "Migrated {} vtick entries and {} transactions. Latest tick={}",
+                                migrated.load(std::memory_order_relaxed),
+                                txMigrated.load(std::memory_order_relaxed),
+                                tick
+                            );
                         }
                     }
-                }
-                bool vtickOk = db_migrate_vtick(tick);
-                if (vtickOk) {
-                    ++migrated;
-                }
+                });
             }
 
-            if ((tick - fromTick) % 10000 == 0) {
-                Logger::get()->info("Migrated {} vtick entries and {} transactions. Latest tick={}", migrated, txMigrated, tick);
-            }
+            for (auto &t : workers) t.join();
+
+            Logger::get()->info(
+                "Section 2 complete. Migrated {} vtick entries and {} transactions.",
+                migrated.load(),
+                txMigrated.load()
+            );
         }
-        Logger::get()->info("Section 2 complete. Migrated {} vtick entries and {} transactions.", migrated, txMigrated);
-
         // ---------------------------------------------
-        // Section 3: log migration
+        // Section 3: log migration KeyDB -> Kvrocks...
         // - read tick_log_range from KeyDB to know the log range of that tick
         // - migrate all logs in that range to Kvrocks
         // - migrate all log_ranges for the tick to Kvrocks
         // ---------------------------------------------
         Logger::get()->info("Section 3: log migration KeyDB -> Kvrocks...");
-        size_t logsMigrated = 0;
-        size_t rangesMigrated = 0;
+        // ---------------------------------------------
+        // Section 3: log migration
+        // Parallelized with 16 threads
+        // ---------------------------------------------
+        {
+            const unsigned int kThreads = 16;
+            std::atomic<uint32_t> nextTick(fromTick);
+            std::atomic<size_t> logsMigrated{0};
+            std::atomic<size_t> rangesMigrated{0};
 
-        for (uint32_t tick = fromTick; tick <= toTick; ++tick) {
-            long long fromLogId = -1;
-            long long length = -1;
+            std::vector<std::thread> workers;
+            workers.reserve(kThreads);
 
-            // Read the aggregated per-tick log range
-            if (!db_get_log_range_for_tick(tick, fromLogId, length)) {
-                // Could not read range for this tick; continue to next tick
-                continue;
-            }
+            for (unsigned int i = 0; i < kThreads; ++i) {
+                workers.emplace_back([&]() {
+                    while (true) {
+                        uint32_t tick = nextTick.fetch_add(1, std::memory_order_relaxed);
+                        if (tick > toTick) break;
 
-            // Migrate per-tick/per-tx log range artifacts regardless of whether logs exist
-            if (db_migrate_log_ranges(tick)) {
-                ++rangesMigrated;
-            }
+                        long long fromLogId = -1;
+                        long long length = -1;
 
-            // If the tick has logs, migrate each log by id
-            if (fromLogId != -1 && length > 0) {
-                const uint64_t startId = static_cast<uint64_t>(fromLogId);
-                const uint64_t endId   = static_cast<uint64_t>(fromLogId + length - 1);
-                for (uint64_t logId = startId; logId <= endId; ++logId) {
-                    if (db_migrate_log(epoch, logId)) {
-                        ++logsMigrated;
+                        // Read the aggregated per-tick log range
+                        if (!db_get_log_range_for_tick(tick, fromLogId, length)) {
+                            // Could not read range for this tick; continue to next tick
+                            continue;
+                        }
+
+                        // Migrate per-tick/per-tx log range artifacts regardless of whether logs exist
+                        if (db_migrate_log_ranges(tick)) {
+                            rangesMigrated.fetch_add(1, std::memory_order_relaxed);
+                        }
+
+                        // If the tick has logs, migrate each log by id
+                        if (fromLogId != -1 && length > 0) {
+                            const uint64_t startId = static_cast<uint64_t>(fromLogId);
+                            const uint64_t endId   = static_cast<uint64_t>(fromLogId + length - 1);
+                            size_t localLogs = 0;
+                            for (uint64_t logId = startId; logId <= endId; ++logId) {
+                                if (db_migrate_log(epoch, logId)) {
+                                    ++localLogs;
+                                }
+                            }
+                            if (localLogs) {
+                                logsMigrated.fetch_add(localLogs, std::memory_order_relaxed);
+                            }
+                        }
+
+                        if ((tick - fromTick) % 10000 == 0) {
+                            Logger::get()->info(
+                                "Section 3 progress: migrated {} logs and {} log_range entries. Latest tick={}",
+                                logsMigrated.load(std::memory_order_relaxed),
+                                rangesMigrated.load(std::memory_order_relaxed),
+                                tick
+                            );
+                        }
                     }
-                }
+                });
             }
 
-            if ((tick - fromTick) % 10000 == 0) {
-                Logger::get()->info("Section 3 progress: migrated {} logs and {} log_range entries. Latest tick={}", logsMigrated, rangesMigrated, tick);
-            }
+            for (auto &t : workers) t.join();
+
+            Logger::get()->info(
+                "Section 3 complete. Migrated {} logs and {} log_range entries.",
+                logsMigrated.load(),
+                rangesMigrated.load()
+            );
         }
-        Logger::get()->info("Section 3 complete. Migrated {} logs and {} log_range entries.", logsMigrated, rangesMigrated);
 
         db_close();
         Logger::get()->info("Migration finished successfully.");
