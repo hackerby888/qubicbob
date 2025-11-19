@@ -41,3 +41,4 @@
 #define gLastNTickStorage                 (GS().gLastNTickStorage)
 
 #define gMaxThreads (GS().gMaxThreads)
+#define gSpamThreshold (GS().gSpamThreshold)

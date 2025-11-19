@@ -145,6 +145,9 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
     // Maximum threads the system can use (0 means auto/unlimited)
     if (!validate_uint("max-thread", out.max_thread)) return false;
 
+    // Spam/Junk QU transfer detection threshold (default 0)
+    if (!validate_uint("spam-qu-threshold", out.spam_qu_threshold)) return false;
+
     if (root.isMember("is-trusted-node")) {
         if (!root["is-trusted-node"].isBool()) {
             error = "Invalid type: boolean required for key 'is-trusted-node'";

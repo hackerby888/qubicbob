@@ -61,6 +61,8 @@ struct GlobalState {
     unsigned gLastNTickStorage = 1000;              // used when mode is LastNTick
 
     int gMaxThreads = std::thread::hardware_concurrency();
+
+    long long gSpamThreshold;
 };
 
 // Safe, lazy singleton accessor avoids static init order issues.

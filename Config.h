@@ -35,6 +35,9 @@ struct AppConfig {
     std::string kvrocks_url = "tcp://127.0.0.1:6666"; // used when mode is Kvrocks
 
     unsigned max_thread = 0;
+    // Spam/Junk detection threshold for QU transfers (amount <= threshold and no input)
+    unsigned spam_qu_threshold = 100;
+
 };
 
 // Returns true on success; on failure returns false and fills error with a human-readable message.
