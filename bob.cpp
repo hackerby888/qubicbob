@@ -158,6 +158,11 @@ int runBob(int argc, char *argv[])
         Logger::get()->info("Loaded DB. DATA: Tick: {} | epoch: {}", gCurrentFetchingTick.load(), gCurrentProcessingEpoch.load());
         Logger::get()->info("Loaded DB. EVENT: Tick: {} | epoch: {}", gCurrentFetchingLogTick.load(), event_epoch);
     }
+    if (gTickStorageMode == TickStorageMode::Kvrocks)
+    {
+        db_kvrocks_connect(cfg.kvrocks_url);
+        Logger::get()->info("Connected to kvrocks");
+    }
     // Collect endpoints from config
     ConnectionPool connPoolAll;
     ConnectionPool connPoolTrustedNode; // conn pool with passcode
