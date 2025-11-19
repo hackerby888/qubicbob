@@ -507,3 +507,5 @@ bool db_insert_vtick_to_kvrocks(uint32_t tick, const FullTickStruct& fullTick);
 bool db_get_vtick_from_kvrocks(uint32_t tick, FullTickStruct& outFullTick);
 
 std::vector<TickVote> db_try_get_TickVote(uint32_t tick);
+
+void db_kvrocks_close();

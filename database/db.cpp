@@ -38,31 +38,9 @@ void db_connect(const std::string& connectionString) {
     Logger::get()->trace("Connected to DB!");
 }
 
-void db_kvrocks_connect(const std::string &connectionString) {
-    if (g_kvrocks) {
-        Logger::get()->info("Kvrocks connection already open.\n");
-        return;
-    }
-    try {
-        std::string uri_with_pool = connectionString;
-        if (uri_with_pool.find('?') == std::string::npos) {
-            uri_with_pool += "?pool_size=32";
-        } else {
-            uri_with_pool += "&pool_size=32";
-        }
-
-        g_kvrocks = std::make_unique<sw::redis::Redis>(uri_with_pool);
-        g_kvrocks->ping();
-    } catch (const sw::redis::Error &e) {
-        g_kvrocks.reset();
-        throw std::runtime_error("Cannot connect to Kvrocks: " + std::string(e.what()));
-    }
-    Logger::get()->trace("Connected to Kvrocks!");
-}
-
 void db_close() {
     g_redis.reset();
-    Logger::get()->info("Closed redis DB connections");
+    Logger::get()->info("Closed keydb DB connections");
 }
 
 bool db_insert_tick_vote(const TickVote& vote) {
@@ -1507,4 +1485,33 @@ bool db_get_vtick_from_kvrocks(uint32_t tick, FullTickStruct& outFullTick)
         Logger::get()->error("KVROCKs error in db_get_vtick: %s\n", e.what());
         return false;
     }
+}
+
+
+
+void db_kvrocks_connect(const std::string &connectionString) {
+    if (g_kvrocks) {
+        Logger::get()->info("Kvrocks connection already open.\n");
+        return;
+    }
+    try {
+        std::string uri_with_pool = connectionString;
+        if (uri_with_pool.find('?') == std::string::npos) {
+            uri_with_pool += "?pool_size=32";
+        } else {
+            uri_with_pool += "&pool_size=32";
+        }
+
+        g_kvrocks = std::make_unique<sw::redis::Redis>(uri_with_pool);
+        g_kvrocks->ping();
+    } catch (const sw::redis::Error &e) {
+        g_kvrocks.reset();
+        throw std::runtime_error("Cannot connect to Kvrocks: " + std::string(e.what()));
+    }
+    Logger::get()->trace("Connected to Kvrocks!");
+}
+
+void db_kvrocks_close() {
+    g_kvrocks.reset();
+    Logger::get()->info("Closed kvrocks DB connections");
 }

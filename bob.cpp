@@ -377,6 +377,10 @@ int runBob(int argc, char *argv[])
         Logger::get()->info("Received END_EPOCH message. Closing BOB");
     }
     db_close();
+    if (gTickStorageMode == TickStorageMode::Kvrocks)
+    {
+        db_kvrocks_close();
+    }
     // Stop embedded server (if it was started) before shutting down logger
     StopQubicServer();
     stopRESTServer();
