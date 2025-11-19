@@ -29,7 +29,7 @@ void compressTickAndMoveToKVRocks(uint32_t tick)
 
 bool cleanRawTick(uint32_t fromTick, uint32_t toTick)
 {
-    Logger::get()->info("Start cleaning raw tick data from {} to {}", fromTick, toTick);
+    Logger::get()->trace("Start cleaning raw tick data from {} to {}", fromTick, toTick);
     for (uint32_t tick = fromTick; tick <= toTick; tick++)
     {
         // Delete raw TickData
@@ -41,6 +41,6 @@ bool cleanRawTick(uint32_t fromTick, uint32_t toTick)
         // Delete all TickVotes for this tick (attempt all indices; API treats missing as success)
         db_delete_tick_vote(tick);
     }
-    Logger::get()->info("Cleaned raw tick data from {} to {}", fromTick, toTick);
+    Logger::get()->trace("Cleaned raw tick data from {} to {}", fromTick, toTick);
     return true;
 }
