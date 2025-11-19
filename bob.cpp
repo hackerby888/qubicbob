@@ -72,14 +72,16 @@ void garbageCleaner()
             long long cleanToTick = (long long)(gCurrentVerifyLoggingTick.load()) - 5;
             if (lastCleanTick < cleanToTick)
             {
-                for (int t = lastCleanTick+1; t <= cleanToTick; t++)
+                for (long long t = lastCleanTick+1; t <= cleanToTick; t++)
                 {
                     compressTickAndMoveToKVRocks(t);
                 }
+                Logger::get()->info("Compressed tick {}->{} to kvrocks", lastCleanTick+1, cleanToTick);
                 if (cleanRawTick(lastCleanTick + 1, cleanToTick))
                 {
                     lastCleanTick = cleanToTick;
                 }
+                Logger::get()->info("Cleaned tick {}->{} in keydb", lastCleanTick+1, cleanToTick);
             }
         }
     }
