@@ -50,17 +50,44 @@ void garbageCleaner()
 {
     Logger::get()->info("Start garbage cleaner");
     long long lastCleanTick = gCurrentFetchingTick - 1;
+    uint32_t lastReportedTick = 0;
     while (!stopFlag.load())
     {
         int count = 0;
-        while (!stopFlag.load() && count++ < 100) SLEEP(100); // clean every 10s
+        SLEEP(100);
         if (stopFlag.load()) break;
-        long long cleanToTick = (long long)(gCurrentVerifyLoggingTick.load()) - 5;
-        if (lastCleanTick < cleanToTick)
+        if (gTickStorageMode == TickStorageMode::LastNTick)
         {
-            if (cleanRawTick(lastCleanTick + 1, cleanToTick))
+            long long cleanToTick = (long long)(gCurrentVerifyLoggingTick.load()) - 5;
+            cleanToTick = std::min(cleanToTick, (long long)(gCurrentVerifyLoggingTick) - 1 - gLastNTickStorage);
+            if (lastCleanTick < cleanToTick)
             {
-                lastCleanTick = cleanToTick;
+                if (cleanRawTick(lastCleanTick + 1, cleanToTick))
+                {
+                    lastCleanTick = cleanToTick;
+                }
+            }
+        }
+        else if (gTickStorageMode == TickStorageMode::Kvrocks)
+        {
+            long long cleanToTick = (long long)(gCurrentVerifyLoggingTick.load()) - 5;
+            if (lastCleanTick < cleanToTick)
+            {
+                for (long long t = lastCleanTick+1; t <= cleanToTick; t++)
+                {
+                    compressTickAndMoveToKVRocks(t);
+                }
+                Logger::get()->trace("Compressed tick {}->{} to kvrocks", lastCleanTick+1, cleanToTick);
+                if (cleanRawTick(lastCleanTick + 1, cleanToTick))
+                {
+                    lastCleanTick = cleanToTick;
+                }
+                Logger::get()->trace("Cleaned tick {}->{} in keydb", lastCleanTick+1, cleanToTick);
+                if (cleanToTick - lastReportedTick > 1000)
+                {
+                    Logger::get()->trace("Compressed and cleaned up to tick {}", cleanToTick);
+                    lastReportedTick = cleanToTick;
+                }
             }
         }
     }
@@ -97,7 +124,9 @@ int runBob(int argc, char *argv[])
         Logger::get()->info("Trusted node identity: {}", identity);
     }
     gTrustedEntities = cfg.trustedEntities;
-    gNotSaveTickVote = cfg.not_save_tickvote;
+    gTickStorageMode = cfg.tick_storage_mode;
+    gLastNTickStorage = cfg.last_n_tick_storage;
+    gSpamThreshold = cfg.spam_qu_threshold;
 
     // Defaults for new knobs are already in AppConfig
     unsigned int request_cycle_ms = cfg.request_cycle_ms;
@@ -135,6 +164,11 @@ int runBob(int argc, char *argv[])
         gCurrentFetchingLogTick = tick;
         Logger::get()->info("Loaded DB. DATA: Tick: {} | epoch: {}", gCurrentFetchingTick.load(), gCurrentProcessingEpoch.load());
         Logger::get()->info("Loaded DB. EVENT: Tick: {} | epoch: {}", gCurrentFetchingLogTick.load(), event_epoch);
+    }
+    if (gTickStorageMode == TickStorageMode::Kvrocks)
+    {
+        db_kvrocks_connect(cfg.kvrocks_url);
+        Logger::get()->info("Connected to kvrocks");
     }
     // Collect endpoints from config
     ConnectionPool connPoolAll;
@@ -239,7 +273,7 @@ int runBob(int argc, char *argv[])
             connReceiver(std::ref(connPoolAll.get(i)), isTrustedNode, std::ref(stopFlag));
         });
     }
-    for (int i = 0; i < std::max(16, pool_size); i++)
+    for (int i = 0; i < std::max(gMaxThreads, pool_size); i++)
     {
         v_data_thread.emplace_back([&](){
             set_this_thread_name("data");
@@ -258,7 +292,12 @@ int runBob(int argc, char *argv[])
         verifyLoggingEvent(std::ref(stopFlag));
     });
     startRESTServer();
-    auto garbage_thread = std::thread(garbageCleaner);
+    std::thread garbage_thread;
+    if (cfg.tick_storage_mode != TickStorageMode::Free)
+    {
+        garbage_thread = std::thread(garbageCleaner);
+    }
+
 
     uint32_t prevFetchingTickData = 0;
     uint32_t prevLoggingEventTick = 0;
@@ -336,12 +375,19 @@ int runBob(int argc, char *argv[])
         for (auto& thr : v_data_thread) thr.join();
     }
     Logger::get()->info("Exited data threads");
-    garbage_thread.join();
+    if (cfg.tick_storage_mode != TickStorageMode::Free)
+    {
+        garbage_thread.join();
+    }
     if (gIsEndEpoch)
     {
         Logger::get()->info("Received END_EPOCH message. Closing BOB");
     }
     db_close();
+    if (gTickStorageMode == TickStorageMode::Kvrocks)
+    {
+        db_kvrocks_close();
+    }
     // Stop embedded server (if it was started) before shutting down logger
     StopQubicServer();
     stopRESTServer();

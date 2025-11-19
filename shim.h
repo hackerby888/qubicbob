@@ -33,7 +33,12 @@
 
 #define refetchTickVotes           (GS().refetchTickVotes)
 #define gIsEndEpoch (GS().gIsEndEpoch)
-#define gNotSaveTickVote (GS().gNotSaveTickVote)
 #define nodeSubseed                 (GS().nodeSubseed)
 #define nodePublickey                 (GS().nodePublickey)
 #define nodePrivatekey                 (GS().nodePrivatekey)
+
+#define gTickStorageMode                 (GS().gTickStorageMode)
+#define gLastNTickStorage                 (GS().gLastNTickStorage)
+
+#define gMaxThreads (GS().gMaxThreads)
+#define gSpamThreshold (GS().gSpamThreshold)

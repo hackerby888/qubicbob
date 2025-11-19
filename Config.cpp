@@ -117,15 +117,6 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
         out.is_testnet = root["is-testnet"].asBool();
     }
 
-    // New optional boolean: 'not-save-tickvote' (default false)
-    if (root.isMember("not-save-tickvote")) {
-        if (!root["not-save-tickvote"].isBool()) {
-            error = "Invalid type: boolean required for key 'not-save-tickvote'";
-            return false;
-        }
-        out.not_save_tickvote = root["not-save-tickvote"].asBool();
-    }
-
     auto validate_uint = [&](const char* key, unsigned& target) -> bool {
         if (!root.isMember(key)) return true;
         const auto& v = root[key];
@@ -150,6 +141,12 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
     if (!validate_uint("request-logging-cycle-ms", out.request_logging_cycle_ms)) return false;
     if (!validate_uint("future-offset", out.future_offset)) return false;
     if (!validate_uint("server-port", out.server_port)) return false;
+
+    // Maximum threads the system can use (0 means auto/unlimited)
+    if (!validate_uint("max-thread", out.max_thread)) return false;
+
+    // Spam/Junk QU transfer detection threshold (default 0)
+    if (!validate_uint("spam-qu-threshold", out.spam_qu_threshold)) return false;
 
     if (root.isMember("is-trusted-node")) {
         if (!root["is-trusted-node"].isBool()) {
@@ -191,6 +188,66 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
             m256i pubkey;
             getPublicKeyFromIdentity(id.data(), pubkey.m256i_u8);
             out.trustedEntities[pubkey] = true;
+        }
+    }
+
+    // Parse 'tick-storage-mode' and related options
+    {
+        std::string mode = "lastNTick";
+        if (root.isMember("tick-storage-mode")) {
+            if (!root["tick-storage-mode"].isString()) {
+                error = "Invalid type: string required for key 'tick-storage-mode'";
+                return false;
+            }
+            mode = root["tick-storage-mode"].asString();
+        }
+
+        if (mode == "lastNTick") {
+            out.tick_storage_mode = TickStorageMode::LastNTick;
+
+            // last_n_tick_storage (default 1000)
+            if (root.isMember("last_n_tick_storage")) {
+                const auto& v = root["last_n_tick_storage"];
+                if (v.isUInt()) {
+                    out.last_n_tick_storage = v.asUInt();
+                } else if (v.isInt()) {
+                    int i = v.asInt();
+                    if (i < 0) {
+                        error = "Negative integer is invalid for key 'last_n_tick_storage'";
+                        return false;
+                    }
+                    out.last_n_tick_storage = static_cast<unsigned>(i);
+                } else {
+                    error = "Invalid type: unsigned integer required for key 'last_n_tick_storage'";
+                    return false;
+                }
+            } else {
+                // Ensure default if not preset
+                if (out.last_n_tick_storage == 0) {
+                    out.last_n_tick_storage = 1000;
+                }
+            }
+        } else if (mode == "kvrocks") {
+            out.tick_storage_mode = TickStorageMode::Kvrocks;
+
+            // kvrocks-url (default tcp://127.0.0.1:6666)
+            if (root.isMember("kvrocks-url")) {
+                if (!root["kvrocks-url"].isString()) {
+                    error = "Invalid type: string required for key 'kvrocks-url'";
+                    return false;
+                }
+                out.kvrocks_url = root["kvrocks-url"].asString();
+            } else {
+                if (out.kvrocks_url.empty()) {
+                    out.kvrocks_url = "tcp://127.0.0.1:6666";
+                }
+            }
+        } else if (mode == "free") {
+            out.tick_storage_mode = TickStorageMode::Free;
+            // No related options; implies no garbage cleaner.
+        } else {
+            error = "Invalid value for 'tick-storage-mode': must be one of 'lastNTick', 'kvrocks', or 'free'";
+            return false;
         }
     }
 

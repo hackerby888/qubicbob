@@ -1,6 +1,7 @@
 #pragma once
 #include <map>
 #include <atomic>
+#include "Config.h"
 #include "structs.h"
 #include "SpecialBufferStructs.h"
 #include "RequestMap.h"
@@ -55,6 +56,13 @@ struct GlobalState {
     bool gNotSaveTickVote = false;
 
     std::map<m256i, bool> gTrustedEntities;
+
+    TickStorageMode gTickStorageMode = TickStorageMode::LastNTick;
+    unsigned gLastNTickStorage = 1000;              // used when mode is LastNTick
+
+    int gMaxThreads = std::thread::hardware_concurrency();
+
+    long long gSpamThreshold;
 };
 
 // Safe, lazy singleton accessor avoids static init order issues.

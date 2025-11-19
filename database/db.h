@@ -398,13 +398,13 @@ bool db_get_tick_data(uint32_t tick, TickData& data);
  */
 
 bool db_check_log_range(uint32_t tick);
-bool check_logid(uint64_t logId);
-bool db_get_log_range_all_txs(uint32_t tick, ResponseAllLogIdRangesFromTick &logRange);
+bool db_try_get_log_ranges(uint32_t tick, ResponseAllLogIdRangesFromTick &logRange);
 bool db_has_tick_data(uint32_t tick);
 bool db_get_transaction(const std::string& tx_hash, std::vector<uint8_t>& tx_data);
 bool db_check_transaction_exist(const std::string& tx_hash);
 
 // ---- Deletion Functions ----
+bool db_delete_log_ranges(uint32_t tick);
 // Deletes TickData for a specific tick.
 // Returns true if the key was removed (or did not exist), false on Redis error.
 bool db_delete_tick_data(uint32_t tick);
@@ -431,21 +431,24 @@ bool db_insert_computors(const Computors& comps);
 bool db_get_computors(uint16_t epoch, Computors& comps);
 bool db_log_exists(uint16_t epoch, uint64_t logId);
 
-bool db_insert_vtick(uint32_t tick, const FullTickStruct& fullTick);
-bool db_get_vtick(uint32_t tick, FullTickStruct& outFullTick);
-
 bool db_get_log(uint16_t epoch, uint64_t logId, LogEvent &log);
 
 long long db_get_last_indexed_tick();
 bool db_update_last_indexed_tick(uint32_t tick);
 
-// Store per-transaction index info for fast lookup by tx-hash.
-// Key is expected to be "itx:<txHash>".
-// Fields stored:
-//   - tx_index     (int)       : index within the tick (0..NUMBER_OF_TRANSACTIONS_PER_TICK-1)
-//   - from_log_id  (long long) : first logId for this tx in the tick, or -1 if none
-//   - to_log_id    (long long) : last  logId for this tx in the tick, or -1 if none
-//   - executed     (0/1)       : whether the tx was executed (best-effort heuristic)
+#pragma pack(push, 1)
+struct indexedTxData {
+    int32_t  tx_index;
+    bool     isExecuted;
+    int64_t  from_log_id;
+    int64_t  to_log_id;
+    uint64_t timestamp;
+};
+#pragma pack(pop)
+
+static_assert(sizeof(indexedTxData) == (sizeof(int32_t) + sizeof(bool) + sizeof(int64_t) + sizeof(int64_t) + sizeof(uint64_t)),
+              "indexedTxData: unexpected padding");
+
 bool db_set_indexed_tx(const char* key,
                        int tx_index,
                        long long from_log_id,
@@ -477,6 +480,7 @@ bool db_get_log_sig(uint32_t tick, uint32_t chunkid, uint8_t* pubkey, uint8_t* s
 
 void db_insert_log_range_sig(uint32_t tick, uint8_t* pubkey, const uint8_t* signature);
 bool db_get_log_range_sig(uint32_t tick, uint8_t* pubkey, uint8_t* signature);
+bool db_get_log_ranges(uint32_t tick, ResponseAllLogIdRangesFromTick &logRange);
 
 
 bool db_insert_bootstrap_info(uint16_t epoch, const BootstrapInfo &info);
@@ -490,3 +494,28 @@ bool db_update_field(const std::string key, const std::string field, const std::
 
 bool db_try_get_TickData(uint32_t tick, TickData& data);
 bool db_get_end_epoch_log_range(uint16_t epoch, long long &fromLogId, long long &length);
+
+
+
+
+bool db_migrate_vtick(uint32_t tick);
+void db_kvrocks_connect(const std::string &connectionString);
+bool db_migrate_log_ranges(uint32_t tick);
+bool db_migrate_log(uint16_t epoch, uint64_t logId);
+bool db_migrate_transaction(const std::string &tx_hash);
+bool db_delete_tick_data_batch(uint32_t tick, uint32_t batch);
+bool db_delete_tick_vote_batch(uint32_t tick, uint32_t batch);
+
+// functions for persistant on disk layer
+void compressTickAndMoveToKVRocks(uint32_t tick);
+bool cleanRawTick(uint32_t fromTick, uint32_t toTick);
+
+bool db_insert_vtick_to_kvrocks(uint32_t tick, const FullTickStruct& fullTick);
+bool db_get_vtick_from_kvrocks(uint32_t tick, FullTickStruct& outFullTick);
+
+std::vector<TickVote> db_try_get_TickVote(uint32_t tick);
+
+void db_kvrocks_close();
+
+bool db_insert_cLogRange_to_kvrocks(uint32_t tick, const ResponseAllLogIdRangesFromTick& logRange);
+bool db_get_cLogRange_from_kvrocks(uint32_t tick, ResponseAllLogIdRangesFromTick& outLogRange);

@@ -644,3 +644,24 @@ static void assetsEndEpoch()
 
     RELEASE(universeLock);
 }
+
+static void getAssetBalances(const m256i pk, const m256i issuer, const uint64_t assetName, const uint32_t manageSCIndex,
+                      long long& ownershipBalance, long long& possessionBalance)
+{
+    ownershipBalance = -1;
+    possessionBalance = -1;
+    int issuanceIndex = -1;
+    findIssuerIndex(issuer, assetName, &issuanceIndex);
+    if (issuanceIndex == -1) return;
+
+    int ownershipIndex = -1;
+    findOwnershipIndex(issuanceIndex, pk, manageSCIndex, &ownershipIndex);
+    if (ownershipIndex == -1) return;
+    ownershipBalance = assets[ownershipIndex].varStruct.ownership.numberOfShares;
+
+    int possIndex = -1;
+    findPossessionIndex(ownershipIndex, pk, manageSCIndex, &possIndex);
+    if (possIndex == -1) return;
+    possessionBalance = assets[possIndex].varStruct.possession.numberOfShares;
+    return;
+}

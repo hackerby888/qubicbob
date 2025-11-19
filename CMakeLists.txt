@@ -106,6 +106,7 @@ endif ()
 # --- Project Sources ---
 SET(FILES ${CMAKE_SOURCE_DIR}/connection/connection.cpp
           ${CMAKE_SOURCE_DIR}/database/db.cpp
+		${CMAKE_SOURCE_DIR}/database/garbageCleaner.cpp
 		  ${CMAKE_SOURCE_DIR}/Logger.cpp
 		  ${CMAKE_SOURCE_DIR}/DataProcessors.cpp
 		  ${CMAKE_SOURCE_DIR}/IOProcessor.cpp
@@ -140,7 +141,8 @@ target_link_libraries(bob_lib PRIVATE redis++_static hiredis spdlog::spdlog cxxo
 ADD_EXECUTABLE(bob main.cpp)
 target_link_libraries(bob PRIVATE bob_lib)
 
-
+ADD_EXECUTABLE(migrator migrator/migrator.cpp)
+target_link_libraries(migrator PRIVATE bob_lib)
 # --- Testing with Google Test ---
 enable_testing()
 include(GoogleTest)

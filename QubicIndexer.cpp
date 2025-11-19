@@ -48,7 +48,7 @@ static uint64_t calculateUnixTimestamp(const TickData &td) {
 static void indexTick(uint32_t tick, const TickData &td) {
     ResponseAllLogIdRangesFromTick logrange{};
     uint64_t timestamp = td.epoch == gCurrentProcessingEpoch ? calculateUnixTimestamp(td) : 0;
-    db_get_log_range_all_txs(tick, logrange);
+    db_try_get_log_ranges(tick, logrange);
     if (td.tick == tick)
     {
         for (int i = 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK; i++) {
@@ -66,10 +66,15 @@ static void indexTick(uint32_t tick, const TickData &td) {
                     std::vector<uint8_t> tx_data;
                     if (db_get_transaction(txHash, tx_data)) {
                         auto tx = (Transaction*)tx_data.data();
+                        if (tx->amount <= gSpamThreshold && tx->inputSize == 0 && tx->inputType == 0) // spam tx => not index
+                        {
+                            continue;
+                        }
                         isExecuted = matchesTransaction(transfer, *tx);
                     }
                 }
             }
+
             db_set_indexed_tx(key.c_str(), i, logrange.fromLogId[i],
                               logrange.fromLogId[i] + logrange.length[i] - 1, timestamp,
                               isExecuted);

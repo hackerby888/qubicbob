@@ -1,12 +1,16 @@
 {
   "p2p-node": ["bob:23.88.1.189:21842"],
-  "request-cycle-ms": 500,
-  "request-logging-cycle-ms": 150,
-  "future-offset": 3,
+  "request-cycle-ms": 100,
+  "request-logging-cycle-ms": 50,
+  "future-offset": 2,
   "log-level": "info",
   "keydb-url": "tcp://127.0.0.1:6379",
   "run-server": true,
   "server-port": 21842,
   "arbitrator-identity": "AFZPUAIYVPNUYGJRQVLUKOPPVLHAZQTGLYAAUUNBXFTVTAMSBKQBLEIEPCVJ",
-  "trusted-entities": ["QCTBOBEPDEZGBBCSOWGBYCAIZESDMEVRGLWVNBZAPBIZYEJFFZSPPIVGSCVL"]
+  "trusted-entities": ["QCTBOBEPDEZGBBCSOWGBYCAIZESDMEVRGLWVNBZAPBIZYEJFFZSPPIVGSCVL"],
+
+  "tick-storage-mode": "lastNTick",
+  "kvrocks-url": "tcp://127.0.0.1:6666",
+  "spam-qu-threshold": 100
 }

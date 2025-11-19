@@ -5,24 +5,39 @@
 #include <map>
 #include "m256i.h"
 
+// Add tick storage mode enum
+enum class TickStorageMode {
+    LastNTick,
+    Kvrocks,
+    Free
+};
+
 struct AppConfig {
     std::vector<std::string> trusted_nodes;
     std::vector<std::string> p2p_nodes;
-    unsigned int request_cycle_ms = 1000;
-    unsigned int request_logging_cycle_ms = 100;
-    unsigned int future_offset = 1;
-    std::string log_level = "info";
-    std::string keydb_url = "tcp://127.0.0.1:6379";
+
+    std::string log_level;
+    std::string keydb_url;
+    std::string arbitrator_identity;
     bool run_server = false;
     bool is_testnet = false;
-    unsigned int server_port = 21842;
-    std::string arbitrator_identity;
-
+    unsigned request_cycle_ms = 0;
+    unsigned request_logging_cycle_ms = 0;
+    unsigned future_offset = 0;
+    unsigned server_port = 0;
     bool is_trusted_node = false;
-    std::string node_seed = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-
+    std::string node_seed;
     std::map<m256i, bool> trustedEntities;
-    bool not_save_tickvote = false;
+
+    // Add new tick storage config with defaults
+    TickStorageMode tick_storage_mode = TickStorageMode::LastNTick;
+    unsigned last_n_tick_storage = 1000;              // used when mode is LastNTick
+    std::string kvrocks_url = "tcp://127.0.0.1:6666"; // used when mode is Kvrocks
+
+    unsigned max_thread = 0;
+    // Spam/Junk detection threshold for QU transfers (amount <= threshold and no input)
+    unsigned spam_qu_threshold = 100;
+
 };
 
 // Returns true on success; on failure returns false and fills error with a human-readable message.

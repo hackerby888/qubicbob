@@ -4,6 +4,7 @@
 #include "shim.h"
 #include "Entity.h"
 #include "database/db.h"
+#include "Asset.h"
 #include <json/json.h>
 #include <vector>
 #include <sstream>
@@ -71,9 +72,20 @@ std::string bobGetBalance(const char* identity)
            "}";
 }
 
-std::string bobGetAsset(const char* identity)
+std::string bobGetAsset(const std::string identity, const std::string assetName, const std::string assetIssuer, uint32_t manageSCIndex)
 {
-    return "{\"error\": \"Not yet implemented\"}";
+    m256i pk, issuer;
+    uint64_t asset_name = 0;
+    getPublicKeyFromIdentity(identity.c_str(), pk.m256i_u8);
+    getPublicKeyFromIdentity(assetIssuer.c_str(), issuer.m256i_u8);
+    memcpy(&asset_name, assetName.data(), std::min(7, int(assetName.size())));
+    long long ownershipBalance, possessionBalance;
+    getAssetBalances(pk, issuer, asset_name, manageSCIndex, ownershipBalance, possessionBalance);
+    Json::Value root;
+    root["ownershipBalance"] = Json::Int64(ownershipBalance);
+    root["possessionBalance"] = Json::Int64(possessionBalance);
+    Json::FastWriter writer;
+    return writer.write(root);
 }
 
 std::string bobGetTransaction(const char* txHash)
@@ -178,14 +190,13 @@ std::string bobGetLog(uint16_t epoch, int64_t start, int64_t end)
 
 
 std::string bobGetTick(const uint32_t tick) {
-    FullTickStruct fts;
-    db_get_vtick(tick, fts);
+    TickData td {};
+    db_try_get_TickData(tick, td);
 
     Json::Value root;
     root["tick"] = tick;
 
     // Set TickData -> root["tickdata"]
-    const TickData& td = fts.td;
     Json::Value tdJson;
     tdJson["computorIndex"] = td.computorIndex;
     tdJson["epoch"] = td.epoch;
@@ -230,8 +241,9 @@ std::string bobGetTick(const uint32_t tick) {
     root["tickdata"] = tdJson;
 
     // Add TickVote array (minimal fields, keep signatures as hex)
+    auto tick_votes = db_try_get_TickVote(tick);
     Json::Value votes(Json::arrayValue);
-    for (const auto &vote : fts.tv) {
+    for (const auto &vote : tick_votes) {
         Json::Value voteObj;
         // Basic info
         voteObj["computorIndex"] = vote.computorIndex;

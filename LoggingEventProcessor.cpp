@@ -4,7 +4,6 @@
 #include <vector>
 #include <map>
 #include <cstring>
-#include <algorithm>
 #include "m256i.h"
 #include "connection/connection.h"
 #include "structs.h"
@@ -17,9 +16,10 @@
 #include "Asset.h"
 #include <string>
 #include <filesystem>
-#include <queue>
 #include "Profiler.h"
 #include "shim.h"
+#include <future>
+
 using namespace std::chrono_literals;
 extern "C" {
     // declare for xkcp
@@ -379,9 +379,9 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
             spectrumFilePath = std::move(tickSpectrum);
             assetFilePath    = std::move(tickUniverse);
         } else {
-            Logger::get()->error("Cannot find snapshot files: {} and {}. bob will likely misalign and stuck", tickSpectrum, tickUniverse);
-            spectrumFilePath = "spectrum." + std::to_string(gCurrentProcessingEpoch);
-            assetFilePath    = "universe." + std::to_string(gCurrentProcessingEpoch);
+            Logger::get()->error("Cannot find snapshot files: {} and {}", tickSpectrum, tickUniverse);
+            Logger::get()->error("Reason: Bob wasn't exited gracefully last time or your snapshot files are corrupted. You need to cleanup your DB");
+            exit(1);
         }
     } else {
         spectrumFilePath = "spectrum." + std::to_string(gCurrentProcessingEpoch);
@@ -397,8 +397,18 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
         return;
     }
     gCurrentVerifyLoggingTick = lastVerifiedTick+1;
-    computeSpectrumDigest(UINT32_MAX, UINT32_MAX);
-    getUniverseDigest(UINT32_MAX, UINT32_MAX);
+
+    auto futSpectrum = std::async(std::launch::async, []() {
+        computeSpectrumDigest(UINT32_MAX, UINT32_MAX);
+    });
+    auto futUniverse = std::async(std::launch::async, []() {
+        return getUniverseDigest(UINT32_MAX, UINT32_MAX);
+    });
+
+    // Synchronize both
+    futSpectrum.get();
+    futUniverse.get();
+
     while (gCurrentFetchingLogTick == gInitialTick) {
         if (stopFlag.load()) return;
         SLEEP(100);
@@ -413,7 +423,7 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
         for (uint32_t tick = processFromTick; tick <= processToTick; tick++)
         {
             ResponseAllLogIdRangesFromTick lr{};
-            if (db_get_log_range_all_txs(tick, lr))
+            if (db_try_get_log_ranges(tick, lr))
             {
                 if (lr.fromLogId[SC_END_EPOCH_TX] != -1 && lr.length[SC_END_EPOCH_TX] != -1)
                 {
@@ -717,7 +727,6 @@ verifyNodeStateDigest:
 
         db_rename("tick_log_range:" + std::to_string(endTick),
                       "end_epoch:tick_log_range:"+std::to_string(gCurrentProcessingEpoch));
-//TODO: add epoch to this key
         db_rename("log_ranges:" + std::to_string(endTick),
                       "end_epoch:log_ranges:"+std::to_string(gCurrentProcessingEpoch));
         std::string key = "end_epoch_tick:" + std::to_string(gCurrentProcessingEpoch);

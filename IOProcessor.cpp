@@ -239,61 +239,6 @@ void IORequestThread(ConnectionPool& conn_pool, std::atomic_bool& stopFlag, std:
     }
 }
 
-// Compress a verified tick: pack TickData + up to 676 TickVotes into FullTickStruct,
-// store via db_insert_vtick
-static void compressTick(uint32_t tick, TickData td, std::vector<TickVote> votes)
-{
-    bool haveTickData = td.tick == tick && td.epoch == gCurrentProcessingEpoch;
-    // Load TickData
-    // Prepare the aggregated struct
-    FullTickStruct full{};
-    std::memset((void*)&full, 0, sizeof(full));
-    if (haveTickData) std::memcpy((void*)&full.td, &td, sizeof(TickData));
-
-    if (!gNotSaveTickVote)
-    {
-        for (const auto& v : votes)
-        {
-            if (v.computorIndex < 676 && v.epoch != 0)
-            {
-                std::memcpy((void*)&full.tv[v.computorIndex], &v, sizeof(TickVote));
-            }
-        }
-    }
-
-    // Insert the compressed record
-    if (!db_insert_vtick(tick, full))
-    {
-        Logger::get()->error("compressTick: Failed to insert vtick for tick {}", tick);
-        return;
-    }
-
-    Logger::get()->trace("compressTick: Compressed tick {}", tick);
-}
-
-bool cleanRawTick(uint32_t fromTick, uint32_t toTick)
-{
-    // precheck if all vtick exist
-    for (uint32_t tick = fromTick; tick <= toTick; tick++)
-    {
-        if (!db_vtick_exists(tick)) return false;
-    }
-    Logger::get()->info("Start cleaning raw tick data from {} to {}", fromTick, toTick);
-    for (uint32_t tick = fromTick; tick <= toTick; tick++)
-    {
-        // Delete raw TickData
-        if (!db_delete_tick_data(tick))
-        {
-            Logger::get()->warn("cleanRawTick: Failed to delete TickData for tick {}", tick);
-        }
-
-        // Delete all TickVotes for this tick (attempt all indices; API treats missing as success)
-        db_delete_tick_vote(tick);
-    }
-    Logger::get()->info("Cleaned raw tick data from {} to {}", fromTick, toTick);
-    return true;
-}
-
 // this pre-verify tick votes, not fully verifying all digests
 void IOVerifyThread(std::atomic_bool& stopFlag)
 {
@@ -312,7 +257,6 @@ void IOVerifyThread(std::atomic_bool& stopFlag)
         else
         {
             auto current_tick = gCurrentFetchingTick.load();
-            std::thread(compressTick, current_tick, td, votes).detach();
             db_update_latest_tick_and_epoch(gCurrentFetchingTick, gCurrentProcessingEpoch);
             Logger::get()->trace("Progress ticking from {} to {}", gCurrentFetchingTick.load(), gCurrentFetchingTick.load() + 1);
             uint32_t tmp_tick;
