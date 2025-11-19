@@ -4,7 +4,6 @@
 #include <vector>
 #include <map>
 #include <cstring>
-#include <algorithm>
 #include "m256i.h"
 #include "connection/connection.h"
 #include "structs.h"
@@ -17,9 +16,10 @@
 #include "Asset.h"
 #include <string>
 #include <filesystem>
-#include <queue>
 #include "Profiler.h"
 #include "shim.h"
+#include <future>
+
 using namespace std::chrono_literals;
 extern "C" {
     // declare for xkcp
@@ -397,8 +397,19 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
         return;
     }
     gCurrentVerifyLoggingTick = lastVerifiedTick+1;
-    computeSpectrumDigest(UINT32_MAX, UINT32_MAX);
-    getUniverseDigest(UINT32_MAX, UINT32_MAX);
+
+    auto futSpectrum = std::async(std::launch::async, []() {
+        computeSpectrumDigest(UINT32_MAX, UINT32_MAX);
+    });
+    auto futUniverse = std::async(std::launch::async, []() {
+        return getUniverseDigest(UINT32_MAX, UINT32_MAX);
+    });
+
+    // Synchronize both
+    futSpectrum.get();
+    auto universeRoot = futUniverse.get();
+    (void)universeRoot;
+
     while (gCurrentFetchingLogTick == gInitialTick) {
         if (stopFlag.load()) return;
         SLEEP(100);
@@ -717,7 +728,6 @@ verifyNodeStateDigest:
 
         db_rename("tick_log_range:" + std::to_string(endTick),
                       "end_epoch:tick_log_range:"+std::to_string(gCurrentProcessingEpoch));
-//TODO: add epoch to this key
         db_rename("log_ranges:" + std::to_string(endTick),
                       "end_epoch:log_ranges:"+std::to_string(gCurrentProcessingEpoch));
         std::string key = "end_epoch_tick:" + std::to_string(gCurrentProcessingEpoch);
