@@ -436,13 +436,19 @@ bool db_get_log(uint16_t epoch, uint64_t logId, LogEvent &log);
 long long db_get_last_indexed_tick();
 bool db_update_last_indexed_tick(uint32_t tick);
 
-// Store per-transaction index info for fast lookup by tx-hash.
-// Key is expected to be "itx:<txHash>".
-// Fields stored:
-//   - tx_index     (int)       : index within the tick (0..NUMBER_OF_TRANSACTIONS_PER_TICK-1)
-//   - from_log_id  (long long) : first logId for this tx in the tick, or -1 if none
-//   - to_log_id    (long long) : last  logId for this tx in the tick, or -1 if none
-//   - executed     (0/1)       : whether the tx was executed (best-effort heuristic)
+#pragma pack(push, 1)
+struct indexedTxData {
+    int32_t  tx_index;
+    bool     isExecuted;
+    int64_t  from_log_id;
+    int64_t  to_log_id;
+    uint64_t timestamp;
+};
+#pragma pack(pop)
+
+static_assert(sizeof(indexedTxData) == (sizeof(int32_t) + sizeof(bool) + sizeof(int64_t) + sizeof(int64_t) + sizeof(uint64_t)),
+              "indexedTxData: unexpected padding");
+
 bool db_set_indexed_tx(const char* key,
                        int tx_index,
                        long long from_log_id,

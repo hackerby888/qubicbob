@@ -10,6 +10,14 @@
 #include "K12AndKeyUtil.h"
 #include <cstdlib> // std::exit
 
+struct indexedTxData {
+    int32_t  tx_index;
+    bool     isExecuted;
+    int64_t  from_log_id;
+    int64_t  to_log_id;
+    uint64_t timestamp;
+};
+
 // Global Redis client handle
 static std::unique_ptr<sw::redis::Redis> g_redis = nullptr;
 static std::unique_ptr<sw::redis::Redis> g_kvrocks = nullptr;
@@ -934,46 +942,26 @@ bool db_add_indexer(const std::string &key, uint32_t tickNumber)
 }
 
 
-// Store per-transaction index info for fast lookup by tx-hash.
-// Key is expected to be "itx:<txHash>".
-// Fields stored:
-//   - tx_index     (int)       : index within the tick (0..NUMBER_OF_TRANSACTIONS_PER_TICK-1)
-//   - from_log_id  (long long) : first logId for this tx in the tick, or -1 if none
-//   - to_log_id    (long long) : last  logId for this tx in the tick, or -1 if none
-//   - executed     (0/1)       : whether the tx was executed (best-effort heuristic)
-struct IndexedTx {
-    int tx_index;           // Index within tick (0..NUMBER_OF_TRANSACTIONS_PER_TICK-1)
-    long long from_log_id;  // First logId for this tx in the tick, or -1 if none
-    long long to_log_id;    // Last logId for this tx in the tick, or -1 if none
-    bool executed;          // Whether the tx was executed (best-effort heuristic)
-};
-
 bool db_set_indexed_tx(const char *key,
                        int tx_index,
                        long long from_log_id,
                        long long to_log_id,
                        uint64_t timestamp,
-                       bool executed) {
+                       bool isExecuted) {
     if (!g_redis) return false;
     try {
-        // Normalize invalid ranges to (-1, -1)
-        if (from_log_id < 0 || to_log_id < 0 || to_log_id < from_log_id) {
-            from_log_id = -1;
-            to_log_id = -1;
-            executed = false; // if there's no logs, mark as not executed
-        }
-
-        std::unordered_map<std::string, std::string> fields;
-        fields["tx_index"] = std::to_string(tx_index);
-        fields["from_log_id"] = std::to_string(from_log_id);
-        fields["to_log_id"] = std::to_string(to_log_id);
-        fields["executed"] = executed ? "1" : "0";
-        fields["timestamp"] = std::to_string(timestamp);
-
-        g_redis->hmset(key, fields.begin(), fields.end());
+        indexedTxData data{
+            static_cast<int32_t>(tx_index),
+            isExecuted,
+            static_cast<int64_t>(from_log_id),
+            static_cast<int64_t>(to_log_id),
+            static_cast<uint64_t>(timestamp)
+        };
+        sw::redis::StringView val(reinterpret_cast<const char*>(&data), sizeof(data));
+        g_redis->set(key, val);
         return true;
-    } catch (const sw::redis::Error &e) {
-        Logger::get()->error("Redis error in db_set_indexed_tx: %s\n", e.what());
+    } catch (const sw::redis::Error& e) {
+        Logger::get()->error("Redis error in db_set_indexed_tx: {}", e.what());
         return false;
     }
 }
@@ -983,56 +971,32 @@ bool db_get_indexed_tx(const char* tx_hash,
                        long long& from_log_id,
                        long long& to_log_id,
                        uint64_t& timestamp,
-                       bool& executed)
-{
+                       bool& executed) {
     if (!g_redis) return false;
-
     try {
-        const std::string key = std::string("itx:") + tx_hash;
-
-        // Try to fetch all fields, including the newly added "timestamp".
-        // Some older keys might not have "timestamp" -> handle gracefully.
-        std::vector<sw::redis::Optional<std::string>> vals;
-        g_redis->hmget(key,
-                       {"tx_index", "from_log_id", "to_log_id", "timestamp", "executed"},
-                       std::back_inserter(vals));
-
-        // Essential fields must exist
-        if (vals.size() < 3 || !vals[0] || !vals[1] || !vals[2]) {
+        // Indexed TX stored under "itx:<hash>"
+        std::string key = std::string("itx:") + tx_hash;
+        auto val = g_redis->get(key);
+        if (!val) {
+            return false;
+        }
+        if (val->size() != sizeof(indexedTxData)) {
+            Logger::get()->warn("db_get_indexed_tx: size mismatch for key {}. got={}, expected={}",
+                                key, val->size(), sizeof(indexedTxData));
             return false;
         }
 
-        // Parse required fields
-        tx_index    = std::stoi(*vals[0]);
-        from_log_id = std::stoll(*vals[1]);
-        to_log_id   = std::stoll(*vals[2]);
+        indexedTxData data{};
+        memcpy(&data, val->data(), sizeof(indexedTxData));
 
-        // Parse optional "timestamp" (backward compatibility: default to 0 if missing)
-        if (vals.size() >= 4 && vals[3]) {
-            try {
-                timestamp = std::stoull(*vals[3]);
-            } catch (const std::exception&) {
-                // If the field exists but is malformed, fall back to 0 and continue
-                timestamp = 0;
-            }
-        } else {
-            timestamp = 0;
-        }
-
-        // Parse "executed" (optional; default false if missing)
-        if (vals.size() >= 5 && vals[4]) {
-            const auto &s = *vals[4];
-            executed = (s == "1" || s == "true" || s == "True");
-        } else {
-            executed = false;
-        }
-
+        tx_index     = static_cast<int>(data.tx_index);
+        executed     = data.isExecuted;
+        from_log_id  = static_cast<long long>(data.from_log_id);
+        to_log_id    = static_cast<long long>(data.to_log_id);
+        timestamp    = static_cast<uint64_t>(data.timestamp);
         return true;
-    } catch (const sw::redis::Error &e) {
-        Logger::get()->error("Redis error in db_get_indexed_tx: %s\n", e.what());
-        return false;
-    } catch (const std::exception &e) {
-        Logger::get()->error("Parsing error in db_get_indexed_tx: %s\n", e.what());
+    } catch (const sw::redis::Error& e) {
+        Logger::get()->error("Redis error in db_get_indexed_tx: {}", e.what());
         return false;
     }
 }
