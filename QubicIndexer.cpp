@@ -48,7 +48,7 @@ static uint64_t calculateUnixTimestamp(const TickData &td) {
 static void indexTick(uint32_t tick, const TickData &td) {
     ResponseAllLogIdRangesFromTick logrange{};
     uint64_t timestamp = td.epoch == gCurrentProcessingEpoch ? calculateUnixTimestamp(td) : 0;
-    db_get_log_range_all_txs(tick, logrange);
+    db_get_log_ranges(tick, logrange);
     if (td.tick == tick)
     {
         for (int i = 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK; i++) {

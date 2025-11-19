@@ -189,7 +189,7 @@ bool db_log_exists(uint16_t epoch, uint64_t logId) {
     return false;
 }
 
-bool db_get_log_range_all_txs(uint32_t tick, ResponseAllLogIdRangesFromTick &logRange) {
+bool db_get_log_ranges(uint32_t tick, ResponseAllLogIdRangesFromTick &logRange) {
     if (!g_redis) return false;
     try {
         // Default to -1s
@@ -210,7 +210,7 @@ bool db_get_log_range_all_txs(uint32_t tick, ResponseAllLogIdRangesFromTick &log
         memcpy((void*)&logRange, val->data(), sizeof(ResponseAllLogIdRangesFromTick));
         return true;
     } catch (const sw::redis::Error &e) {
-        Logger::get()->error("Redis error in db_get_log_range_all_txs: %s\n", e.what());
+        Logger::get()->error("Redis error in db_get_log_ranges: %s\n", e.what());
         return false;
     }
     return false;
