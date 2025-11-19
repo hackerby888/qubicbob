@@ -34,6 +34,7 @@ void db_connect(const std::string& connectionString) {
     } catch (const sw::redis::Error& e) {
         g_redis.reset();
         throw std::runtime_error("Cannot connect to Redis: " + std::string(e.what()));
+        exit(1);
     }
     Logger::get()->trace("Connected to DB!");
 }
@@ -1507,6 +1508,7 @@ void db_kvrocks_connect(const std::string &connectionString) {
     } catch (const sw::redis::Error &e) {
         g_kvrocks.reset();
         throw std::runtime_error("Cannot connect to Kvrocks: " + std::string(e.what()));
+        exit(1);
     }
     Logger::get()->trace("Connected to Kvrocks!");
 }
