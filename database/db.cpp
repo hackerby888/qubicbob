@@ -10,14 +10,6 @@
 #include "K12AndKeyUtil.h"
 #include <cstdlib> // std::exit
 
-struct indexedTxData {
-    int32_t  tx_index;
-    bool     isExecuted;
-    int64_t  from_log_id;
-    int64_t  to_log_id;
-    uint64_t timestamp;
-};
-
 // Global Redis client handle
 static std::unique_ptr<sw::redis::Redis> g_redis = nullptr;
 static std::unique_ptr<sw::redis::Redis> g_kvrocks = nullptr;
@@ -189,7 +181,7 @@ bool db_log_exists(uint16_t epoch, uint64_t logId) {
     return false;
 }
 
-bool db_get_log_ranges(uint32_t tick, ResponseAllLogIdRangesFromTick &logRange) {
+bool _db_get_log_ranges(uint32_t tick, ResponseAllLogIdRangesFromTick &logRange) {
     if (!g_redis) return false;
     try {
         // Default to -1s
@@ -210,8 +202,23 @@ bool db_get_log_ranges(uint32_t tick, ResponseAllLogIdRangesFromTick &logRange) 
         memcpy((void*)&logRange, val->data(), sizeof(ResponseAllLogIdRangesFromTick));
         return true;
     } catch (const sw::redis::Error &e) {
-        Logger::get()->error("Redis error in db_get_log_ranges: %s\n", e.what());
+        Logger::get()->error("Redis error in db_try_get_log_ranges: %s\n", e.what());
         return false;
+    }
+    return false;
+}
+
+
+
+bool db_try_get_log_ranges(uint32_t tick, ResponseAllLogIdRangesFromTick &logRange)
+{
+    if (_db_get_log_ranges(tick, logRange))
+    {
+        return true;
+    }
+    if (db_get_cLogRange_from_kvrocks(tick, logRange))
+    {
+        return true;
     }
     return false;
 }
@@ -1448,6 +1455,80 @@ bool db_get_vtick_from_kvrocks(uint32_t tick, FullTickStruct& outFullTick)
         return true;
     } catch (const sw::redis::Error& e) {
         Logger::get()->error("KVROCKs error in db_get_vtick: %s\n", e.what());
+        return false;
+    }
+}
+
+// Compress and insert ResponseAllLogIdRangesFromTick under key "cLogRange:<tick>"
+bool db_insert_cLogRange_to_kvrocks(uint32_t tick, const ResponseAllLogIdRangesFromTick& logRange)
+{
+    if (!g_kvrocks) return false;
+    try {
+        const size_t srcSize = sizeof(ResponseAllLogIdRangesFromTick);
+        const size_t maxCompressed = ZSTD_compressBound(srcSize);
+
+        std::string compressed;
+        compressed.resize(maxCompressed);
+
+        size_t const cSize = ZSTD_compress(
+                compressed.data(),
+                compressed.size(),
+                reinterpret_cast<const void*>(&logRange),
+                srcSize,
+                ZSTD_defaultCLevel()
+        );
+
+        if (ZSTD_isError(cSize)) {
+            Logger::get()->error("ZSTD_compress error in db_insert_cLogRange_to_kvrocks: %s",
+                                 ZSTD_getErrorName(cSize));
+            return false;
+        }
+
+        compressed.resize(cSize);
+
+        const std::string key = "cLogRange:" + std::to_string(tick);
+        sw::redis::StringView val(compressed.data(), compressed.size());
+        g_kvrocks->set(key, val);
+        return true;
+    } catch (const sw::redis::Error& e) {
+        Logger::get()->error("KVROCKS error in db_insert_cLogRange_to_kvrocks: %s\n", e.what());
+        return false;
+    }
+}
+
+// Get and decompress ResponseAllLogIdRangesFromTick stored at "cLogRange:<tick>"
+bool db_get_cLogRange_from_kvrocks(uint32_t tick, ResponseAllLogIdRangesFromTick& outLogRange)
+{
+    if (!g_kvrocks) return false;
+    try {
+        const std::string key = "cLogRange:" + std::to_string(tick);
+        auto val = g_kvrocks->get(key);
+        if (!val) {
+            return false;
+        }
+
+        const size_t dstSize = sizeof(ResponseAllLogIdRangesFromTick);
+        size_t const dSize = ZSTD_decompress(
+                reinterpret_cast<void*>(&outLogRange),
+                dstSize,
+                val->data(),
+                val->size()
+        );
+
+        if (ZSTD_isError(dSize)) {
+            Logger::get()->error("ZSTD_decompress error in db_get_cLogRange_from_kvrocks: %s",
+                                 ZSTD_getErrorName(dSize));
+            return false;
+        }
+
+        if (dSize != dstSize) {
+            Logger::get()->warn("Decompressed ResponseAllLogIdRangesFromTick size mismatch for key %s: got %zu, expected %zu",
+                                key.c_str(), dSize, dstSize);
+            return false;
+        }
+        return true;
+    } catch (const sw::redis::Error& e) {
+        Logger::get()->error("KVROCKS error in db_get_cLogRange_from_kvrocks: %s\n", e.what());
         return false;
     }
 }

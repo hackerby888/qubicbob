@@ -423,7 +423,7 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
         for (uint32_t tick = processFromTick; tick <= processToTick; tick++)
         {
             ResponseAllLogIdRangesFromTick lr{};
-            if (db_get_log_ranges(tick, lr))
+            if (db_try_get_log_ranges(tick, lr))
             {
                 if (lr.fromLogId[SC_END_EPOCH_TX] != -1 && lr.length[SC_END_EPOCH_TX] != -1)
                 {

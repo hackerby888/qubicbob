@@ -398,8 +398,7 @@ bool db_get_tick_data(uint32_t tick, TickData& data);
  */
 
 bool db_check_log_range(uint32_t tick);
-bool check_logid(uint64_t logId);
-bool db_get_log_ranges(uint32_t tick, ResponseAllLogIdRangesFromTick &logRange);
+bool db_try_get_log_ranges(uint32_t tick, ResponseAllLogIdRangesFromTick &logRange);
 bool db_has_tick_data(uint32_t tick);
 bool db_get_transaction(const std::string& tx_hash, std::vector<uint8_t>& tx_data);
 bool db_check_transaction_exist(const std::string& tx_hash);
@@ -515,3 +514,6 @@ bool db_get_vtick_from_kvrocks(uint32_t tick, FullTickStruct& outFullTick);
 std::vector<TickVote> db_try_get_TickVote(uint32_t tick);
 
 void db_kvrocks_close();
+
+bool db_insert_cLogRange_to_kvrocks(uint32_t tick, const ResponseAllLogIdRangesFromTick& logRange);
+bool db_get_cLogRange_from_kvrocks(uint32_t tick, ResponseAllLogIdRangesFromTick& outLogRange);

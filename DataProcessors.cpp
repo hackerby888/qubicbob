@@ -534,7 +534,7 @@ void replyLogRange(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
         ResponseAllLogIdRangesFromTick logRange;
     } pl;
 
-    if (db_get_log_ranges(tick, pl.logRange)) {
+    if (db_try_get_log_ranges(tick, pl.logRange)) {
         pl.resp.setSize(8 + sizeof(ResponseAllLogIdRangesFromTick));
         pl.resp.setDejavu(dejavu);
         pl.resp.setType(ResponseAllLogIdRangesFromTick::type());
@@ -562,7 +562,7 @@ void replyLogRangeSignature(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
         ResponseLogRangeSignature logRange;
     } pl;
 
-    if (db_get_log_ranges(tick, pl.logRange.lr)) {
+    if (db_try_get_log_ranges(tick, pl.logRange.lr)) {
         pl.resp.setSize(8 + sizeof(ResponseLogRangeSignature));
         pl.resp.setDejavu(dejavu);
         pl.resp.setType(ResponseLogRangeSignature::type());
