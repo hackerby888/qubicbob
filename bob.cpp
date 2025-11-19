@@ -50,6 +50,7 @@ void garbageCleaner()
 {
     Logger::get()->info("Start garbage cleaner");
     long long lastCleanTick = gCurrentFetchingTick - 1;
+    uint32_t lastReportedTick = 0;
     while (!stopFlag.load())
     {
         int count = 0;
@@ -76,12 +77,17 @@ void garbageCleaner()
                 {
                     compressTickAndMoveToKVRocks(t);
                 }
-                Logger::get()->info("Compressed tick {}->{} to kvrocks", lastCleanTick+1, cleanToTick);
+                Logger::get()->trace("Compressed tick {}->{} to kvrocks", lastCleanTick+1, cleanToTick);
                 if (cleanRawTick(lastCleanTick + 1, cleanToTick))
                 {
                     lastCleanTick = cleanToTick;
                 }
-                Logger::get()->info("Cleaned tick {}->{} in keydb", lastCleanTick+1, cleanToTick);
+                Logger::get()->trace("Cleaned tick {}->{} in keydb", lastCleanTick+1, cleanToTick);
+                if (cleanToTick - lastReportedTick > 1000)
+                {
+                    Logger::get()->trace("Compressed and cleaned up to tick {}", cleanToTick);
+                    lastReportedTick = cleanToTick;
+                }
             }
         }
     }
