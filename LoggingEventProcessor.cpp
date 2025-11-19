@@ -379,9 +379,9 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
             spectrumFilePath = std::move(tickSpectrum);
             assetFilePath    = std::move(tickUniverse);
         } else {
-            Logger::get()->error("Cannot find snapshot files: {} and {}. bob will likely misalign and stuck", tickSpectrum, tickUniverse);
-            spectrumFilePath = "spectrum." + std::to_string(gCurrentProcessingEpoch);
-            assetFilePath    = "universe." + std::to_string(gCurrentProcessingEpoch);
+            Logger::get()->error("Cannot find snapshot files: {} and {}", tickSpectrum, tickUniverse);
+            Logger::get()->error("Reason: Bob wasn't exited gracefully last time or your snapshot files are corrupted. You need to cleanup your DB");
+            exit(1);
         }
     } else {
         spectrumFilePath = "spectrum." + std::to_string(gCurrentProcessingEpoch);
