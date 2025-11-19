@@ -97,7 +97,6 @@ int runBob(int argc, char *argv[])
         Logger::get()->info("Trusted node identity: {}", identity);
     }
     gTrustedEntities = cfg.trustedEntities;
-    gNotSaveTickVote = cfg.not_save_tickvote;
 
     // Defaults for new knobs are already in AppConfig
     unsigned int request_cycle_ms = cfg.request_cycle_ms;

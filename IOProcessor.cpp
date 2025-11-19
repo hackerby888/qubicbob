@@ -250,14 +250,11 @@ static void compressTick(uint32_t tick, TickData td, std::vector<TickVote> votes
     std::memset((void*)&full, 0, sizeof(full));
     if (haveTickData) std::memcpy((void*)&full.td, &td, sizeof(TickData));
 
-    if (!gNotSaveTickVote)
+    for (const auto& v : votes)
     {
-        for (const auto& v : votes)
+        if (v.computorIndex < 676 && v.epoch != 0)
         {
-            if (v.computorIndex < 676 && v.epoch != 0)
-            {
-                std::memcpy((void*)&full.tv[v.computorIndex], &v, sizeof(TickVote));
-            }
+            std::memcpy((void*)&full.tv[v.computorIndex], &v, sizeof(TickVote));
         }
     }
 

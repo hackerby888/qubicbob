@@ -33,7 +33,6 @@
 
 #define refetchTickVotes           (GS().refetchTickVotes)
 #define gIsEndEpoch (GS().gIsEndEpoch)
-#define gNotSaveTickVote (GS().gNotSaveTickVote)
 #define nodeSubseed                 (GS().nodeSubseed)
 #define nodePublickey                 (GS().nodePublickey)
 #define nodePrivatekey                 (GS().nodePrivatekey)
