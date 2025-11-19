@@ -404,6 +404,7 @@ bool db_get_transaction(const std::string& tx_hash, std::vector<uint8_t>& tx_dat
 bool db_check_transaction_exist(const std::string& tx_hash);
 
 // ---- Deletion Functions ----
+bool db_delete_log_ranges(uint32_t tick);
 // Deletes TickData for a specific tick.
 // Returns true if the key was removed (or did not exist), false on Redis error.
 bool db_delete_tick_data(uint32_t tick);
@@ -479,6 +480,7 @@ bool db_get_log_sig(uint32_t tick, uint32_t chunkid, uint8_t* pubkey, uint8_t* s
 
 void db_insert_log_range_sig(uint32_t tick, uint8_t* pubkey, const uint8_t* signature);
 bool db_get_log_range_sig(uint32_t tick, uint8_t* pubkey, uint8_t* signature);
+bool db_get_log_ranges(uint32_t tick, ResponseAllLogIdRangesFromTick &logRange);
 
 
 bool db_insert_bootstrap_info(uint16_t epoch, const BootstrapInfo &info);

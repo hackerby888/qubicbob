@@ -181,7 +181,7 @@ bool db_log_exists(uint16_t epoch, uint64_t logId) {
     return false;
 }
 
-bool _db_get_log_ranges(uint32_t tick, ResponseAllLogIdRangesFromTick &logRange) {
+bool db_get_log_ranges(uint32_t tick, ResponseAllLogIdRangesFromTick &logRange) {
     if (!g_redis) return false;
     try {
         // Default to -1s
@@ -208,11 +208,22 @@ bool _db_get_log_ranges(uint32_t tick, ResponseAllLogIdRangesFromTick &logRange)
     return false;
 }
 
+bool db_delete_log_ranges(uint32_t tick) {
+    if (!g_redis) return false;
+    try {
+        const std::string key = "log_ranges:" + std::to_string(tick);
+        g_redis->unlink(key);
+        return true;
+    } catch (const sw::redis::Error& e) {
+        Logger::get()->error("Redis error in db_delete_log_ranges: %s\n", e.what());
+        return false;
+    }
+}
 
 
 bool db_try_get_log_ranges(uint32_t tick, ResponseAllLogIdRangesFromTick &logRange)
 {
-    if (_db_get_log_ranges(tick, logRange))
+    if (db_get_log_ranges(tick, logRange))
     {
         return true;
     }
@@ -1562,3 +1573,4 @@ void db_kvrocks_close() {
     g_kvrocks.reset();
     Logger::get()->info("Closed kvrocks DB connections");
 }
+

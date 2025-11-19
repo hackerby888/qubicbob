@@ -23,7 +23,11 @@ void compressTickAndMoveToKVRocks(uint32_t tick)
         Logger::get()->error("compressTick: Failed to insert vtick for tick {}", tick);
         return;
     }
-
+    ResponseAllLogIdRangesFromTick lr{};
+    if (db_get_log_ranges(tick, lr))
+    {
+        db_insert_cLogRange_to_kvrocks(tick, lr);
+    }
     Logger::get()->trace("compressTick: Compressed tick {}", tick);
 }
 
@@ -40,6 +44,7 @@ bool cleanRawTick(uint32_t fromTick, uint32_t toTick)
 
         // Delete all TickVotes for this tick (attempt all indices; API treats missing as success)
         db_delete_tick_vote(tick);
+        db_delete_log_ranges(tick);
     }
     Logger::get()->trace("Cleaned raw tick data from {} to {}", fromTick, toTick);
     return true;
