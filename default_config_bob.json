@@ -8,5 +8,8 @@
   "run-server": true,
   "server-port": 21842,
   "arbitrator-identity": "AFZPUAIYVPNUYGJRQVLUKOPPVLHAZQTGLYAAUUNBXFTVTAMSBKQBLEIEPCVJ",
-  "trusted-entities": ["QCTBOBEPDEZGBBCSOWGBYCAIZESDMEVRGLWVNBZAPBIZYEJFFZSPPIVGSCVL"]
+  "trusted-entities": ["QCTBOBEPDEZGBBCSOWGBYCAIZESDMEVRGLWVNBZAPBIZYEJFFZSPPIVGSCVL"],
+
+  "tick-storage-mode": "lastNTick",
+  "kvrocks-url": "tcp://127.0.0.1:6666"
 }
