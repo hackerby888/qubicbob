@@ -407,8 +407,7 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
 
     // Synchronize both
     futSpectrum.get();
-    auto universeRoot = futUniverse.get();
-    (void)universeRoot;
+    futUniverse.get();
 
     while (gCurrentFetchingLogTick == gInitialTick) {
         if (stopFlag.load()) return;

@@ -272,7 +272,7 @@ int runBob(int argc, char *argv[])
             connReceiver(std::ref(connPoolAll.get(i)), isTrustedNode, std::ref(stopFlag));
         });
     }
-    for (int i = 0; i < std::max(16, pool_size); i++)
+    for (int i = 0; i < std::max(4, pool_size); i++)
     {
         v_data_thread.emplace_back([&](){
             set_this_thread_name("data");
