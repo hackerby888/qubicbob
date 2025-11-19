@@ -474,7 +474,7 @@ namespace {
             drogon::app()
                 .setLogLevel(trantor::Logger::kInfo)
                 .addListener("0.0.0.0", 40420)  // listen at port 40420
-                .setThreadNum(std::max(2u, std::thread::hardware_concurrency()))
+                .setThreadNum(std::max(2, gMaxThreads))
                 .setIdleConnectionTimeout(10)
                 .setKeepaliveRequestsNumber(200)
                 .disableSigtermHandling();

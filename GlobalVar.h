@@ -59,6 +59,8 @@ struct GlobalState {
 
     TickStorageMode gTickStorageMode = TickStorageMode::LastNTick;
     unsigned gLastNTickStorage = 1000;              // used when mode is LastNTick
+
+    int gMaxThreads = std::thread::hardware_concurrency();
 };
 
 // Safe, lazy singleton accessor avoids static init order issues.

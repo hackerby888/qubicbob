@@ -39,3 +39,5 @@
 
 #define gTickStorageMode                 (GS().gTickStorageMode)
 #define gLastNTickStorage                 (GS().gLastNTickStorage)
+
+#define gMaxThreads (GS().gMaxThreads)
