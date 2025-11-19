@@ -66,10 +66,15 @@ static void indexTick(uint32_t tick, const TickData &td) {
                     std::vector<uint8_t> tx_data;
                     if (db_get_transaction(txHash, tx_data)) {
                         auto tx = (Transaction*)tx_data.data();
+                        if (tx->amount == 0 && tx->inputSize == 0 && tx->inputType == 0) // spam tx => not index
+                        {
+                            continue;
+                        }
                         isExecuted = matchesTransaction(transfer, *tx);
                     }
                 }
             }
+
             db_set_indexed_tx(key.c_str(), i, logrange.fromLogId[i],
                               logrange.fromLogId[i] + logrange.length[i] - 1, timestamp,
                               isExecuted);
