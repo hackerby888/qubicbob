@@ -807,7 +807,7 @@ std::vector<TickVote> db_get_tick_votes_from_vtick(uint32_t tick) {
 
     try {
         FullTickStruct fts;
-        if (!db_get_vtick(tick, fts)) {
+        if (!db_get_vtick_from_kvrocks(tick, fts)) {
             return votes;
         }
 
@@ -879,38 +879,6 @@ bool db_delete_tick_data(uint32_t tick) {
     }
 }
 
-bool db_delete_tick_data_batch(uint32_t tick, uint32_t batch)
-{
-    if (!g_redis) return false;
-    try {
-        std::vector<std::string> keys;
-        keys.reserve(batch);
-        for (uint32_t i = 0; i < batch; i++) {
-            keys.push_back("tick_data:" + std::to_string(tick + i));
-        }
-        if (!keys.empty()) {
-            g_redis->unlink(keys.begin(), keys.end());
-        }
-        return true;
-    } catch (const sw::redis::Error &e) {
-        Logger::get()->error("Redis error in db_delete_tick_data_batch: %s\n", e.what());
-        return false;
-    }
-}
-
-
-bool db_delete_tick_vote(uint32_t tick, uint16_t computorIndex) {
-    if (!g_redis) return false;
-    try {
-        const std::string key = "tick_vote:" + std::to_string(tick) + ":" + std::to_string(computorIndex);
-        g_redis->unlink(key);
-        return true;
-    } catch (const sw::redis::Error& e) {
-        Logger::get()->error("Redis error in db_delete_tick_vote: %s\n", e.what());
-        return false;
-    }
-}
-
 bool db_delete_tick_vote(uint32_t tick) {
     if (!g_redis) return false;
     try {
@@ -932,119 +900,6 @@ bool db_delete_tick_vote(uint32_t tick) {
         return true;
     } catch (const sw::redis::Error &e) {
         Logger::get()->error("Redis error in db_delete_tick_vote: %s\n", e.what());
-        return false;
-    }
-}
-bool db_delete_tick_vote_batch(uint32_t tick, uint32_t batch)
-{
-    if (!g_redis) return false;
-    try {
-        // Delete all tick vote records for computor indices 0-675
-        constexpr int MAX_COMPUTORS = 676;
-        std::vector<std::string> keys;
-        keys.reserve(MAX_COMPUTORS * batch);
-        for (int t = tick; t < tick + batch; t++)
-        {
-            const std::string prefix = "tick_vote:" + std::to_string(t) + ":";
-            // Build deterministic set of keys to delete
-            for (int i = 0; i < MAX_COMPUTORS; i++) {
-                keys.push_back(prefix + std::to_string(i));
-            }
-        }
-
-        if (!keys.empty()) {
-            g_redis->unlink(keys.begin(), keys.end());
-        }
-        return true;
-    } catch (const sw::redis::Error &e) {
-        Logger::get()->error("Redis error in db_delete_tick_vote: %s\n", e.what());
-        return false;
-    }
-}
-// Insert FullTickStruct compressed with zstd under key "vtick:<tick>"
-bool db_insert_vtick(uint32_t tick, const FullTickStruct& fullTick)
-{
-    if (!g_redis) return false;
-    try {
-        const size_t srcSize = sizeof(FullTickStruct);
-        const size_t maxCompressed = ZSTD_compressBound(srcSize);
-
-        std::string compressed;
-        compressed.resize(maxCompressed);
-
-        size_t const cSize = ZSTD_compress(
-                compressed.data(),
-                compressed.size(),
-                reinterpret_cast<const void*>(&fullTick),
-                srcSize,
-//                ZSTD_maxCLevel()
-                ZSTD_defaultCLevel()
-        );
-//        Logger::get()->info("Compressed from {} to {}",  srcSize, cSize);
-
-        if (ZSTD_isError(cSize)) {
-            Logger::get()->error("ZSTD_compress error in db_insert_vtick: %s",
-                                 ZSTD_getErrorName(cSize));
-            return false;
-        }
-
-        // shrink to actual compressed size
-        compressed.resize(cSize);
-
-        const std::string key = "vtick:" + std::to_string(tick);
-        sw::redis::StringView val(compressed.data(), compressed.size());
-        g_redis->set(key, val);
-        return true;
-    } catch (const sw::redis::Error& e) {
-        Logger::get()->error("Redis error in db_insert_vtick: %s\n", e.what());
-        return false;
-    }
-}
-
-// Get FullTickStruct stored under "vtick:<tick>", decompressing with zstd
-bool db_vtick_exists(uint32_t tick) {
-    if (!g_redis) return false;
-    try {
-        const std::string key = "vtick:" + std::to_string(tick);
-        return g_redis->exists(key);
-    } catch (const sw::redis::Error &e) {
-        Logger::get()->error("Redis error in db_vtick_exists: %s\n", e.what());
-        return false;
-    }
-}
-
-bool db_get_vtick(uint32_t tick, FullTickStruct& outFullTick)
-{
-    if (!g_redis) return false;
-    try {
-        const std::string key = "vtick:" + std::to_string(tick);
-        auto val = g_redis->get(key);
-        if (!val) {
-            return false;
-        }
-
-        const size_t dstSize = sizeof(FullTickStruct);
-        size_t const dSize = ZSTD_decompress(
-                reinterpret_cast<void*>(&outFullTick),
-                dstSize,
-                val->data(),
-                val->size()
-        );
-
-        if (ZSTD_isError(dSize)) {
-            Logger::get()->error("ZSTD_decompress error in db_get_vtick: %s",
-                                 ZSTD_getErrorName(dSize));
-            return false;
-        }
-
-        if (dSize != dstSize) {
-            Logger::get()->warn("Decompressed FullTickStruct size mismatch for key %s: got %zu, expected %zu",
-                                key.c_str(), dSize, dstSize);
-            return false;
-        }
-        return true;
-    } catch (const sw::redis::Error& e) {
-        Logger::get()->error("Redis error in db_get_vtick: %s\n", e.what());
         return false;
     }
 }
@@ -1444,7 +1299,7 @@ bool db_try_get_TickData(uint32_t tick, TickData& data)
         return true;
     }
     FullTickStruct full;
-    if (db_get_vtick(tick, full)) {
+    if (db_get_vtick_from_kvrocks(tick, full)) {
         data = full.td;
         return true;
     }
@@ -1452,7 +1307,21 @@ bool db_try_get_TickData(uint32_t tick, TickData& data)
     return false;
 }
 
-/* MIGRATION SECTION - CODE TO MOVE DATA FROM KEYDB TO KVROCKS*/
+std::vector<TickVote> db_try_get_TickVote(uint32_t tick)
+{
+    std::vector<TickVote> result = db_get_tick_votes(tick);
+    if (!result.empty()) {
+        return result;
+    }
+    FullTickStruct full;
+    if (db_get_vtick_from_kvrocks(tick, full)) {
+        for (int i = 0; i < 676; i++) if (full.tv[i].tick == tick) result.push_back(full.tv[i]);
+        return result;
+    }
+    return result;
+}
+
+/* KVROCKS*/
 
 bool db_migrate_vtick(uint32_t tick) {
     if (!g_redis || !g_kvrocks) return false;
@@ -1564,3 +1433,78 @@ bool db_migrate_transaction(const std::string &tx_hash) {
     }
 }
 
+// Insert FullTickStruct compressed with zstd under key "vtick:<tick>"
+bool db_insert_vtick_to_kvrocks(uint32_t tick, const FullTickStruct& fullTick)
+{
+    if (!g_kvrocks) return false;
+    try {
+        const size_t srcSize = sizeof(FullTickStruct);
+        const size_t maxCompressed = ZSTD_compressBound(srcSize);
+
+        std::string compressed;
+        compressed.resize(maxCompressed);
+
+        size_t const cSize = ZSTD_compress(
+                compressed.data(),
+                compressed.size(),
+                reinterpret_cast<const void*>(&fullTick),
+                srcSize,
+                ZSTD_defaultCLevel()
+        );
+
+        if (ZSTD_isError(cSize)) {
+            Logger::get()->error("ZSTD_compress error in db_insert_vtick: %s",
+                                 ZSTD_getErrorName(cSize));
+            return false;
+        }
+
+        // shrink to actual compressed size
+        compressed.resize(cSize);
+
+        const std::string key = "vtick:" + std::to_string(tick);
+        sw::redis::StringView val(compressed.data(), compressed.size());
+        g_kvrocks->set(key, val);
+        return true;
+    } catch (const sw::redis::Error& e) {
+        Logger::get()->error("KVROCKS error in db_insert_vtick: %s\n", e.what());
+        return false;
+    }
+}
+
+
+
+bool db_get_vtick_from_kvrocks(uint32_t tick, FullTickStruct& outFullTick)
+{
+    if (!g_kvrocks) return false;
+    try {
+        const std::string key = "vtick:" + std::to_string(tick);
+        auto val = g_kvrocks->get(key);
+        if (!val) {
+            return false;
+        }
+
+        const size_t dstSize = sizeof(FullTickStruct);
+        size_t const dSize = ZSTD_decompress(
+                reinterpret_cast<void*>(&outFullTick),
+                dstSize,
+                val->data(),
+                val->size()
+        );
+
+        if (ZSTD_isError(dSize)) {
+            Logger::get()->error("ZSTD_decompress error in db_get_vtick: %s",
+                                 ZSTD_getErrorName(dSize));
+            return false;
+        }
+
+        if (dSize != dstSize) {
+            Logger::get()->warn("Decompressed FullTickStruct size mismatch for key %s: got %zu, expected %zu",
+                                key.c_str(), dSize, dstSize);
+            return false;
+        }
+        return true;
+    } catch (const sw::redis::Error& e) {
+        Logger::get()->error("KVROCKs error in db_get_vtick: %s\n", e.what());
+        return false;
+    }
+}

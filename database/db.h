@@ -431,9 +431,6 @@ bool db_insert_computors(const Computors& comps);
 bool db_get_computors(uint16_t epoch, Computors& comps);
 bool db_log_exists(uint16_t epoch, uint64_t logId);
 
-bool db_insert_vtick(uint32_t tick, const FullTickStruct& fullTick);
-bool db_get_vtick(uint32_t tick, FullTickStruct& outFullTick);
-
 bool db_get_log(uint16_t epoch, uint64_t logId, LogEvent &log);
 
 long long db_get_last_indexed_tick();
@@ -501,3 +498,12 @@ bool db_migrate_log(uint16_t epoch, uint64_t logId);
 bool db_migrate_transaction(const std::string &tx_hash);
 bool db_delete_tick_data_batch(uint32_t tick, uint32_t batch);
 bool db_delete_tick_vote_batch(uint32_t tick, uint32_t batch);
+
+// functions for persistant on disk layer
+void compressTickAndMoveToKVRocks(uint32_t tick);
+bool cleanRawTick(uint32_t fromTick, uint32_t toTick);
+
+bool db_insert_vtick_to_kvrocks(uint32_t tick, const FullTickStruct& fullTick);
+bool db_get_vtick_from_kvrocks(uint32_t tick, FullTickStruct& outFullTick);
+
+std::vector<TickVote> db_try_get_TickVote(uint32_t tick);

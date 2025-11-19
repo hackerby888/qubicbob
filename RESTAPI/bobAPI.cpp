@@ -190,14 +190,13 @@ std::string bobGetLog(uint16_t epoch, int64_t start, int64_t end)
 
 
 std::string bobGetTick(const uint32_t tick) {
-    FullTickStruct fts;
-    db_get_vtick(tick, fts);
+    TickData td {};
+    db_try_get_TickData(tick, td);
 
     Json::Value root;
     root["tick"] = tick;
 
     // Set TickData -> root["tickdata"]
-    const TickData& td = fts.td;
     Json::Value tdJson;
     tdJson["computorIndex"] = td.computorIndex;
     tdJson["epoch"] = td.epoch;
@@ -242,8 +241,9 @@ std::string bobGetTick(const uint32_t tick) {
     root["tickdata"] = tdJson;
 
     // Add TickVote array (minimal fields, keep signatures as hex)
+    auto tick_votes = db_try_get_TickVote(tick);
     Json::Value votes(Json::arrayValue);
-    for (const auto &vote : fts.tv) {
+    for (const auto &vote : tick_votes) {
         Json::Value voteObj;
         // Basic info
         voteObj["computorIndex"] = vote.computorIndex;

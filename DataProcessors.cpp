@@ -300,9 +300,12 @@ void replyTransaction(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
 {
     RequestedTickTransactions *request = (RequestedTickTransactions *)ptr;
     uint32_t tick = request->tick;
-    FullTickStruct fts{};
-    db_get_vtick(tick, fts);
-    auto& td= fts.td;
+    TickData td;
+    if (!db_try_get_TickData(tick, td))
+    {
+        conn->sendEndPacket(dejavu);
+        return;
+    }
     for (int i = 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK; i++)
     {
         if (td.transactionDigests[i] != m256i::zero())
@@ -356,12 +359,10 @@ void replyTickVotes(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
 {
     auto *request = (RequestedQuorumTick *)ptr;
     uint32_t tick = request->tick;
-    FullTickStruct fts{};
-    memset((void*)&fts, 0, sizeof(fts));
-    db_get_vtick(tick, fts);
-    for (int i = 0; i < NUMBER_OF_COMPUTORS; i++)
+    auto votes = db_try_get_TickVote(tick);
+    for (auto& tv : votes)
     {
-        auto& tv = fts.tv[i];
+        int i = tv.computorIndex;
         if (tv.epoch != 0 && tv.tick == tick)
         {
             if (!(request->voteFlags[i >> 3] & (1 << (i & 7))))
@@ -388,21 +389,23 @@ void replyTickData(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
 {
     uint32_t tick;
     memcpy((void*)&tick, ptr, 4);
-    FullTickStruct fts{};
-    if (db_get_vtick(tick, fts))
+    TickData td;
+    if (!db_try_get_TickData(tick, td))
     {
-        // Build a tightly packed buffer: header (8) + TickData
-        const uint32_t total = 8 + sizeof(TickData);
-        // If your platform/compiler doesn’t support VLAs, use a vector
-        std::vector<uint8_t> buf(total);
-        RequestResponseHeader hdr{};
-        hdr.setType(TickData::type());
-        hdr.setDejavu(dejavu);
-        hdr.setSize(total);
-        memcpy(buf.data(), &hdr, 8);
-        memcpy(buf.data() + 8, &fts.td, sizeof(TickData));
-        conn->enqueueSend(buf.data(), total);
+        conn->sendEndPacket(dejavu);
+        return;
     }
+    // Build a tightly packed buffer: header (8) + TickData
+    const uint32_t total = 8 + sizeof(TickData);
+    // If your platform/compiler doesn’t support VLAs, use a vector
+    std::vector<uint8_t> buf(total);
+    RequestResponseHeader hdr{};
+    hdr.setType(TickData::type());
+    hdr.setDejavu(dejavu);
+    hdr.setSize(total);
+    memcpy(buf.data(), &hdr, 8);
+    memcpy(buf.data() + 8, &td, sizeof(TickData));
+    conn->enqueueSend(buf.data(), total);
 }
 
 void replyLogEvent(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)

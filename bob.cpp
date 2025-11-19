@@ -53,14 +53,33 @@ void garbageCleaner()
     while (!stopFlag.load())
     {
         int count = 0;
-        while (!stopFlag.load() && count++ < 100) SLEEP(100); // clean every 10s
+        SLEEP(100);
         if (stopFlag.load()) break;
-        long long cleanToTick = (long long)(gCurrentVerifyLoggingTick.load()) - 5;
-        if (lastCleanTick < cleanToTick)
+        if (gTickStorageMode == TickStorageMode::LastNTick)
         {
-            if (cleanRawTick(lastCleanTick + 1, cleanToTick))
+            long long cleanToTick = (long long)(gCurrentVerifyLoggingTick.load()) - 5;
+            cleanToTick = std::min(cleanToTick, (long long)(gCurrentVerifyLoggingTick) - 1 - gLastNTickStorage);
+            if (lastCleanTick < cleanToTick)
             {
-                lastCleanTick = cleanToTick;
+                if (cleanRawTick(lastCleanTick + 1, cleanToTick))
+                {
+                    lastCleanTick = cleanToTick;
+                }
+            }
+        }
+        else if (gTickStorageMode == TickStorageMode::Kvrocks)
+        {
+            long long cleanToTick = (long long)(gCurrentVerifyLoggingTick.load()) - 5;
+            if (lastCleanTick < cleanToTick)
+            {
+                for (int t = lastCleanTick+1; t <= cleanToTick; t++)
+                {
+                    compressTickAndMoveToKVRocks(t);
+                }
+                if (cleanRawTick(lastCleanTick + 1, cleanToTick))
+                {
+                    lastCleanTick = cleanToTick;
+                }
             }
         }
     }
@@ -97,6 +116,8 @@ int runBob(int argc, char *argv[])
         Logger::get()->info("Trusted node identity: {}", identity);
     }
     gTrustedEntities = cfg.trustedEntities;
+    gTickStorageMode = cfg.tick_storage_mode;
+    gLastNTickStorage = cfg.last_n_tick_storage;
 
     // Defaults for new knobs are already in AppConfig
     unsigned int request_cycle_ms = cfg.request_cycle_ms;
@@ -257,7 +278,12 @@ int runBob(int argc, char *argv[])
         verifyLoggingEvent(std::ref(stopFlag));
     });
     startRESTServer();
-    auto garbage_thread = std::thread(garbageCleaner);
+    std::thread garbage_thread;
+    if (cfg.tick_storage_mode != TickStorageMode::Free)
+    {
+        garbage_thread = std::thread(garbageCleaner);
+    }
+
 
     uint32_t prevFetchingTickData = 0;
     uint32_t prevLoggingEventTick = 0;
@@ -335,7 +361,10 @@ int runBob(int argc, char *argv[])
         for (auto& thr : v_data_thread) thr.join();
     }
     Logger::get()->info("Exited data threads");
-    garbage_thread.join();
+    if (cfg.tick_storage_mode != TickStorageMode::Free)
+    {
+        garbage_thread.join();
+    }
     if (gIsEndEpoch)
     {
         Logger::get()->info("Received END_EPOCH message. Closing BOB");

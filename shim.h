@@ -36,3 +36,6 @@
 #define nodeSubseed                 (GS().nodeSubseed)
 #define nodePublickey                 (GS().nodePublickey)
 #define nodePrivatekey                 (GS().nodePrivatekey)
+
+#define gTickStorageMode                 (GS().gTickStorageMode)
+#define gLastNTickStorage                 (GS().gLastNTickStorage)
