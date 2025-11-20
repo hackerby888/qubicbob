@@ -77,8 +77,12 @@ bool cleanRawTickWithTx(uint16_t epoch, uint32_t fromTick, uint32_t toTick)
                 {
                     long long start = lr.fromLogId[i];
                     long long end = start + lr.length[i] - 1; // inclusive
-                    db_move_logs_to_kvrocks_by_range(epoch, start, end);
+                    if (db_move_logs_to_kvrocks_by_range(epoch, start, end))
+                    {
+                        db_delete_logs(epoch, start, end);
+                    }
                 }
+                db_delete_transaction(td.transactionDigests[i].toQubicHash());
             }
         }
     }

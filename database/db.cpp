@@ -88,6 +88,37 @@ bool db_insert_transaction(const Transaction* tx) {
     return true;
 }
 
+bool db_delete_transaction(std::string hash)
+{
+    if (!g_redis) return false;
+    try {
+        std::string key = "transaction:" + hash;
+        g_redis->unlink(key);
+    } catch (const sw::redis::Error& e) {
+        Logger::get()->error("Redis error: {}\n", e.what());
+        return false;
+    }
+    return true;
+}
+
+bool db_delete_logs(uint16_t epoch, long long start, long long end)
+{
+    if (!g_redis) return false;
+    try {
+        for (long long i = start; i <= end; i++)
+        {
+            std::string key = "log:" +
+                              std::to_string(epoch) + ":" +
+                              std::to_string(i);
+            g_redis->unlink(hash);
+        }
+    } catch (const sw::redis::Error& e) {
+        Logger::get()->error("Redis error: {}\n", e.what());
+        return false;
+    }
+    return true;
+}
+
 bool db_insert_log(uint16_t epoch, uint32_t tick, uint64_t logId, int logSize, const uint8_t* content) {
     if (!g_redis) return false;
     try {
