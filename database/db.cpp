@@ -795,7 +795,7 @@ bool db_get_tick_data(uint32_t tick, TickData& data) {
     return false;
 }
 
-bool db_get_transaction(const std::string& tx_hash, std::vector<uint8_t>& tx_data) {
+bool _db_get_transaction(const std::string& tx_hash, std::vector<uint8_t>& tx_data) {
     if (!g_redis) return false;
     try {
         // Tick is no longer used in the key; fetch by hash only.
@@ -807,10 +807,33 @@ bool db_get_transaction(const std::string& tx_hash, std::vector<uint8_t>& tx_dat
         tx_data.assign(val->begin(), val->end());
         return true;
     } catch (const sw::redis::Error& e) {
-        Logger::get()->error("Redis error in db_get_transaction (by hash, tick ignored): %s\n", e.what());
+        Logger::get()->error("Redis error in db_try_get_transaction (by hash, tick ignored): %s\n", e.what());
     }
     return false;
 }
+
+bool db_try_get_transaction(const std::string& tx_hash, std::vector<uint8_t>& tx_data) {
+    // Try redis first
+    if (_db_get_transaction(tx_hash, tx_data)) {
+        return true;
+    }
+
+    // Fall back to kvrocks
+    if (!g_kvrocks) return false;
+    try {
+        const std::string key = "transaction:" + tx_hash;
+        auto val = g_kvrocks->get(key);
+        if (!val) {
+            return false;
+        }
+        tx_data.assign(val->begin(), val->end());
+        return true;
+    } catch (const sw::redis::Error &e) {
+        Logger::get()->error("Kvrocks error in db_try_get_transaction: %s\n", e.what());
+    }
+    return false;
+}
+
 
 bool db_check_transaction_exist(const std::string& tx_hash) {
     if (!g_redis) return false;

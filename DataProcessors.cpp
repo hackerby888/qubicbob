@@ -316,7 +316,7 @@ void replyTransaction(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
                 getIdentityFromPublicKey(td.transactionDigests[i].m256i_u8, hash, true);
                 std::string strHash(hash);
                 std::vector<uint8_t> txData;
-                if (db_get_transaction(strHash, txData))
+                if (db_try_get_transaction(strHash, txData))
                 {
                     RequestResponseHeader resp;
                     resp.setSize(8 + txData.size());

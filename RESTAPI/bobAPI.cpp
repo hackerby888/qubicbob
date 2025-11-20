@@ -94,7 +94,7 @@ std::string bobGetTransaction(const char* txHash)
 
     try {
         std::vector<uint8_t> txData;
-        if (!db_get_transaction(txHash, txData)) {
+        if (!db_try_get_transaction(txHash, txData)) {
             return "{\"error\": \"Transaction not found\"}";
         }
         Transaction *tx = reinterpret_cast<Transaction *>(txData.data());
