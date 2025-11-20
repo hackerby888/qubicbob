@@ -53,7 +53,6 @@ void garbageCleaner()
     uint32_t lastReportedTick = 0;
     while (!stopFlag.load())
     {
-        int count = 0;
         SLEEP(100);
         if (stopFlag.load()) break;
         if (gTickStorageMode == TickStorageMode::LastNTick)

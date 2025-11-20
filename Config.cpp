@@ -242,6 +242,84 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
                     out.kvrocks_url = "tcp://127.0.0.1:6666";
                 }
             }
+            // tx_tick_to_live (unsigned, ticks in RAM)
+            if (root.isMember("tx_tick_to_live")) {
+                const auto& v = root["tx_tick_to_live"];
+                if (v.isUInt()) {
+                    out.tx_tick_to_live = v.asUInt();
+                } else if (v.isInt()) {
+                    int i = v.asInt();
+                    if (i < 0) {
+                        error = "Negative integer is invalid for key 'tx_tick_to_live'";
+                        return false;
+                    }
+                    out.tx_tick_to_live = static_cast<unsigned>(i);
+                } else {
+                    error = "Invalid type: unsigned integer required for key 'tx_tick_to_live'";
+                    return false;
+                }
+            }
+
+        } else if (mode == "free") {
+            out.tick_storage_mode = TickStorageMode::Free;
+            // No related options; implies no garbage cleaner.
+        } else {
+            error = "Invalid value for 'tick-storage-mode': must be one of 'lastNTick', 'kvrocks', or 'free'";
+            return false;
+        }
+    }
+
+    // Parse 'tick-storage-mode' and related options
+    {
+        std::string mode = "lastNTick";
+        if (root.isMember("tick-storage-mode")) {
+            if (!root["tick-storage-mode"].isString()) {
+                error = "Invalid type: string required for key 'tick-storage-mode'";
+                return false;
+            }
+            mode = root["tick-storage-mode"].asString();
+        }
+
+        if (mode == "lastNTick") {
+            out.tick_storage_mode = TickStorageMode::LastNTick;
+
+            // last_n_tick_storage (default 1000)
+            if (root.isMember("last_n_tick_storage")) {
+                const auto& v = root["last_n_tick_storage"];
+                if (v.isUInt()) {
+                    out.last_n_tick_storage = v.asUInt();
+                } else if (v.isInt()) {
+                    int i = v.asInt();
+                    if (i < 0) {
+                        error = "Negative integer is invalid for key 'last_n_tick_storage'";
+                        return false;
+                    }
+                    out.last_n_tick_storage = static_cast<unsigned>(i);
+                } else {
+                    error = "Invalid type: unsigned integer required for key 'last_n_tick_storage'";
+                    return false;
+                }
+            } else {
+                // Ensure default if not preset
+                if (out.last_n_tick_storage == 0) {
+                    out.last_n_tick_storage = 1000;
+                }
+            }
+        } else if (mode == "kvrocks") {
+            out.tick_storage_mode = TickStorageMode::Kvrocks;
+
+            // kvrocks-url (default tcp://127.0.0.1:6666)
+            if (root.isMember("kvrocks-url")) {
+                if (!root["kvrocks-url"].isString()) {
+                    error = "Invalid type: string required for key 'kvrocks-url'";
+                    return false;
+                }
+                out.kvrocks_url = root["kvrocks-url"].asString();
+            } else {
+                if (out.kvrocks_url.empty()) {
+                    out.kvrocks_url = "tcp://127.0.0.1:6666";
+                }
+            }
         } else if (mode == "free") {
             out.tick_storage_mode = TickStorageMode::Free;
             // No related options; implies no garbage cleaner.
