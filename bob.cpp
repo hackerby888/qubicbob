@@ -125,6 +125,8 @@ int runBob(int argc, char *argv[])
     gTrustedEntities = cfg.trustedEntities;
     gTickStorageMode = cfg.tick_storage_mode;
     gLastNTickStorage = cfg.last_n_tick_storage;
+    gTxStorageMode = cfg.tx_storage_mode;
+    gTxTickToLive = cfg.tx_tick_to_live;
     gSpamThreshold = cfg.spam_qu_threshold;
 
     // Defaults for new knobs are already in AppConfig

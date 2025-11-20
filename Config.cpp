@@ -259,6 +259,10 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
                     return false;
                 }
             }
+            else
+            {
+                out.tx_tick_to_live = 10000;
+            }
 
         } else if (mode == "free") {
             out.tick_storage_mode = TickStorageMode::Free;

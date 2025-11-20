@@ -45,8 +45,7 @@ struct AppConfig {
     // transaction storage mode configuration
     TxStorageMode tx_storage_mode = TxStorageMode::LastNTick;
     // For "kvrocks" tx-storage-mode: how long transactions stay in RAM (in ticks)
-    unsigned tx_tick_to_live = 0;
-
+    unsigned tx_tick_to_live = 10000;
 };
 
 // Returns true on success; on failure returns false and fills error with a human-readable message.
