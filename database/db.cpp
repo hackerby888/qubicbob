@@ -1202,6 +1202,28 @@ bool db_update_field(const std::string key, const std::string field, const std::
     }
 }
 
+bool db_copy_transaction_to_kvrocks(const std::string &tx_hash) {
+    if (!g_redis || !g_kvrocks) return false;
+    try {
+        const std::string key = "transaction:" + tx_hash;
+
+        // Read transaction data from KeyDB
+        auto val = g_redis->get(key);
+        if (!val) {
+            return false; // nothing to migrate for this transaction
+        }
+
+        // Write to Kvrocks
+        sw::redis::StringView view(val->data(), val->size());
+        g_kvrocks->set(key, view);
+
+        return true;
+    } catch (const sw::redis::Error &e) {
+        Logger::get()->error("Redis error in db_migrate_transaction: {}\n", e.what());
+        return false;
+    }
+}
+
 bool db_rename(const std::string &key1, const std::string &key2) {
     if (!g_redis) return false;
     try {
@@ -1311,7 +1333,7 @@ bool db_migrate_vtick(uint32_t tick) {
     }
 }
 
-bool db_migrate_log(uint16_t epoch, uint64_t logId) {
+bool db_move_log_to_kvrocks(uint16_t epoch, uint64_t logId) {
     if (!g_redis || !g_kvrocks) return false;
 
     try {
@@ -1327,10 +1349,6 @@ bool db_migrate_log(uint16_t epoch, uint64_t logId) {
         sw::redis::StringView view(val->data(), val->size());
         g_kvrocks->set(key, view);
 
-        // Remove from KeyDB
-        std::vector<std::string> delKeys{key};
-        g_redis->unlink(delKeys.begin(), delKeys.end());
-
         return true;
     } catch (const sw::redis::Error &e) {
         Logger::get()->error("Redis error in db_migrate_log: {}\n", e.what());
@@ -1338,6 +1356,23 @@ bool db_migrate_log(uint16_t epoch, uint64_t logId) {
     }
 }
 
+bool db_move_logs_to_kvrocks_by_range(uint16_t epoch, long long fromLogId, long long toLogId) {
+    if (!g_redis || !g_kvrocks || fromLogId < 0 || toLogId < fromLogId) return false;
+
+    try {
+        bool success = true;
+        for (long long logId = fromLogId; logId <= toLogId; logId++) {
+            if (!db_move_log_to_kvrocks(epoch, logId)) {
+                Logger::get()->warn("Failed to migrate log {}:{}", epoch, logId);
+                success = false;
+            }
+        }
+        return success;
+    } catch (const std::exception &e) {
+        Logger::get()->error("Error in db_migrate_logs_by_range: {}\n", e.what());
+        return false;
+    }
+}
 
 
 bool db_migrate_log_ranges(uint32_t tick) {

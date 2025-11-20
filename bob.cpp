@@ -49,7 +49,8 @@ void requestToExitBob()
 void garbageCleaner()
 {
     Logger::get()->info("Start garbage cleaner");
-    long long lastCleanTick = gCurrentFetchingTick - 1;
+    long long lastCleanTickData = gCurrentFetchingTick - 1;
+    long long lastCleanTransactionTick = gCurrentFetchingTick - 1;
     uint32_t lastReportedTick = 0;
     while (!stopFlag.load())
     {
@@ -59,35 +60,56 @@ void garbageCleaner()
         {
             long long cleanToTick = (long long)(gCurrentVerifyLoggingTick.load()) - 5;
             cleanToTick = std::min(cleanToTick, (long long)(gCurrentVerifyLoggingTick) - 1 - gLastNTickStorage);
-            if (lastCleanTick < cleanToTick)
+            if (lastCleanTickData < cleanToTick)
             {
-                if (cleanRawTick(lastCleanTick + 1, cleanToTick))
+                if (gTxStorageMode == TxStorageMode::LastNTick)
                 {
-                    lastCleanTick = cleanToTick;
+                    if (cleanRawTickWithTx(gCurrentProcessingEpoch, lastCleanTickData + 1, cleanToTick))
+                    {
+                        lastCleanTickData = cleanToTick;
+                    }
+                }
+                else
+                {
+                    if (cleanRawTick(lastCleanTickData + 1, cleanToTick))
+                    {
+                        lastCleanTickData = cleanToTick;
+                    }
+                }
+
+                if (cleanToTick - lastReportedTick > 1000)
+                {
+                    Logger::get()->trace("Cleaned up to tick {}", cleanToTick);
+                    lastReportedTick = cleanToTick;
                 }
             }
         }
         else if (gTickStorageMode == TickStorageMode::Kvrocks)
         {
             long long cleanToTick = (long long)(gCurrentVerifyLoggingTick.load()) - 5;
-            if (lastCleanTick < cleanToTick)
+            if (lastCleanTickData < cleanToTick)
             {
-                for (long long t = lastCleanTick+1; t <= cleanToTick; t++)
+                for (long long t = lastCleanTickData + 1; t <= cleanToTick; t++)
                 {
                     compressTickAndMoveToKVRocks(t);
                 }
-                Logger::get()->trace("Compressed tick {}->{} to kvrocks", lastCleanTick+1, cleanToTick);
-                if (cleanRawTick(lastCleanTick + 1, cleanToTick))
+                Logger::get()->trace("Compressed tick {}->{} to kvrocks", lastCleanTickData + 1, cleanToTick);
+                if (cleanRawTick(lastCleanTickData + 1, cleanToTick))
                 {
-                    lastCleanTick = cleanToTick;
+                    lastCleanTickData = cleanToTick;
                 }
-                Logger::get()->trace("Cleaned tick {}->{} in keydb", lastCleanTick+1, cleanToTick);
+                Logger::get()->trace("Cleaned tick {}->{} in keydb", lastCleanTickData + 1, cleanToTick);
                 if (cleanToTick - lastReportedTick > 1000)
                 {
                     Logger::get()->trace("Compressed and cleaned up to tick {}", cleanToTick);
                     lastReportedTick = cleanToTick;
                 }
             }
+        }
+
+        if (gTxStorageMode == TxStorageMode::LastNTick)
+        {
+
         }
     }
     Logger::get()->info("Exited garbage cleaner");
