@@ -1,6 +1,25 @@
 #include "database/db.h"
-// Compress a verified tick: pack TickData + up to 676 TickVotes into FullTickStruct,
-// store via db_insert_vtick
+
+bool cleanTransactionAndLogs(TickData& td, ResponseAllLogIdRangesFromTick& lr)
+{
+    for (int i = 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK; i++)
+    {
+        if (td.transactionDigests[i] != m256i::zero())
+        {
+            db_copy_transaction_to_kvrocks(td.transactionDigests[i].toQubicHash());
+            if (lr.fromLogId[i] > 0 && lr.length[i] > 0)
+            {
+                long long start = lr.fromLogId[i];
+                long long end = start + lr.length[i] - 1; // inclusive
+                if (db_move_logs_to_kvrocks_by_range(td.epoch, start, end))
+                {
+                    db_delete_logs(td.epoch, start, end);
+                }
+            }
+            db_delete_transaction(td.transactionDigests[i].toQubicHash());
+        }
+    }
+}
 void compressTickAndMoveToKVRocks(uint32_t tick)
 {
     // Load TickData
@@ -31,34 +50,24 @@ void compressTickAndMoveToKVRocks(uint32_t tick)
     Logger::get()->trace("compressTick: Compressed tick {}", tick);
 }
 
-bool cleanRawTick(uint32_t fromTick, uint32_t toTick)
+bool cleanTransactionLogs(uint32_t tick)
 {
-    Logger::get()->trace("Start cleaning raw tick data from {} to {}", fromTick, toTick);
-    for (uint32_t tick = fromTick; tick <= toTick; tick++)
-    {
-        // Delete raw TickData
-        if (!db_delete_tick_data(tick))
-        {
-            Logger::get()->warn("cleanRawTick: Failed to delete TickData for tick {}", tick);
-        }
-
-        // Delete all TickVotes for this tick (attempt all indices; API treats missing as success)
-        db_delete_tick_vote(tick);
-        db_delete_log_ranges(tick);
-    }
-    Logger::get()->trace("Cleaned raw tick data from {} to {}", fromTick, toTick);
-    return true;
-}
-
-bool cleanRawTickWithTx(uint16_t epoch, uint32_t fromTick, uint32_t toTick)
-{
-    Logger::get()->trace("Start cleaning raw tick data from {} to {}", fromTick, toTick);
     TickData td{};
     ResponseAllLogIdRangesFromTick lr{};
+    db_try_get_TickData(tick, td);
+    db_try_get_log_ranges(tick, lr);
+    cleanTransactionAndLogs(td, lr);
+}
+
+bool cleanRawTick(uint32_t fromTick, uint32_t toTick, bool withTransactions)
+{
+    Logger::get()->trace("Start cleaning raw tick data from {} to {}", fromTick, toTick);
     for (uint32_t tick = fromTick; tick <= toTick; tick++)
     {
-        db_get_tick_data(tick, td);
-        db_get_log_ranges(tick, lr);
+        if (withTransactions)
+        {
+            cleanTransactionLogs(tick);
+        }
         // Delete raw TickData
         if (!db_delete_tick_data(tick))
         {
@@ -68,24 +77,8 @@ bool cleanRawTickWithTx(uint16_t epoch, uint32_t fromTick, uint32_t toTick)
         // Delete all TickVotes for this tick (attempt all indices; API treats missing as success)
         db_delete_tick_vote(tick);
         db_delete_log_ranges(tick);
-        for (int i = 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK; i++)
-        {
-            if (td.transactionDigests[i] != m256i::zero())
-            {
-                db_copy_transaction_to_kvrocks(td.transactionDigests[i].toQubicHash());
-                if (lr.fromLogId[i] > 0 && lr.length[i] > 0)
-                {
-                    long long start = lr.fromLogId[i];
-                    long long end = start + lr.length[i] - 1; // inclusive
-                    if (db_move_logs_to_kvrocks_by_range(epoch, start, end))
-                    {
-                        db_delete_logs(epoch, start, end);
-                    }
-                }
-                db_delete_transaction(td.transactionDigests[i].toQubicHash());
-            }
-        }
     }
     Logger::get()->trace("Cleaned raw tick data from {} to {}", fromTick, toTick);
     return true;
 }
+

@@ -26,7 +26,6 @@ void DataProcessorThread(std::atomic_bool& exitFlag);
 void RequestProcessorThread(std::atomic_bool& exitFlag);
 void verifyLoggingEvent(std::atomic_bool& stopFlag);
 void indexVerifiedTicks(std::atomic_bool& stopFlag);
-bool cleanRawTick(uint32_t fromTick, uint32_t toTick);
 void querySmartContractThread(ConnectionPool& connPoolAll, std::atomic_bool& stopFlag);
 std::atomic_bool stopFlag{false};
 
@@ -58,23 +57,13 @@ void garbageCleaner()
         if (stopFlag.load()) break;
         if (gTickStorageMode == TickStorageMode::LastNTick)
         {
-            long long cleanToTick = (long long)(gCurrentVerifyLoggingTick.load()) - 5;
-            cleanToTick = std::min(cleanToTick, (long long)(gCurrentVerifyLoggingTick) - 1 - gLastNTickStorage);
+            long long cleanToTick = (long long)(gCurrentIndexingTick.load()) - 5;
+            cleanToTick = std::min(cleanToTick, (long long)(gCurrentIndexingTick) - 1 - gLastNTickStorage);
             if (lastCleanTickData < cleanToTick)
             {
-                if (gTxStorageMode == TxStorageMode::LastNTick)
+                if (cleanRawTick(lastCleanTickData + 1, cleanToTick, gTxStorageMode == TxStorageMode::LastNTick /*also clean txs*/))
                 {
-                    if (cleanRawTickWithTx(gCurrentProcessingEpoch, lastCleanTickData + 1, cleanToTick))
-                    {
-                        lastCleanTickData = cleanToTick;
-                    }
-                }
-                else
-                {
-                    if (cleanRawTick(lastCleanTickData + 1, cleanToTick))
-                    {
-                        lastCleanTickData = cleanToTick;
-                    }
+                    lastCleanTickData = cleanToTick;
                 }
 
                 if (cleanToTick - lastReportedTick > 1000)
@@ -86,7 +75,7 @@ void garbageCleaner()
         }
         else if (gTickStorageMode == TickStorageMode::Kvrocks)
         {
-            long long cleanToTick = (long long)(gCurrentVerifyLoggingTick.load()) - 5;
+            long long cleanToTick = (long long)(gCurrentIndexingTick.load()) - 5;
             if (lastCleanTickData < cleanToTick)
             {
                 for (long long t = lastCleanTickData + 1; t <= cleanToTick; t++)
@@ -94,7 +83,7 @@ void garbageCleaner()
                     compressTickAndMoveToKVRocks(t);
                 }
                 Logger::get()->trace("Compressed tick {}->{} to kvrocks", lastCleanTickData + 1, cleanToTick);
-                if (cleanRawTick(lastCleanTickData + 1, cleanToTick))
+                if (cleanRawTick(lastCleanTickData + 1, cleanToTick, false /*do not clean txs instantly*/))
                 {
                     lastCleanTickData = cleanToTick;
                 }
@@ -109,7 +98,16 @@ void garbageCleaner()
 
         if (gTxStorageMode == TxStorageMode::LastNTick)
         {
-
+            long long cleanToTick = (long long)(gCurrentIndexingTick.load()) - 5;
+            cleanToTick = std::min(cleanToTick, (long long)(gCurrentIndexingTick) - 1 - gTxTickToLive);
+            if (lastCleanTransactionTick < cleanToTick)
+            {
+                for (long long t = lastCleanTransactionTick + 1; t <= cleanToTick; t++)
+                {
+                    cleanTransactionLogs(t);
+                }
+                lastCleanTransactionTick = cleanToTick;
+            }
         }
     }
     Logger::get()->info("Exited garbage cleaner");

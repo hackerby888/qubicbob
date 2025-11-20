@@ -333,5 +333,22 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
         }
     }
 
+    if (out.tick_storage_mode == TickStorageMode::LastNTick)
+    {
+        if (out.tx_storage_mode != TxStorageMode::LastNTick && out.tx_storage_mode != TxStorageMode::Free)
+        {
+            error = "Conflicted tick and tx storage mode. tick_storage_mode => LastNTick requires tx_storage_mode => LastNTick|Free";
+            return false;
+        }
+    }
+
+    if (out.tick_storage_mode == TickStorageMode::Kvrocks)
+    {
+        if (out.tx_storage_mode != TxStorageMode::Kvrocks && out.tx_storage_mode != TxStorageMode::Free)
+        {
+            error = "Conflicted tick and tx storage mode. tick_storage_mode => kvrocks requires tx_storage_mode => kvrocks|Free";
+            return false;
+        }
+    }
     return true;
 }

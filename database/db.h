@@ -498,17 +498,13 @@ bool db_get_end_epoch_log_range(uint16_t epoch, long long &fromLogId, long long 
 
 
 
-bool db_migrate_vtick(uint32_t tick);
+
 void db_kvrocks_connect(const std::string &connectionString);
-bool db_migrate_log_ranges(uint32_t tick);
-bool db_migrate_transaction(const std::string &tx_hash);
-bool db_delete_tick_data_batch(uint32_t tick, uint32_t batch);
-bool db_delete_tick_vote_batch(uint32_t tick, uint32_t batch);
 
 // functions for persistant on disk layer
 void compressTickAndMoveToKVRocks(uint32_t tick);
-bool cleanRawTick(uint32_t fromTick, uint32_t toTick);
-bool cleanRawTickWithTx(uint16_t epoch, uint32_t fromTick, uint32_t toTick);
+bool cleanRawTick(uint32_t fromTick, uint32_t toTick, bool withTransactions);
+bool cleanTransactionLogs(uint32_t tick);
 
 bool db_insert_vtick_to_kvrocks(uint32_t tick, const FullTickStruct& fullTick);
 bool db_get_vtick_from_kvrocks(uint32_t tick, FullTickStruct& outFullTick);
