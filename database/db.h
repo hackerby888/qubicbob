@@ -492,7 +492,7 @@ bool db_rename(const std::string &key1, const std::string &key2);
 bool db_key_exists(const std::string &key);
 bool db_update_field(const std::string key, const std::string field, const std::string value);
 
-bool db_try_get_TickData(uint32_t tick, TickData& data);
+bool db_try_get_tick_data(uint32_t tick, TickData& data);
 bool db_get_end_epoch_log_range(uint16_t epoch, long long &fromLogId, long long &length);
 
 
@@ -509,7 +509,7 @@ bool cleanTransactionLogs(uint32_t tick);
 bool db_insert_vtick_to_kvrocks(uint32_t tick, const FullTickStruct& fullTick);
 bool db_get_vtick_from_kvrocks(uint32_t tick, FullTickStruct& outFullTick);
 
-std::vector<TickVote> db_try_get_TickVote(uint32_t tick);
+std::vector<TickVote> db_try_get_tick_vote(uint32_t tick);
 
 void db_kvrocks_close();
 

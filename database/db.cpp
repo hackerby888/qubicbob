@@ -1330,7 +1330,7 @@ bool db_get_u32(const std::string key, uint32_t &value) {
     }
 }
 
-bool db_try_get_TickData(uint32_t tick, TickData& data)
+bool db_try_get_tick_data(uint32_t tick, TickData& data)
 {
     if (db_get_tick_data(tick, data)) {
         return true;
@@ -1344,7 +1344,7 @@ bool db_try_get_TickData(uint32_t tick, TickData& data)
     return false;
 }
 
-std::vector<TickVote> db_try_get_TickVote(uint32_t tick)
+std::vector<TickVote> db_try_get_tick_vote(uint32_t tick)
 {
     std::vector<TickVote> result = db_get_tick_votes(tick);
     if (!result.empty()) {

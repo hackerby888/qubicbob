@@ -191,7 +191,7 @@ std::string bobGetLog(uint16_t epoch, int64_t start, int64_t end)
 
 std::string bobGetTick(const uint32_t tick) {
     TickData td {};
-    db_try_get_TickData(tick, td);
+    db_try_get_tick_data(tick, td);
 
     Json::Value root;
     root["tick"] = tick;
@@ -241,7 +241,7 @@ std::string bobGetTick(const uint32_t tick) {
     root["tickdata"] = tdJson;
 
     // Add TickVote array (minimal fields, keep signatures as hex)
-    auto tick_votes = db_try_get_TickVote(tick);
+    auto tick_votes = db_try_get_tick_vote(tick);
     Json::Value votes(Json::arrayValue);
     for (const auto &vote : tick_votes) {
         Json::Value voteObj;

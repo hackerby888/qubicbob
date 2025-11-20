@@ -295,7 +295,7 @@ void indexVerifiedTicks(std::atomic_bool& stopFlag)
 
         // Only proceed when the verified-compressed record exists.
         TickData td;
-        db_try_get_TickData(nextTick, td);
+        db_try_get_tick_data(nextTick, td);
         indexTick(nextTick, td);
 
         // Persist progress.

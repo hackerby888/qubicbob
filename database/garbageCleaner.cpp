@@ -54,7 +54,7 @@ bool cleanTransactionLogs(uint32_t tick)
 {
     TickData td{};
     ResponseAllLogIdRangesFromTick lr{};
-    db_try_get_TickData(tick, td);
+    db_try_get_tick_data(tick, td);
     db_try_get_log_ranges(tick, lr);
     cleanTransactionAndLogs(td, lr);
 }
