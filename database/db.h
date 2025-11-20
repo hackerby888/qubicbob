@@ -409,29 +409,18 @@ bool db_delete_log_ranges(uint32_t tick);
 // Returns true if the key was removed (or did not exist), false on Redis error.
 bool db_delete_tick_data(uint32_t tick);
 
-// Deletes a TickVote for a specific tick and computor index.
-// Returns true if the key was removed (or did not exist), false on Redis error.
-bool db_delete_tick_vote(uint32_t tick, uint16_t computorIndex);
 bool db_delete_tick_vote(uint32_t tick);
-
-// New: get log range for a specific tx in a tick
-// Returns true on success; outputs fromLogId and length.
-bool db_get_log_range_for_tx(uint32_t tick, uint32_t txId, long long& fromLogId, long long& length);
 
 // New: get aggregated log range for the whole tick (from key "...:-1")
 // Returns true on success; outputs fromLogId and length.
 bool db_get_log_range_for_tick(uint32_t tick, long long& fromLogId, long long& length);
-
-// Digest helpers (per-tick materialized digests). Return zeroed m256i on absence/failure.
-m256i db_getSpectrumDigest(uint32_t tick);
-m256i db_getUniverseDigest(uint32_t tick);
 
 // Store and get Computors by epoch. Key: "computor:<epoch>"
 bool db_insert_computors(const Computors& comps);
 bool db_get_computors(uint16_t epoch, Computors& comps);
 bool db_log_exists(uint16_t epoch, uint64_t logId);
 
-bool db_get_log(uint16_t epoch, uint64_t logId, LogEvent &log);
+bool db_try_get_log(uint16_t epoch, uint64_t logId, LogEvent &log);
 
 long long db_get_last_indexed_tick();
 bool db_update_last_indexed_tick(uint32_t tick);

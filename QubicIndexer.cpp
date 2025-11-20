@@ -59,7 +59,7 @@ static void indexTick(uint32_t tick, const TickData &td) {
             LogEvent firstEvent;
             bool isExecuted = false;
             if (logrange.length[i] > 0) {
-                db_get_log(td.epoch, logrange.fromLogId[i], firstEvent);
+                db_try_get_log(td.epoch, logrange.fromLogId[i], firstEvent);
                 if (firstEvent.getType() == QU_TRANSFER) { // QuTransfer type
                     QuTransfer transfer{};
                     memcpy((void*)&transfer, firstEvent.getLogBodyPtr(), sizeof(QuTransfer));

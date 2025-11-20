@@ -569,7 +569,7 @@ static bool fill_log_from_key_and_fields(const std::string& key,
     return false;
 }
 
-bool db_get_log(uint16_t epoch, uint64_t logId, LogEvent &log) {
+bool _db_get_log(uint16_t epoch, uint64_t logId, LogEvent &log) {
     if (!g_redis) return false;
     log.clear();
     try {
@@ -583,17 +583,51 @@ bool db_get_log(uint16_t epoch, uint64_t logId, LogEvent &log) {
 
         // Basic sanity: header must exist and match epoch/logId
         if (!log.hasPackedHeader()) {
-            Logger::get()->warn("db_get_log: value too small for header at key {}", key);
+            Logger::get()->warn("db_try_get_log: value too small for header at key {}", key);
             return false;
         }
         if (log.getEpoch() != epoch || log.getLogId() != logId) {
-            Logger::get()->warn("db_get_log: header mismatch for key {}, got epoch {}, logId {}", key, log.getEpoch(), log.getLogId());
+            Logger::get()->warn("db_try_get_log: header mismatch for key {}, got epoch {}, logId {}", key, log.getEpoch(), log.getLogId());
             // Not fatal, but indicate bad record
             return false;
         }
         return true;
     } catch (const sw::redis::Error &e) {
-        Logger::get()->error("Redis error in db_get_log: %s\n", e.what());
+        Logger::get()->error("Redis error in db_try_get_log: %s\n", e.what());
+        return false;
+    }
+}
+
+bool db_try_get_log(uint16_t epoch, uint64_t logId, LogEvent &log)
+{
+    // Try redis first
+    if (_db_get_log(epoch, logId, log)) {
+        return true;
+    }
+
+    // Fall back to kvrocks
+    if (!g_kvrocks) return false;
+    try {
+        const std::string key = "log:" + std::to_string(epoch) + ":" + std::to_string(logId);
+        auto val = g_kvrocks->get(key);
+        if (!val) {
+            return false;
+        }
+        log.updateContent(reinterpret_cast<const uint8_t *>(val->data()), static_cast<int>(val->size()));
+
+        // Basic sanity: header must exist and match epoch/logId
+        if (!log.hasPackedHeader()) {
+            Logger::get()->warn("db_try_get_log: value too small for header at key {}", key);
+            return false;
+        }
+        if (log.getEpoch() != epoch || log.getLogId() != logId) {
+            Logger::get()->warn("db_try_get_log: header mismatch for key {}, got epoch {}, logId {}",
+                                key, log.getEpoch(), log.getLogId());
+            return false;
+        }
+        return true;
+    } catch (const sw::redis::Error &e) {
+        Logger::get()->error("Kvrocks error in db_try_get_log: {}\n", e.what());
         return false;
     }
 }

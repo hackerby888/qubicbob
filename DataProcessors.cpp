@@ -431,7 +431,7 @@ void replyLogEvent(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
     for (uint64_t i = request->fromid; i <= request->toid; i++)
     {
         LogEvent le;
-        if (db_get_log(gCurrentProcessingEpoch, i, le))
+        if (db_try_get_log(gCurrentProcessingEpoch, i, le))
         {
             int currentSize = resp.size();
             resp.resize(currentSize + le.getLogSize() + LogEvent::PackedHeaderSize);
@@ -488,7 +488,7 @@ void replyLogEventSignature(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
     for (uint64_t i = request->startLogId; i <= request->endLogId; i++)
     {
         LogEvent le;
-        if (db_get_log(gCurrentProcessingEpoch, i, le))
+        if (db_try_get_log(gCurrentProcessingEpoch, i, le))
         {
             int currentSize = resp.size();
             resp.resize(currentSize + le.getLogSize() + LogEvent::PackedHeaderSize);
