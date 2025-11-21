@@ -59,14 +59,14 @@ static void indexTick(uint32_t tick, const TickData &td) {
             LogEvent firstEvent;
             bool isExecuted = false;
             if (logrange.length[i] > 0) {
-                db_get_log(td.epoch, logrange.fromLogId[i], firstEvent);
+                db_try_get_log(td.epoch, logrange.fromLogId[i], firstEvent);
                 if (firstEvent.getType() == QU_TRANSFER) { // QuTransfer type
                     QuTransfer transfer{};
                     memcpy((void*)&transfer, firstEvent.getLogBodyPtr(), sizeof(QuTransfer));
                     std::vector<uint8_t> tx_data;
-                    if (db_get_transaction(txHash, tx_data)) {
+                    if (db_try_get_transaction(txHash, tx_data)) {
                         auto tx = (Transaction*)tx_data.data();
-                        if (tx->amount <= gSpamThreshold && tx->inputSize == 0 && tx->inputType == 0) // spam tx => not index
+                        if (tx->amount < gSpamThreshold && tx->inputSize == 0 && tx->inputType == 0) // spam tx => not index
                         {
                             continue;
                         }
@@ -295,7 +295,7 @@ void indexVerifiedTicks(std::atomic_bool& stopFlag)
 
         // Only proceed when the verified-compressed record exists.
         TickData td;
-        db_try_get_TickData(nextTick, td);
+        db_try_get_tick_data(nextTick, td);
         indexTick(nextTick, td);
 
         // Persist progress.

@@ -9,6 +9,7 @@
 #include <atomic>
 #include <cstdint>
 #include <iomanip>
+#include <chrono>
 
 #include "bob.h"
 #include "Logger.h"
@@ -359,48 +360,34 @@ namespace {
         // 2) Enqueue the request (non-blocking)
         enqueueSmartContractRequest(nonce, scIndex, funcNumber, dataBytes.data(), static_cast<uint32_t>(dataBytes.size()));
 
-        // 3) Async wait up to 100ms with 5ms steps, on the event loop
-        auto loop = drogon::app().getLoop();
-        struct State {
-            uint32_t nonce;
-            int attempts = 0;       // 20 attempts x 5ms = 100ms
-            std::function<void(const HttpResponsePtr &)> cb;
-        };
-        auto st = std::make_shared<State>(State{nonce, 0, std::move(callback)});
-
-        // Use a shared function holder to avoid self-capture of an uninitialized std::function
-        auto task = std::make_shared<std::function<void()>>();
-        *task = [st, loop, task]() {
-            std::vector<uint8_t> out;
-            if (responseSCData.get(st->nonce, out)) {
-                Json::Value root;
-                root["nonce"] = st->nonce;
-                std::stringstream ss;
-                ss << std::hex << std::setfill('0');
-                for (const auto& b : out) ss << std::setw(2) << static_cast<int>(b);
-                root["data"] = ss.str();
-                Json::FastWriter writer;
-                st->cb(makeJsonResponse(writer.write(root)));
-                return;
+        // 3) Async wait up to 2000ms with 100ms steps, on a child thread
+        std::thread([nonce, cb = std::move(callback)]() mutable {
+            for (int attempt = 0; attempt <= 20; ++attempt) {
+                std::vector<uint8_t> out;
+                if (responseSCData.get(nonce, out)) {
+                    Json::Value root;
+                    root["nonce"] = nonce;
+                    std::stringstream ss;
+                    ss << std::hex << std::setfill('0');
+                    for (const auto& b : out) ss << std::setw(2) << static_cast<int>(b);
+                    root["data"] = ss.str();
+                    Json::FastWriter writer;
+                    cb(makeJsonResponse(writer.write(root)));
+                    return;
+                }
+                if (attempt == 20) break;
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
-            if (++st->attempts >= 20) {
-                // timeout ~100ms
-                Json::Value root;
-                root["error"] = "pending";
-                root["message"] = "Query enqueued; try again with the same nonce";
-                root["nonce"] = st->nonce;
-                Json::FastWriter writer;
-                auto resp = makeJsonResponse(writer.write(root), k202Accepted);
-                resp->setCloseConnection(true);
-                st->cb(resp);
-                return;
-            }
-            // schedule next check after 5ms
-            loop->runAfter(0.005, [task]() { (*task)(); });
-        };
-
-        // kick off the first check quickly (no blocking)
-        loop->runAfter(0.0, [task]() { (*task)(); });
+            // timeout ~2000ms
+            Json::Value root;
+            root["error"] = "pending";
+            root["message"] = "Query enqueued; try again with the same nonce";
+            root["nonce"] = nonce;
+            Json::FastWriter writer;
+            auto resp = makeJsonResponse(writer.write(root), k202Accepted);
+            resp->setCloseConnection(true);
+            cb(resp);
+        }).detach();
     } catch (const std::exception &ex) {
         callback(makeError(std::string("querySmartContract error: ") + ex.what(), k500InternalServerError));
     }

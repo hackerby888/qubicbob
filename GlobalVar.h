@@ -63,6 +63,9 @@ struct GlobalState {
     int gMaxThreads = std::thread::hardware_concurrency();
 
     long long gSpamThreshold;
+
+    TxStorageMode gTxStorageMode = TxStorageMode::LastNTick;
+    uint32_t gTxTickToLive = 10000;
 };
 
 // Safe, lazy singleton accessor avoids static init order issues.

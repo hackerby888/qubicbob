@@ -89,7 +89,7 @@ void processTransaction(const uint8_t* ptr)
         return; // already verified
     }
     TickData td{};
-    if (!db_try_get_TickData(tx->tick, td))
+    if (!db_try_get_tick_data(tx->tick, td))
     {
         return;
     }
@@ -301,7 +301,7 @@ void replyTransaction(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
     RequestedTickTransactions *request = (RequestedTickTransactions *)ptr;
     uint32_t tick = request->tick;
     TickData td;
-    if (!db_try_get_TickData(tick, td))
+    if (!db_try_get_tick_data(tick, td))
     {
         conn->sendEndPacket(dejavu);
         return;
@@ -316,7 +316,7 @@ void replyTransaction(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
                 getIdentityFromPublicKey(td.transactionDigests[i].m256i_u8, hash, true);
                 std::string strHash(hash);
                 std::vector<uint8_t> txData;
-                if (db_get_transaction(strHash, txData))
+                if (db_try_get_transaction(strHash, txData))
                 {
                     RequestResponseHeader resp;
                     resp.setSize(8 + txData.size());
@@ -359,7 +359,7 @@ void replyTickVotes(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
 {
     auto *request = (RequestedQuorumTick *)ptr;
     uint32_t tick = request->tick;
-    auto votes = db_try_get_TickVote(tick);
+    auto votes = db_try_get_tick_vote(tick);
     for (auto& tv : votes)
     {
         int i = tv.computorIndex;
@@ -390,7 +390,7 @@ void replyTickData(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
     uint32_t tick;
     memcpy((void*)&tick, ptr, 4);
     TickData td;
-    if (!db_try_get_TickData(tick, td))
+    if (!db_try_get_tick_data(tick, td))
     {
         conn->sendEndPacket(dejavu);
         return;
@@ -431,7 +431,7 @@ void replyLogEvent(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
     for (uint64_t i = request->fromid; i <= request->toid; i++)
     {
         LogEvent le;
-        if (db_get_log(gCurrentProcessingEpoch, i, le))
+        if (db_try_get_log(gCurrentProcessingEpoch, i, le))
         {
             int currentSize = resp.size();
             resp.resize(currentSize + le.getLogSize() + LogEvent::PackedHeaderSize);
@@ -488,7 +488,7 @@ void replyLogEventSignature(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
     for (uint64_t i = request->startLogId; i <= request->endLogId; i++)
     {
         LogEvent le;
-        if (db_get_log(gCurrentProcessingEpoch, i, le))
+        if (db_try_get_log(gCurrentProcessingEpoch, i, le))
         {
             int currentSize = resp.size();
             resp.resize(currentSize + le.getLogSize() + LogEvent::PackedHeaderSize);

@@ -251,5 +251,104 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
         }
     }
 
+    // Parse 'tx-storage-mode' and related options
+    {
+        std::string mode = "lastNTick";
+        if (root.isMember("tx-storage-mode")) {
+            if (!root["tx-storage-mode"].isString()) {
+                error = "Invalid type: string required for key 'tx-storage-mode'";
+                return false;
+            }
+            mode = root["tx-storage-mode"].asString();
+        }
+
+        if (mode == "lastNTick") {
+            out.tx_storage_mode = TxStorageMode::LastNTick;
+
+            // Use the same last_n_tick_storage (default 1000)
+            if (root.isMember("last_n_tick_storage")) {
+                const auto& v = root["last_n_tick_storage"];
+                if (v.isUInt()) {
+                    out.last_n_tick_storage = v.asUInt();
+                } else if (v.isInt()) {
+                    int i = v.asInt();
+                    if (i < 0) {
+                        error = "Negative integer is invalid for key 'last_n_tick_storage'";
+                        return false;
+                    }
+                    out.last_n_tick_storage = static_cast<unsigned>(i);
+                } else {
+                    error = "Invalid type: unsigned integer required for key 'last_n_tick_storage'";
+                    return false;
+                }
+            } else {
+                if (out.last_n_tick_storage == 0) {
+                    out.last_n_tick_storage = 1000;
+                }
+            }
+        } else if (mode == "kvrocks") {
+            out.tx_storage_mode = TxStorageMode::Kvrocks;
+
+            // kvrocks-url (default tcp://127.0.0.1:6666) — reuse same URL
+            if (root.isMember("kvrocks-url")) {
+                if (!root["kvrocks-url"].isString()) {
+                    error = "Invalid type: string required for key 'kvrocks-url'";
+                    return false;
+                }
+                out.kvrocks_url = root["kvrocks-url"].asString();
+            } else {
+                if (out.kvrocks_url.empty()) {
+                    out.kvrocks_url = "tcp://127.0.0.1:6666";
+                }
+            }
+
+            // tx_tick_to_live (unsigned, ticks in RAM)
+            if (root.isMember("tx_tick_to_live")) {
+                const auto& v = root["tx_tick_to_live"];
+                if (v.isUInt()) {
+                    out.tx_tick_to_live = v.asUInt();
+                } else if (v.isInt()) {
+                    int i = v.asInt();
+                    if (i < 0) {
+                        error = "Negative integer is invalid for key 'tx_tick_to_live'";
+                        return false;
+                    }
+                    out.tx_tick_to_live = static_cast<unsigned>(i);
+                } else {
+                    error = "Invalid type: unsigned integer required for key 'tx_tick_to_live'";
+                    return false;
+                }
+            }
+            else
+            {
+                out.tx_tick_to_live = 10000;
+            }
+        } else if (mode == "free") {
+            out.tx_storage_mode = TxStorageMode::Free;
+            // Do nothing; leave cleanup to keydb.
+        } else {
+            error = "Invalid value for 'tx-storage-mode': must be one of 'lastNTick', 'kvrocks', or 'free'";
+            return false;
+        }
+    }
+
+
+    if (out.tick_storage_mode == TickStorageMode::LastNTick)
+    {
+        if (out.tx_storage_mode != TxStorageMode::LastNTick && out.tx_storage_mode != TxStorageMode::Free)
+        {
+            error = "Conflicted tick and tx storage mode. tick_storage_mode => LastNTick requires tx_storage_mode => LastNTick|Free";
+            return false;
+        }
+    }
+
+    if (out.tick_storage_mode == TickStorageMode::Kvrocks)
+    {
+        if (out.tx_storage_mode != TxStorageMode::Kvrocks && out.tx_storage_mode != TxStorageMode::Free)
+        {
+            error = "Conflicted tick and tx storage mode. tick_storage_mode => kvrocks requires tx_storage_mode => kvrocks|Free";
+            return false;
+        }
+    }
     return true;
 }

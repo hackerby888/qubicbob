@@ -400,7 +400,7 @@ bool db_get_tick_data(uint32_t tick, TickData& data);
 bool db_check_log_range(uint32_t tick);
 bool db_try_get_log_ranges(uint32_t tick, ResponseAllLogIdRangesFromTick &logRange);
 bool db_has_tick_data(uint32_t tick);
-bool db_get_transaction(const std::string& tx_hash, std::vector<uint8_t>& tx_data);
+bool db_try_get_transaction(const std::string& tx_hash, std::vector<uint8_t>& tx_data);
 bool db_check_transaction_exist(const std::string& tx_hash);
 
 // ---- Deletion Functions ----
@@ -409,29 +409,18 @@ bool db_delete_log_ranges(uint32_t tick);
 // Returns true if the key was removed (or did not exist), false on Redis error.
 bool db_delete_tick_data(uint32_t tick);
 
-// Deletes a TickVote for a specific tick and computor index.
-// Returns true if the key was removed (or did not exist), false on Redis error.
-bool db_delete_tick_vote(uint32_t tick, uint16_t computorIndex);
 bool db_delete_tick_vote(uint32_t tick);
-
-// New: get log range for a specific tx in a tick
-// Returns true on success; outputs fromLogId and length.
-bool db_get_log_range_for_tx(uint32_t tick, uint32_t txId, long long& fromLogId, long long& length);
 
 // New: get aggregated log range for the whole tick (from key "...:-1")
 // Returns true on success; outputs fromLogId and length.
 bool db_get_log_range_for_tick(uint32_t tick, long long& fromLogId, long long& length);
-
-// Digest helpers (per-tick materialized digests). Return zeroed m256i on absence/failure.
-m256i db_getSpectrumDigest(uint32_t tick);
-m256i db_getUniverseDigest(uint32_t tick);
 
 // Store and get Computors by epoch. Key: "computor:<epoch>"
 bool db_insert_computors(const Computors& comps);
 bool db_get_computors(uint16_t epoch, Computors& comps);
 bool db_log_exists(uint16_t epoch, uint64_t logId);
 
-bool db_get_log(uint16_t epoch, uint64_t logId, LogEvent &log);
+bool db_try_get_log(uint16_t epoch, uint64_t logId, LogEvent &log);
 
 long long db_get_last_indexed_tick();
 bool db_update_last_indexed_tick(uint32_t tick);
@@ -492,30 +481,32 @@ bool db_rename(const std::string &key1, const std::string &key2);
 bool db_key_exists(const std::string &key);
 bool db_update_field(const std::string key, const std::string field, const std::string value);
 
-bool db_try_get_TickData(uint32_t tick, TickData& data);
+bool db_try_get_tick_data(uint32_t tick, TickData& data);
 bool db_get_end_epoch_log_range(uint16_t epoch, long long &fromLogId, long long &length);
 
 
 
 
-bool db_migrate_vtick(uint32_t tick);
+
 void db_kvrocks_connect(const std::string &connectionString);
-bool db_migrate_log_ranges(uint32_t tick);
-bool db_migrate_log(uint16_t epoch, uint64_t logId);
-bool db_migrate_transaction(const std::string &tx_hash);
-bool db_delete_tick_data_batch(uint32_t tick, uint32_t batch);
-bool db_delete_tick_vote_batch(uint32_t tick, uint32_t batch);
 
 // functions for persistant on disk layer
 void compressTickAndMoveToKVRocks(uint32_t tick);
-bool cleanRawTick(uint32_t fromTick, uint32_t toTick);
+bool cleanRawTick(uint32_t fromTick, uint32_t toTick, bool withTransactions);
+bool cleanTransactionLogs(uint32_t tick);
 
 bool db_insert_vtick_to_kvrocks(uint32_t tick, const FullTickStruct& fullTick);
 bool db_get_vtick_from_kvrocks(uint32_t tick, FullTickStruct& outFullTick);
 
-std::vector<TickVote> db_try_get_TickVote(uint32_t tick);
+std::vector<TickVote> db_try_get_tick_vote(uint32_t tick);
 
 void db_kvrocks_close();
 
 bool db_insert_cLogRange_to_kvrocks(uint32_t tick, const ResponseAllLogIdRangesFromTick& logRange);
 bool db_get_cLogRange_from_kvrocks(uint32_t tick, ResponseAllLogIdRangesFromTick& outLogRange);
+
+bool db_copy_transaction_to_kvrocks(const std::string &tx_hash);
+
+bool db_move_logs_to_kvrocks_by_range(uint16_t epoch, long long fromLogId, long long toLogId);
+bool db_delete_transaction(std::string hash);
+bool db_delete_logs(uint16_t epoch, long long start, long long end);

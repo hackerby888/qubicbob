@@ -26,13 +26,15 @@ void DataProcessorThread(std::atomic_bool& exitFlag);
 void RequestProcessorThread(std::atomic_bool& exitFlag);
 void verifyLoggingEvent(std::atomic_bool& stopFlag);
 void indexVerifiedTicks(std::atomic_bool& stopFlag);
-bool cleanRawTick(uint32_t fromTick, uint32_t toTick);
 void querySmartContractThread(ConnectionPool& connPoolAll, std::atomic_bool& stopFlag);
-std::atomic_bool stopFlag{false};
-
 // Public helpers from QubicServer.cpp
 bool StartQubicServer(uint16_t port = 21842);
 void StopQubicServer();
+void garbageCleaner(std::atomic_bool& stopFlag);
+
+std::atomic_bool stopFlag{false};
+
+
 
 static inline void set_this_thread_name(const char* name_in) {
     // Linux allows up to 16 bytes including null terminator
@@ -44,54 +46,6 @@ static inline void set_this_thread_name(const char* name_in) {
 void requestToExitBob()
 {
     stopFlag = true;
-}
-
-void garbageCleaner()
-{
-    Logger::get()->info("Start garbage cleaner");
-    long long lastCleanTick = gCurrentFetchingTick - 1;
-    uint32_t lastReportedTick = 0;
-    while (!stopFlag.load())
-    {
-        int count = 0;
-        SLEEP(100);
-        if (stopFlag.load()) break;
-        if (gTickStorageMode == TickStorageMode::LastNTick)
-        {
-            long long cleanToTick = (long long)(gCurrentVerifyLoggingTick.load()) - 5;
-            cleanToTick = std::min(cleanToTick, (long long)(gCurrentVerifyLoggingTick) - 1 - gLastNTickStorage);
-            if (lastCleanTick < cleanToTick)
-            {
-                if (cleanRawTick(lastCleanTick + 1, cleanToTick))
-                {
-                    lastCleanTick = cleanToTick;
-                }
-            }
-        }
-        else if (gTickStorageMode == TickStorageMode::Kvrocks)
-        {
-            long long cleanToTick = (long long)(gCurrentVerifyLoggingTick.load()) - 5;
-            if (lastCleanTick < cleanToTick)
-            {
-                for (long long t = lastCleanTick+1; t <= cleanToTick; t++)
-                {
-                    compressTickAndMoveToKVRocks(t);
-                }
-                Logger::get()->trace("Compressed tick {}->{} to kvrocks", lastCleanTick+1, cleanToTick);
-                if (cleanRawTick(lastCleanTick + 1, cleanToTick))
-                {
-                    lastCleanTick = cleanToTick;
-                }
-                Logger::get()->trace("Cleaned tick {}->{} in keydb", lastCleanTick+1, cleanToTick);
-                if (cleanToTick - lastReportedTick > 1000)
-                {
-                    Logger::get()->trace("Compressed and cleaned up to tick {}", cleanToTick);
-                    lastReportedTick = cleanToTick;
-                }
-            }
-        }
-    }
-    Logger::get()->info("Exited garbage cleaner");
 }
 
 int runBob(int argc, char *argv[])
@@ -126,6 +80,8 @@ int runBob(int argc, char *argv[])
     gTrustedEntities = cfg.trustedEntities;
     gTickStorageMode = cfg.tick_storage_mode;
     gLastNTickStorage = cfg.last_n_tick_storage;
+    gTxStorageMode = cfg.tx_storage_mode;
+    gTxTickToLive = cfg.tx_tick_to_live;
     gSpamThreshold = cfg.spam_qu_threshold;
 
     // Defaults for new knobs are already in AppConfig
@@ -293,9 +249,9 @@ int runBob(int argc, char *argv[])
     });
     startRESTServer();
     std::thread garbage_thread;
-    if (cfg.tick_storage_mode != TickStorageMode::Free)
+    if (cfg.tick_storage_mode != TickStorageMode::Free || cfg.tx_storage_mode != TxStorageMode::Free)
     {
-        garbage_thread = std::thread(garbageCleaner);
+        garbage_thread = std::thread(garbageCleaner, std::ref(stopFlag));
     }
 
 

@@ -40,5 +40,8 @@
 #define gTickStorageMode                 (GS().gTickStorageMode)
 #define gLastNTickStorage                 (GS().gLastNTickStorage)
 
+#define gTxStorageMode                 (GS().gTxStorageMode)
+#define gTxTickToLive                 (GS().gTxTickToLive)
+
 #define gMaxThreads (GS().gMaxThreads)
 #define gSpamThreshold (GS().gSpamThreshold)

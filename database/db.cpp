@@ -88,6 +88,37 @@ bool db_insert_transaction(const Transaction* tx) {
     return true;
 }
 
+bool db_delete_transaction(std::string hash)
+{
+    if (!g_redis) return false;
+    try {
+        std::string key = "transaction:" + hash;
+        g_redis->unlink(key);
+    } catch (const sw::redis::Error& e) {
+        Logger::get()->error("Redis error: {}\n", e.what());
+        return false;
+    }
+    return true;
+}
+
+bool db_delete_logs(uint16_t epoch, long long start, long long end)
+{
+    if (!g_redis) return false;
+    try {
+        for (long long i = start; i <= end; i++)
+        {
+            std::string key = "log:" +
+                              std::to_string(epoch) + ":" +
+                              std::to_string(i);
+            g_redis->unlink(key);
+        }
+    } catch (const sw::redis::Error& e) {
+        Logger::get()->error("Redis error: {}\n", e.what());
+        return false;
+    }
+    return true;
+}
+
 bool db_insert_log(uint16_t epoch, uint32_t tick, uint64_t logId, int logSize, const uint8_t* content) {
     if (!g_redis) return false;
     try {
@@ -538,7 +569,7 @@ static bool fill_log_from_key_and_fields(const std::string& key,
     return false;
 }
 
-bool db_get_log(uint16_t epoch, uint64_t logId, LogEvent &log) {
+bool _db_get_log(uint16_t epoch, uint64_t logId, LogEvent &log) {
     if (!g_redis) return false;
     log.clear();
     try {
@@ -552,17 +583,51 @@ bool db_get_log(uint16_t epoch, uint64_t logId, LogEvent &log) {
 
         // Basic sanity: header must exist and match epoch/logId
         if (!log.hasPackedHeader()) {
-            Logger::get()->warn("db_get_log: value too small for header at key {}", key);
+            Logger::get()->warn("db_try_get_log: value too small for header at key {}", key);
             return false;
         }
         if (log.getEpoch() != epoch || log.getLogId() != logId) {
-            Logger::get()->warn("db_get_log: header mismatch for key {}, got epoch {}, logId {}", key, log.getEpoch(), log.getLogId());
+            Logger::get()->warn("db_try_get_log: header mismatch for key {}, got epoch {}, logId {}", key, log.getEpoch(), log.getLogId());
             // Not fatal, but indicate bad record
             return false;
         }
         return true;
     } catch (const sw::redis::Error &e) {
-        Logger::get()->error("Redis error in db_get_log: %s\n", e.what());
+        Logger::get()->error("Redis error in db_try_get_log: %s\n", e.what());
+        return false;
+    }
+}
+
+bool db_try_get_log(uint16_t epoch, uint64_t logId, LogEvent &log)
+{
+    // Try redis first
+    if (_db_get_log(epoch, logId, log)) {
+        return true;
+    }
+
+    // Fall back to kvrocks
+    if (!g_kvrocks) return false;
+    try {
+        const std::string key = "log:" + std::to_string(epoch) + ":" + std::to_string(logId);
+        auto val = g_kvrocks->get(key);
+        if (!val) {
+            return false;
+        }
+        log.updateContent(reinterpret_cast<const uint8_t *>(val->data()), static_cast<int>(val->size()));
+
+        // Basic sanity: header must exist and match epoch/logId
+        if (!log.hasPackedHeader()) {
+            Logger::get()->warn("db_try_get_log: value too small for header at key {}", key);
+            return false;
+        }
+        if (log.getEpoch() != epoch || log.getLogId() != logId) {
+            Logger::get()->warn("db_try_get_log: header mismatch for key {}, got epoch {}, logId {}",
+                                key, log.getEpoch(), log.getLogId());
+            return false;
+        }
+        return true;
+    } catch (const sw::redis::Error &e) {
+        Logger::get()->error("Kvrocks error in db_try_get_log: {}\n", e.what());
         return false;
     }
 }
@@ -764,7 +829,7 @@ bool db_get_tick_data(uint32_t tick, TickData& data) {
     return false;
 }
 
-bool db_get_transaction(const std::string& tx_hash, std::vector<uint8_t>& tx_data) {
+bool _db_get_transaction(const std::string& tx_hash, std::vector<uint8_t>& tx_data) {
     if (!g_redis) return false;
     try {
         // Tick is no longer used in the key; fetch by hash only.
@@ -776,10 +841,33 @@ bool db_get_transaction(const std::string& tx_hash, std::vector<uint8_t>& tx_dat
         tx_data.assign(val->begin(), val->end());
         return true;
     } catch (const sw::redis::Error& e) {
-        Logger::get()->error("Redis error in db_get_transaction (by hash, tick ignored): %s\n", e.what());
+        Logger::get()->error("Redis error in db_try_get_transaction (by hash, tick ignored): %s\n", e.what());
     }
     return false;
 }
+
+bool db_try_get_transaction(const std::string& tx_hash, std::vector<uint8_t>& tx_data) {
+    // Try redis first
+    if (_db_get_transaction(tx_hash, tx_data)) {
+        return true;
+    }
+
+    // Fall back to kvrocks
+    if (!g_kvrocks) return false;
+    try {
+        const std::string key = "transaction:" + tx_hash;
+        auto val = g_kvrocks->get(key);
+        if (!val) {
+            return false;
+        }
+        tx_data.assign(val->begin(), val->end());
+        return true;
+    } catch (const sw::redis::Error &e) {
+        Logger::get()->error("Kvrocks error in db_try_get_transaction: %s\n", e.what());
+    }
+    return false;
+}
+
 
 bool db_check_transaction_exist(const std::string& tx_hash) {
     if (!g_redis) return false;
@@ -1202,6 +1290,28 @@ bool db_update_field(const std::string key, const std::string field, const std::
     }
 }
 
+bool db_copy_transaction_to_kvrocks(const std::string &tx_hash) {
+    if (!g_redis || !g_kvrocks) return false;
+    try {
+        const std::string key = "transaction:" + tx_hash;
+
+        // Read transaction data from KeyDB
+        auto val = g_redis->get(key);
+        if (!val) {
+            return false; // nothing to migrate for this transaction
+        }
+
+        // Write to Kvrocks
+        sw::redis::StringView view(val->data(), val->size());
+        g_kvrocks->set(key, view);
+
+        return true;
+    } catch (const sw::redis::Error &e) {
+        Logger::get()->error("Redis error in db_migrate_transaction: {}\n", e.what());
+        return false;
+    }
+}
+
 bool db_rename(const std::string &key1, const std::string &key2) {
     if (!g_redis) return false;
     try {
@@ -1254,7 +1364,7 @@ bool db_get_u32(const std::string key, uint32_t &value) {
     }
 }
 
-bool db_try_get_TickData(uint32_t tick, TickData& data)
+bool db_try_get_tick_data(uint32_t tick, TickData& data)
 {
     if (db_get_tick_data(tick, data)) {
         return true;
@@ -1268,7 +1378,7 @@ bool db_try_get_TickData(uint32_t tick, TickData& data)
     return false;
 }
 
-std::vector<TickVote> db_try_get_TickVote(uint32_t tick)
+std::vector<TickVote> db_try_get_tick_vote(uint32_t tick)
 {
     std::vector<TickVote> result = db_get_tick_votes(tick);
     if (!result.empty()) {
@@ -1282,36 +1392,7 @@ std::vector<TickVote> db_try_get_TickVote(uint32_t tick)
     return result;
 }
 
-/* KVROCKS*/
-
-bool db_migrate_vtick(uint32_t tick) {
-    if (!g_redis || !g_kvrocks) return false;
-
-    try {
-        const std::string key = "vtick:" + std::to_string(tick);
-
-        // Read the original compressed blob from KeyDB
-        auto val = g_redis->get(key);
-        if (!val) {
-            return false; // nothing to migrate for this tick
-        }
-
-        // Write the exact same blob to Kvrocks
-        sw::redis::StringView view(val->data(), val->size());
-        g_kvrocks->set(key, view);
-
-        // Remove the source key from KeyDB
-        std::vector<std::string> delKeys{key};
-        g_redis->unlink(delKeys.begin(), delKeys.end());
-
-        return true;
-    } catch (const sw::redis::Error &e) {
-        Logger::get()->error("Redis error in db_migrate_vtick: {}\n", e.what());
-        return false;
-    }
-}
-
-bool db_migrate_log(uint16_t epoch, uint64_t logId) {
+bool db_move_log_to_kvrocks(uint16_t epoch, uint64_t logId) {
     if (!g_redis || !g_kvrocks) return false;
 
     try {
@@ -1327,10 +1408,6 @@ bool db_migrate_log(uint16_t epoch, uint64_t logId) {
         sw::redis::StringView view(val->data(), val->size());
         g_kvrocks->set(key, view);
 
-        // Remove from KeyDB
-        std::vector<std::string> delKeys{key};
-        g_redis->unlink(delKeys.begin(), delKeys.end());
-
         return true;
     } catch (const sw::redis::Error &e) {
         Logger::get()->error("Redis error in db_migrate_log: {}\n", e.what());
@@ -1338,58 +1415,20 @@ bool db_migrate_log(uint16_t epoch, uint64_t logId) {
     }
 }
 
+bool db_move_logs_to_kvrocks_by_range(uint16_t epoch, long long fromLogId, long long toLogId) {
+    if (!g_redis || !g_kvrocks || fromLogId < 0 || toLogId < fromLogId) return false;
 
-
-bool db_migrate_log_ranges(uint32_t tick) {
-    if (!g_redis || !g_kvrocks) return false;
     try {
-        // Migrate log_ranges:<tick>
-        const std::string ranges_key = "log_ranges:" + std::to_string(tick);
-        auto ranges_val = g_redis->get(ranges_key);
-        if (ranges_val) {
-            sw::redis::StringView view(ranges_val->data(), ranges_val->size());
-            g_kvrocks->set(ranges_key, view);
-            g_redis->unlink(ranges_key);
+        bool success = true;
+        for (long long logId = fromLogId; logId <= toLogId; logId++) {
+            if (!db_move_log_to_kvrocks(epoch, logId)) {
+                Logger::get()->warn("Failed to migrate log {}:{}", epoch, logId);
+                success = false;
+            }
         }
-
-        // Migrate tick_log_range:<tick>
-        const std::string tick_range_key = "tick_log_range:" + std::to_string(tick);
-        std::unordered_map<std::string, std::string> fields;
-        g_redis->hgetall(tick_range_key, std::inserter(fields, fields.begin()));
-        if (!fields.empty()) {
-            g_kvrocks->hmset(tick_range_key, fields.begin(), fields.end());
-            g_redis->unlink(tick_range_key);
-        }
-
-        return true;
-    } catch (const sw::redis::Error &e) {
-        Logger::get()->error("Redis error in db_migrate_log_ranges: {}\n", e.what());
-        return false;
-    }
-}
-
-bool db_migrate_transaction(const std::string &tx_hash) {
-    if (!g_redis || !g_kvrocks) return false;
-    try {
-        const std::string key = "transaction:" + tx_hash;
-
-        // Read transaction data from KeyDB
-        auto val = g_redis->get(key);
-        if (!val) {
-            return false; // nothing to migrate for this transaction
-        }
-
-        // Write to Kvrocks
-        sw::redis::StringView view(val->data(), val->size());
-        g_kvrocks->set(key, view);
-
-        // Remove from KeyDB
-        std::vector<std::string> delKeys{key};
-        g_redis->unlink(delKeys.begin(), delKeys.end());
-
-        return true;
-    } catch (const sw::redis::Error &e) {
-        Logger::get()->error("Redis error in db_migrate_transaction: {}\n", e.what());
+        return success;
+    } catch (const std::exception &e) {
+        Logger::get()->error("Error in db_migrate_logs_by_range: {}\n", e.what());
         return false;
     }
 }

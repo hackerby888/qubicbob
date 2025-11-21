@@ -94,7 +94,7 @@ std::string bobGetTransaction(const char* txHash)
 
     try {
         std::vector<uint8_t> txData;
-        if (!db_get_transaction(txHash, txData)) {
+        if (!db_try_get_transaction(txHash, txData)) {
             return "{\"error\": \"Transaction not found\"}";
         }
         Transaction *tx = reinterpret_cast<Transaction *>(txData.data());
@@ -163,7 +163,7 @@ std::string bobGetLog(uint16_t epoch, int64_t start, int64_t end)
 
     for (int64_t id = start; id <= end; ++id) {
         LogEvent log;
-        if (db_get_log(epoch, static_cast<uint64_t>(id), log)) {
+        if (db_try_get_log(epoch, static_cast<uint64_t>(id), log)) {
             std::string js = log.parseToJson();
             if (!first) result.push_back(',');
             result += js;
@@ -191,7 +191,7 @@ std::string bobGetLog(uint16_t epoch, int64_t start, int64_t end)
 
 std::string bobGetTick(const uint32_t tick) {
     TickData td {};
-    db_try_get_TickData(tick, td);
+    db_try_get_tick_data(tick, td);
 
     Json::Value root;
     root["tick"] = tick;
@@ -241,7 +241,7 @@ std::string bobGetTick(const uint32_t tick) {
     root["tickdata"] = tdJson;
 
     // Add TickVote array (minimal fields, keep signatures as hex)
-    auto tick_votes = db_try_get_TickVote(tick);
+    auto tick_votes = db_try_get_tick_vote(tick);
     Json::Value votes(Json::arrayValue);
     for (const auto &vote : tick_votes) {
         Json::Value voteObj;

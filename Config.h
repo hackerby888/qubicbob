@@ -11,6 +11,11 @@ enum class TickStorageMode {
     Kvrocks,
     Free
 };
+enum class TxStorageMode {
+    LastNTick,
+    Kvrocks,
+    Free
+};
 
 struct AppConfig {
     std::vector<std::string> trusted_nodes;
@@ -37,7 +42,10 @@ struct AppConfig {
     unsigned max_thread = 0;
     // Spam/Junk detection threshold for QU transfers (amount <= threshold and no input)
     unsigned spam_qu_threshold = 100;
-
+    // transaction storage mode configuration
+    TxStorageMode tx_storage_mode = TxStorageMode::LastNTick;
+    // For "kvrocks" tx-storage-mode: how long transactions stay in RAM (in ticks)
+    unsigned tx_tick_to_live = 10000;
 };
 
 // Returns true on success; on failure returns false and fills error with a human-readable message.
