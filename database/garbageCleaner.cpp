@@ -133,7 +133,7 @@ void garbageCleaner(std::atomic_bool& stopFlag)
             }
         }
 
-        if (gTxStorageMode == TxStorageMode::LastNTick)
+        if (gTxStorageMode == TxStorageMode::Kvrocks)
         {
             long long cleanToTick = (long long)(gCurrentIndexingTick.load()) - 5;
             cleanToTick = std::min(cleanToTick, (long long)(gCurrentIndexingTick) - 1 - gTxTickToLive);
