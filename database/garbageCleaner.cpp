@@ -1,6 +1,6 @@
 #include "database/db.h"
 #include "shim.h"
-bool cleanTransactionAndLogs(TickData& td, ResponseAllLogIdRangesFromTick& lr)
+bool cleanTransactionAndLogsAndSaveToDisk(TickData& td, ResponseAllLogIdRangesFromTick& lr)
 {
     for (int i = 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK; i++)
     {
@@ -56,7 +56,7 @@ bool cleanTransactionLogs(uint32_t tick)
     ResponseAllLogIdRangesFromTick lr{};
     db_try_get_tick_data(tick, td);
     db_try_get_log_ranges(tick, lr);
-    cleanTransactionAndLogs(td, lr);
+    cleanTransactionAndLogsAndSaveToDisk(td, lr);
 }
 
 bool cleanRawTick(uint32_t fromTick, uint32_t toTick, bool withTransactions)
@@ -144,6 +144,37 @@ void garbageCleaner(std::atomic_bool& stopFlag)
                     cleanTransactionLogs(t);
                 }
                 lastCleanTransactionTick = cleanToTick;
+            }
+        }
+    }
+    if (gIsEndEpoch)
+    {
+        Logger::get()->info("Garbage cleaner detected END EPOCH signal. Cleaning all data left on RAM");
+        if (gTickStorageMode == TickStorageMode::LastNTick)
+        {
+            long long cleanToTick = (long long)(gCurrentIndexingTick.load()) - 1;
+            if (lastCleanTickData < cleanToTick)
+            {
+                if (cleanRawTick(lastCleanTickData + 1, cleanToTick, true))
+                {
+                    Logger::get()->info("Cleaned all raw tick data");
+                }
+            }
+        }
+        else if (gTickStorageMode == TickStorageMode::Kvrocks)
+        {
+            long long cleanToTick = (long long)(gCurrentIndexingTick.load()) - 1;
+            if (lastCleanTickData < cleanToTick)
+            {
+                for (long long t = lastCleanTickData + 1; t <= cleanToTick; t++)
+                {
+                    compressTickAndMoveToKVRocks(t);
+                }
+                Logger::get()->trace("Compressed tick {}->{} to kvrocks", lastCleanTickData + 1, cleanToTick);
+                if (cleanRawTick(lastCleanTickData + 1, cleanToTick, true))
+                {
+                    Logger::get()->info("Cleaned all raw tick data");
+                }
             }
         }
     }
