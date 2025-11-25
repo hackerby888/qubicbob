@@ -19,6 +19,7 @@ bool cleanTransactionAndLogsAndSaveToDisk(TickData& td, ResponseAllLogIdRangesFr
             db_delete_transaction(td.transactionDigests[i].toQubicHash());
         }
     }
+    return true;
 }
 void compressTickAndMoveToKVRocks(uint32_t tick)
 {
@@ -54,9 +55,15 @@ bool cleanTransactionLogs(uint32_t tick)
 {
     TickData td{};
     ResponseAllLogIdRangesFromTick lr{};
-    db_try_get_tick_data(tick, td);
-    db_try_get_log_ranges(tick, lr);
-    cleanTransactionAndLogsAndSaveToDisk(td, lr);
+    if (!db_try_get_tick_data(tick, td))
+    {
+        return false;
+    }
+    if (!db_try_get_log_ranges(tick, lr))
+    {
+        return false;
+    }
+    return cleanTransactionAndLogsAndSaveToDisk(td, lr);
 }
 
 bool cleanRawTick(uint32_t fromTick, uint32_t toTick, bool withTransactions)
