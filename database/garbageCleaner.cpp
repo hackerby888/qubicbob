@@ -61,8 +61,10 @@ bool cleanTransactionLogs(uint32_t tick)
     }
     if (!db_try_get_log_ranges(tick, lr))
     {
+        Logger::get()->error("Failed to get log range for this tick {} - epoch {}", td.tick, td.epoch);
         return false;
     }
+    db_delete_log_ranges(tick);
     return cleanTransactionAndLogsAndSaveToDisk(td, lr);
 }
 
@@ -83,7 +85,6 @@ bool cleanRawTick(uint32_t fromTick, uint32_t toTick, bool withTransactions)
 
         // Delete all TickVotes for this tick (attempt all indices; API treats missing as success)
         db_delete_tick_vote(tick);
-        db_delete_log_ranges(tick);
     }
     Logger::get()->trace("Cleaned raw tick data from {} to {}", fromTick, toTick);
     return true;
