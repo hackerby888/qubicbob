@@ -1,6 +1,7 @@
 ### System Requirements:
 - cmake and clang (or gcc)
 - KeyDB Engine [Check installation guide](KEYDB_INSTALL.md)
+- KVRocks engine (if you want to persist more data on disk) [Check installation guide](KVROCKS_INSTALL.md)
 - Memory (RAM): 16 GB
 - Processor (CPU): 4 Cores (with AVX2 support)
 - Storage (Disk): 100 GB Fast SSD / NVMe
@@ -68,10 +69,10 @@ cd qubicbob;
 mkdir build;
 cd build;
 cmake ..;
-make bob;
+make bob -j8;
 curl -fsSL https://download.keydb.dev/open-source-dist/keyring.gpg | sudo gpg --dearmor -o /usr/share/keyrings/keydb-archive-keyring.gpg;
 echo "deb [signed-by=/usr/share/keyrings/keydb-archive-keyring.gpg] https://download.keydb.dev/open-source-dist jammy main" | sudo tee /etc/apt/sources.list.d/keydb.list;
 apt update;
-apt install keydb
+apt install keydb;
 ```
 
