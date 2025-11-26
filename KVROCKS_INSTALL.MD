@@ -8,7 +8,7 @@ This guide will show you how to install kvrocks into systemd
 
 Add new user: `useradd -r -s /bin/false kvrocks`
 
-Create `kvrocks` working folder, and copy the built binary. Then copy the config file, you can use the example config file in this bob repository.
+Create `kvrocks` working folder, and copy the built binary. Then copy the config file, you can use the example config file in this bob repository `exampleConfigFile/kvrocks.conf`
 ~~~
 mkdir /var/lib/kvrocks/;
 cd /var/lib/kvrocks/;
