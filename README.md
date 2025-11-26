@@ -1,7 +1,7 @@
 ### System Requirements:
 - cmake and clang (or gcc)
 - KeyDB Engine [Check installation guide](KEYDB_INSTALL.md)
-- KVRocks engine (if you want to persist more data on disk) [Check installation guide](KVROCKS_INSTALL.md)
+- KVRocks engine (if you want to persist more data on disk) [Check installation guide](KVROCKS_INSTALL.MD)
 - Memory (RAM): 16 GB
 - Processor (CPU): 4 Cores (with AVX2 support)
 - Storage (Disk): 100 GB Fast SSD / NVMe
