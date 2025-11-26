@@ -446,17 +446,22 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
             // verify if we have enough logging
             long long fromId, length;
             db_get_combined_log_range_for_ticks(processFromTick, processToTick, fromId, length);
-
+            if (vle.size() > length)
+            {
+                Logger::get()->critical("Bob has more log than needed for tick {}->{} "
+                                        "unexpected behavior {} but get {}", processFromTick, processToTick, vle.size(), length);
+            }
             if (fromId != -1 && length != -1 && vle.size() != length)
             {
 
                 Logger::get()->info("Entering rescue mode to fetch missing data");
+                Logger::get()->info("tick {}->{} unexpected behavior expected {} but get {}", processFromTick, processToTick, length, vle.size());
+                auto endId = fromId + length - 1;
                 while (!stopFlag.load())
                 {
-                    auto endId = fromId + length - 1;
                     while (db_log_exists(gCurrentProcessingEpoch, fromId) && fromId <= endId) fromId++;
                     refetchFromId = fromId;
-                    refetchToId = fromId + length -1;
+                    refetchToId = endId;
                     refetchLogFromTick = processFromTick;
                     refetchLogToTick = processToTick;
                     SLEEP(1000);
@@ -468,7 +473,12 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
                     }
                     else
                     {
-                        Logger::get()->info("Failed to get data log {} => {}", refetchFromId, refetchToId);
+                        Logger::get()->info("Failed to get data log for tick {}->{}: {} => {}", processFromTick, processToTick, refetchFromId, refetchToId);
+                        Logger::get()->info("Expected {} but get {}", length, vle.size());
+                    }
+                    if (refetchFromId > refetchToId)
+                    {
+                        Logger::get()->critical("Log ranges from tick {}=>{} are broken, please check.", processFromTick, processToTick);
                     }
                 }
                 if (stopFlag.load()) return;

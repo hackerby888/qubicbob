@@ -681,14 +681,30 @@ std::vector<LogEvent> db_get_logs_by_tick_range(uint16_t epoch, uint32_t start_t
                     le.updateContent(reinterpret_cast<const uint8_t*>(s.data()), static_cast<int>(s.size()));
 
                     // Basic header validation and range filter
-                    if (!le.hasPackedHeader()) continue;
-                    if (le.getEpoch() != epoch) continue;
+                    if (!le.hasPackedHeader())
+                    {
+                        Logger::get()->critical("Log event {} has broken header", startId + i);
+                        continue;
+                    }
+                    if (le.getEpoch() != epoch)
+                    {
+                        Logger::get()->critical("Log event {} has broken epoch {}", startId + i, le.getEpoch());
+                        continue;
+                    }
 
                     const auto t = le.getTick();
-                    if (t < start_tick || t > end_tick) continue;
+                    if (t < start_tick || t > end_tick)
+                    {
+                        Logger::get()->critical("Log event {} has wrong tick {}", startId + i, le.getTick());
+                        continue;
+                    }
 
                     // Optional strict self-check against expected tick
-                    if (!le.selfCheck(epoch)) continue;
+                    if (!le.selfCheck(epoch))
+                    {
+                        Logger::get()->critical("Log event {} failed the selfcheck", startId + i);
+                        continue;
+                    }
 
                     out.emplace_back(std::move(le));
                 }
