@@ -64,5 +64,6 @@ WantedBy=multi-user.target
 Reload the daemon and start kvrocks:
 ~~~
 systemctl daemon-reload;
+systemctl enable kvrocks;
 systemctl start kvrocks;
 ~~~
