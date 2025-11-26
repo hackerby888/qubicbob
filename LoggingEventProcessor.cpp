@@ -476,6 +476,10 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
                         Logger::get()->info("Failed to get data log for tick {}->{}: {} => {}", processFromTick, processToTick, refetchFromId, refetchToId);
                         Logger::get()->info("Expected {} but get {}", length, vle.size());
                     }
+                    if (refetchFromId > refetchToId)
+                    {
+                        Logger::get()->critical("Log ranges from tick {}=>{} are broken, please check.", processFromTick, processToTick);
+                    }
                 }
                 if (stopFlag.load()) return;
                 refetchFromId = -1;
