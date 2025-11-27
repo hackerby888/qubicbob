@@ -31,17 +31,22 @@ For the trusted-node field, the expected format is `NODE_IP:NODE_PORT:PASSCODE_L
 - `run-server` means opening a server and listening at port `server-port` to serve a few important data (like the core baremetal)
 ```
 {
-  "p2p-node": ["bob:23.88.1.189:21842"],
-  "request-cycle-ms": 500,
-  "request-logging-cycle-ms": 150,
+  "trusted-node": ["BM:157.180.10.49:21841:0-0-0-0","BM:65.109.122.174:21841:0-0-0-0"],
+  "request-cycle-ms": 100,
+  "request-logging-cycle-ms": 30,
   "future-offset": 3,
   "log-level": "info",
   "keydb-url": "tcp://127.0.0.1:6379",
-  "run-server": true,
+  "run-server": false,
   "server-port": 21842,
   "arbitrator-identity": "AFZPUAIYVPNUYGJRQVLUKOPPVLHAZQTGLYAAUUNBXFTVTAMSBKQBLEIEPCVJ",
   "trusted-entities": ["QCTBOBEPDEZGBBCSOWGBYCAIZESDMEVRGLWVNBZAPBIZYEJFFZSPPIVGSCVL"],
-  "node-seed":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  "tick-storage-mode": "kvrocks",
+  "kvrocks-url": "tcp://127.0.0.1:6666",
+  "tx-storage-mode" : "kvrocks",
+  "tx_tick_to_live" : 3000,
+  "max-thread": 8,
+  "spam-qu-threshold": 100
 }
 ```
 
