@@ -281,6 +281,7 @@ static bool isRequestType(int type)
     if (type == RequestTickData::type) return true;                   // request tickdata
     if (type == REQUEST_CURRENT_TICK_INFO) return true;               // REQUEST_CURRENT_TICK_INFO
     if (type == RequestedTickTransactions::type) return true;         // request tx
+    if (type == REQUEST_BOOTSTRAP_INFO) return true;
     if (type == RequestLog::type()) return true;                      // request log
     if (type == RequestAllLogIdRangesFromTick::type()) return true;   // request log range
     if (type == RequestLogEventSignature::type()) return true;

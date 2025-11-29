@@ -312,7 +312,7 @@ void QubicConnection::getTickInfoFromTrustedNode(uint32_t& tick, uint16_t& epoch
 
 void QubicConnection::getBootstrapInfo(uint32_t& tick, uint16_t& epoch)
 {
-    RequestResponseHeader header{};
+    RequestResponseHeader _header;
     std::vector<uint8_t> packet;
     int count = 0;
     while (count < 60)
@@ -321,10 +321,10 @@ void QubicConnection::getBootstrapInfo(uint32_t& tick, uint16_t& epoch)
         // resend each 20 packets
         if ( count++ % 20 == 0 )
         {
-            header.setSize(sizeof(header));
-            header.randomizeDejavu();
-            header.setType(REQUEST_BOOTSTRAP_INFO);
-            enqueueSend((uint8_t *) &header, 8);
+            _header.setSize(sizeof(_header));
+            _header.randomizeDejavu();
+            _header.setType(REQUEST_BOOTSTRAP_INFO);
+            enqueueSend((uint8_t *) &_header, 8);
         }
         RequestResponseHeader header{};
         receiveAFullPacket(header, packet);
