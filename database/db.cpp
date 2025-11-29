@@ -222,8 +222,7 @@ bool db_get_log_ranges(uint32_t tick, ResponseAllLogIdRangesFromTick &logRange) 
         std::string key = "log_ranges:" + std::to_string(tick);
         auto val = g_redis->get(key);
         if (!val) {
-            // Not an error; just means no ranges for this tick yet
-            return true;
+            return false;
         }
         if (val->size() != sizeof(ResponseAllLogIdRangesFromTick)) {
             Logger::get()->warn("LogRange size mismatch for key %s: got %zu, expected %zu",
