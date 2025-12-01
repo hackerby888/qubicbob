@@ -203,7 +203,7 @@ int runBob(int argc, char *argv[])
                                     std::chrono::milliseconds(request_logging_cycle_ms));
     });
     auto log_request_p2p_thread = std::thread([&](){
-        set_this_thread_name("trusted-log-req");
+        set_this_thread_name("p2p-log-req");
         EventRequestFromNormalNodes(std::ref(connPoolP2P), std::ref(stopFlag),
                                     std::chrono::milliseconds(request_logging_cycle_ms));
     });
