@@ -212,8 +212,8 @@ std::string bobGetTick(const uint32_t tick) {
     tdJson["month"] = td.month;
     tdJson["year"] = td.year;
 
-    tdJson["logIdStart"] = logid_start;
-    tdJson["logIdEnd"] = logid_end;
+    tdJson["logIdStart"] = Json::Int64(logid_start);
+    tdJson["logIdEnd"] = Json::Int64(logid_end);
     // m256i fields as hex
     tdJson["timelock"] = td.timelock.toQubicHash();
 
