@@ -299,8 +299,8 @@ bool db_try_get_log_range_for_tick(uint32_t tick, long long& fromLogId, long lon
         }
     };
 
-    if (fetchFromDB(g_redis.get())) return true;
-    if (fetchFromDB(g_kvrocks.get())) return true;
+    if (g_redis && fetchFromDB(g_redis.get())) return true;
+    if (g_kvrocks && fetchFromDB(g_kvrocks.get())) return true;
 
     return false;
 }
@@ -1545,10 +1545,12 @@ bool db_insert_TickLogRange_to_kvrocks(uint32_t tick, long long& logStart, long 
         fields["fromLogId"] = std::to_string(logStart);
         fields["length"] = std::to_string(logLen);
         g_kvrocks->hmset(key_summary, fields.begin(), fields.end());
+        return true;
     } catch (const sw::redis::Error& e) {
         Logger::get()->error("KVROCKS error in db_insert_TickLogRange_to_kvrocks: %s\n", e.what());
         return false;
     }
+    return true;
 }
 
 // Compress and insert ResponseAllLogIdRangesFromTick under key "cLogRange:<tick>"
