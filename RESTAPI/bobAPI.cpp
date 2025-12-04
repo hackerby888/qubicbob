@@ -192,7 +192,9 @@ std::string bobGetLog(uint16_t epoch, int64_t start, int64_t end)
 std::string bobGetTick(const uint32_t tick) {
     TickData td {};
     db_try_get_tick_data(tick, td);
-
+    long long logid_start, logid_len, logid_end;
+    db_get_log_range_for_tick(tick, logid_start, logid_len);
+    logid_end = logid_start + logid_len - 1;
     Json::Value root;
     root["tick"] = tick;
 
@@ -210,6 +212,8 @@ std::string bobGetTick(const uint32_t tick) {
     tdJson["month"] = td.month;
     tdJson["year"] = td.year;
 
+    tdJson["logIdStart"] = logid_start;
+    tdJson["logIdEnd"] = logid_end;
     // m256i fields as hex
     tdJson["timelock"] = td.timelock.toQubicHash();
 
