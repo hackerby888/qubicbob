@@ -766,7 +766,7 @@ void EventRequestFromTrustedNode(ConnectionPool& connPoolWithPwd,
                 }
                 SLEEP(100);
             }
-            while (gCurrentFetchingLogTick > gCurrentFetchingTick && !stopFlag.load(std::memory_order_relaxed)) SLEEP(100);
+            while (gCurrentFetchingLogTick >= gCurrentFetchingTick && !stopFlag.load(std::memory_order_relaxed)) SLEEP(100);
             if (stopFlag.load(std::memory_order_relaxed)) break;
             if (!db_check_log_range(gCurrentFetchingLogTick))
             {
@@ -851,7 +851,7 @@ void EventRequestFromNormalNodes(ConnectionPool& connPoolNoPwd,
                 }
                 SLEEP(100);
             }
-            while (gCurrentFetchingLogTick > gCurrentFetchingTick && !stopFlag.load(std::memory_order_relaxed)) SLEEP(100);
+            while (gCurrentFetchingLogTick >= gCurrentFetchingTick && !stopFlag.load(std::memory_order_relaxed)) SLEEP(100);
             if (stopFlag.load(std::memory_order_relaxed)) break;
             if (!db_check_log_range(gCurrentFetchingLogTick))
             {
