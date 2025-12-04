@@ -454,7 +454,7 @@ void replyLogEventSignature(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
         return;
     }
     long long ts,tl,te;
-    db_get_log_range_for_tick(request->tick, ts, tl);
+    db_try_get_log_range_for_tick(request->tick, ts, tl);
     te = ts + tl - 1;
     // check for correct range
     if (!(request->startLogId >= ts && request->endLogId <= te))

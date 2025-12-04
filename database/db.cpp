@@ -267,35 +267,44 @@ bool db_try_get_log_ranges(uint32_t tick, ResponseAllLogIdRangesFromTick &logRan
     return false;
 }
 
-bool db_get_log_range_for_tick(uint32_t tick, long long& fromLogId, long long& length) {
+bool db_try_get_log_range_for_tick(uint32_t tick, long long& fromLogId, long long& length) {
     fromLogId = -1;
     length = -1;
-    if (!g_redis) return false;
-    try {
-        const std::string key = "tick_log_range:" + std::to_string(tick);
-        std::vector<sw::redis::Optional<std::string>> vals;
-        g_redis->hmget(key, {"fromLogId", "length"}, std::back_inserter(vals));
-        if (vals.size() == 2 && vals[0] && vals[1]) {
-            long long min_id = std::stoll(*vals[0]);
-            long long len = std::stoll(*vals[1]);
-            if (min_id == -1 || len == -1) {
-                fromLogId = -1;
-                length = -1;
+
+    auto fetchFromDB = [&](sw::redis::Redis* db) -> bool {
+        if (!db) return false;
+        try {
+            const std::string key = "tick_log_range:" + std::to_string(tick);
+            std::vector<sw::redis::Optional<std::string>> vals;
+            db->hmget(key, {"fromLogId", "length"}, std::back_inserter(vals));
+            if (vals.size() == 2 && vals[0] && vals[1]) {
+                long long min_id = std::stoll(*vals[0]);
+                long long len = std::stoll(*vals[1]);
+                if (min_id == -1 || len == -1) {
+                    fromLogId = -1;
+                    length = -1;
+                    return true;
+                }
+                fromLogId = min_id;
+                length = len; // length already stored as (max_log_id - min_log_id)
                 return true;
             }
-            fromLogId = min_id;
-            length = len; // length already stored as (max_log_id - min_log_id)
-            return true;
+            return false;
+        } catch (const sw::redis::Error &e) {
+            Logger::get()->error("Redis error in db_try_get_log_range_for_tick: %s\n", e.what());
+            return false;
+        } catch (const std::logic_error &e) {
+            Logger::get()->error("Parsing error in db_try_get_log_range_for_tick: %s\n", e.what());
+            return false;
         }
-        return false;
-    } catch (const sw::redis::Error &e) {
-        Logger::get()->error("Redis error in db_get_log_range_for_tick: %s\n", e.what());
-        return false;
-    } catch (const std::logic_error &e) {
-        Logger::get()->error("Parsing error in db_get_log_range_for_tick: %s\n", e.what());
-        return false;
-    }
+    };
+
+    if (fetchFromDB(g_redis.get())) return true;
+    if (fetchFromDB(g_kvrocks.get())) return true;
+
+    return false;
 }
+
 
 bool
 db_get_combined_log_range_for_ticks(uint32_t startTick, uint32_t endTick, long long &fromLogId, long long &length) {
@@ -308,7 +317,7 @@ db_get_combined_log_range_for_ticks(uint32_t startTick, uint32_t endTick, long l
 
     for (uint32_t tick = startTick; tick <= endTick; tick++) {
         long long tickFromId, tickLength;
-        if (!db_get_log_range_for_tick(tick, tickFromId, tickLength)) {
+        if (!db_try_get_log_range_for_tick(tick, tickFromId, tickLength)) {
             continue;
         }
         if (tickFromId != -1 && tickLength != -1) {
@@ -648,7 +657,7 @@ std::vector<LogEvent> db_get_logs_by_tick_range(uint16_t epoch, uint32_t start_t
         for (uint32_t tick = start_tick; tick <= end_tick; ++tick) {
             long long fromLogId = -1;
             long long length = -1;
-            if (!db_get_log_range_for_tick(tick, fromLogId, length)) {
+            if (!db_try_get_log_range_for_tick(tick, fromLogId, length)) {
                 // On parsing/redis error: skip this tick.
                 continue;
             }

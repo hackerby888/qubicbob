@@ -193,7 +193,7 @@ std::string bobGetTick(const uint32_t tick) {
     TickData td {};
     db_try_get_tick_data(tick, td);
     long long logid_start, logid_len, logid_end;
-    db_get_log_range_for_tick(tick, logid_start, logid_len);
+    db_try_get_log_range_for_tick(tick, logid_start, logid_len);
     logid_end = logid_start + logid_len - 1;
     Json::Value root;
     root["tick"] = tick;

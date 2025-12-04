@@ -49,7 +49,7 @@ void compressTickAndMoveToKVRocks(uint32_t tick)
         db_insert_cLogRange_to_kvrocks(tick, lr);
     }
     long long log_start, log_len;
-    if (db_get_log_range_for_tick(tick, log_start, log_len))
+    if (db_try_get_log_range_for_tick(tick, log_start, log_len))
     {
         db_insert_TickLogRange_to_kvrocks(tick, log_start, log_len);
     }

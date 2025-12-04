@@ -413,7 +413,7 @@ bool db_delete_tick_vote(uint32_t tick);
 
 // New: get aggregated log range for the whole tick (from key "...:-1")
 // Returns true on success; outputs fromLogId and length.
-bool db_get_log_range_for_tick(uint32_t tick, long long& fromLogId, long long& length);
+bool db_try_get_log_range_for_tick(uint32_t tick, long long& fromLogId, long long& length);
 
 // Store and get Computors by epoch. Key: "computor:<epoch>"
 bool db_insert_computors(const Computors& comps);

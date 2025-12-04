@@ -774,7 +774,7 @@ void EventRequestFromTrustedNode(ConnectionPool& connPoolWithPwd,
                 connPoolWithPwd.sendWithPasscodeToRandom((uint8_t*)&ralr, 0, sizeof(RequestAllLogIdRangesFromTick), RequestAllLogIdRangesFromTick::type(), true);
             } else {
                 long long fromId, length;
-                if (!db_get_log_range_for_tick(gCurrentFetchingLogTick, fromId, length)) continue;
+                if (!db_try_get_log_range_for_tick(gCurrentFetchingLogTick, fromId, length)) continue;
                 if (fromId == -1 || length == -1)
                 {
                     Logger::get()->trace("Tick {} doesn't generate any log. Advancing logEvent tick", gCurrentFetchingLogTick);
@@ -835,7 +835,7 @@ void EventRequestFromNormalNodes(ConnectionPool& connPoolNoPwd,
                 for (uint32_t tick = refetchLogFromTick; tick < refetchLogToTick; tick++)
                 {
                     long long ts,te,tl;
-                    db_get_log_range_for_tick(tick, ts, tl);
+                    db_try_get_log_range_for_tick(tick, ts, tl);
                     te = ts + tl - 1;
                     uint32_t chunk_count = 0;
                     for (long long s = ts; s <= te; s += BOB_LOG_EVENT_CHUNK_SIZE, chunk_count++)
@@ -859,7 +859,7 @@ void EventRequestFromNormalNodes(ConnectionPool& connPoolNoPwd,
                 connPoolNoPwd.sendToRandom((uint8_t*)&rlrs, sizeof(RequestLogRangeSignature), RequestLogRangeSignature::type(), true);
             } else {
                 long long fromId, length;
-                if (!db_get_log_range_for_tick(gCurrentFetchingLogTick, fromId, length)) continue;
+                if (!db_try_get_log_range_for_tick(gCurrentFetchingLogTick, fromId, length)) continue;
                 if (fromId == -1 || length == -1)
                 {
                     continue;
