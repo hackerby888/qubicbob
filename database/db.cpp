@@ -243,6 +243,9 @@ bool db_delete_log_ranges(uint32_t tick) {
     try {
         const std::string key = "log_ranges:" + std::to_string(tick);
         g_redis->unlink(key);
+
+        const std::string key_log_range = "tick_log_range:" + std::to_string(tick);
+        g_redis->unlink(key_log_range);
         return true;
     } catch (const sw::redis::Error& e) {
         Logger::get()->error("Redis error in db_delete_log_ranges: %s\n", e.what());
@@ -1520,6 +1523,21 @@ bool db_get_vtick_from_kvrocks(uint32_t tick, FullTickStruct& outFullTick)
         return true;
     } catch (const sw::redis::Error& e) {
         Logger::get()->error("KVROCKs error in db_get_vtick: %s\n", e.what());
+        return false;
+    }
+}
+
+bool db_insert_TickLogRange_to_kvrocks(uint32_t tick, long long& logStart, long long& logLen)
+{
+    if (!g_kvrocks) return false;
+    try {
+        std::string key_summary = "tick_log_range:" + std::to_string(tick);
+        std::unordered_map<std::string, std::string> fields;
+        fields["fromLogId"] = std::to_string(logStart);
+        fields["length"] = std::to_string(logLen);
+        g_kvrocks->hmset(key_summary, fields.begin(), fields.end());
+    } catch (const sw::redis::Error& e) {
+        Logger::get()->error("KVROCKS error in db_insert_TickLogRange_to_kvrocks: %s\n", e.what());
         return false;
     }
 }

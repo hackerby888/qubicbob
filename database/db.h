@@ -503,6 +503,7 @@ std::vector<TickVote> db_try_get_tick_vote(uint32_t tick);
 void db_kvrocks_close();
 
 bool db_insert_cLogRange_to_kvrocks(uint32_t tick, const ResponseAllLogIdRangesFromTick& logRange);
+bool db_insert_TickLogRange_to_kvrocks(uint32_t tick, long long& logStart, long long& logLen);
 bool db_get_cLogRange_from_kvrocks(uint32_t tick, ResponseAllLogIdRangesFromTick& outLogRange);
 
 bool db_copy_transaction_to_kvrocks(const std::string &tx_hash);
