@@ -14,6 +14,7 @@ int main(int argc, char* argv[]) {
     uint32_t endTick = std::stoul(argv[2]);
     uint16_t epoch = static_cast<uint16_t>(std::stoul(argv[3]));
     std::string redisAddress = "tcp://127.0.0.1:6379";
+    Logger::init("info");
 
     if (argc > 4) {
         redisAddress = argv[4];
