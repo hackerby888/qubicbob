@@ -9,7 +9,7 @@ int main(int argc, char* argv[]) {
         std::cerr << "Example: " << argv[0] << " 1000 2000 1 tcp://127.0.0.1:6379" << std::endl;
         return 1;
     }
-
+    Logger::init("info");
     uint32_t startTick = 0;
     uint32_t endTick = 0;
     uint16_t epoch = 0;
