@@ -10,12 +10,20 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    uint32_t startTick = std::stoul(argv[1]);
-    uint32_t endTick = std::stoul(argv[2]);
-    uint16_t epoch = static_cast<uint16_t>(std::stoul(argv[3]));
-    std::string redisAddress = "tcp://127.0.0.1:6379";
-    Logger::init("info");
+    uint32_t startTick = 0;
+    uint32_t endTick = 0;
+    uint16_t epoch = 0;
 
+    try {
+        startTick = std::stoul(argv[1]);
+        endTick = std::stoul(argv[2]);
+        epoch = static_cast<uint16_t>(std::stoul(argv[3]));
+    } catch (...) {
+        std::cerr << "Invalid arguments" << std::endl;
+        return 1;
+    }
+
+    std::string redisAddress = "tcp://127.0.0.1:6379";
     if (argc > 4) {
         redisAddress = argv[4];
     }
@@ -25,6 +33,15 @@ int main(int argc, char* argv[]) {
         db_connect(redisAddress);
     } catch (const std::exception& e) {
         std::cerr << "Failed to connect to database: " << e.what() << std::endl;
+        return 1;
+    }
+
+    long long latestVerifiedTick = db_get_latest_verified_tick();
+    if (latestVerifiedTick > startTick) {
+        std::cerr << "Error: latest_verified_tick (" << latestVerifiedTick 
+                  << ") is greater than start_tick (" << startTick << ")." << std::endl;
+        std::cerr << "Aborting operation to prevent data corruption." << std::endl;
+        db_close();
         return 1;
     }
 
@@ -58,6 +75,22 @@ int main(int argc, char* argv[]) {
         if (tick % 1000 == 0) {
             std::cout << "Processed tick " << tick << std::endl;
         }
+    }
+
+    // After deletion, rollback the latest status to start_tick - 1
+    if (startTick > 0) {
+        uint32_t newLatestTick = startTick - 1;
+        std::string val = std::to_string(newLatestTick);
+        std::cout << "Updating db_status: latest_event_tick=" << val << ", latest_tick=" << val << std::endl;
+
+        if (!db_update_field("db_status", "latest_event_tick", val)) {
+            std::cerr << "Failed to update latest_event_tick" << std::endl;
+        }
+        if (!db_update_field("db_status", "latest_tick", val)) {
+            std::cerr << "Failed to update latest_tick" << std::endl;
+        }
+    } else {
+        std::cout << "start_tick is 0, skipping db_status update." << std::endl;
     }
 
     db_close();
