@@ -139,7 +139,9 @@ target_link_libraries(bob_lib PRIVATE redis++_static hiredis spdlog::spdlog cxxo
 
 # --- Executable and Linking ---
 ADD_EXECUTABLE(bob main.cpp)
+ADD_EXECUTABLE(pop10 pop10.cpp)
 target_link_libraries(bob PRIVATE bob_lib)
+target_link_libraries(pop10 PRIVATE bob_lib)
 
 # ADD_EXECUTABLE(migrator migrator/migrator.cpp)
 # target_link_libraries(migrator PRIVATE bob_lib)
