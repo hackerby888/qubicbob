@@ -618,6 +618,8 @@ verifyNodeStateDigest:
         int voteCount = 0;
         bool hasTickData = false;
         bool matchedQuorum = false;
+        int nonEmptyTick = 0;
+        int emptyTick = 0;
         {
             PROFILE_SCOPE("computeDigests");
             computeSpectrumDigest(processFromTick, processToTick);
@@ -631,8 +633,7 @@ verifyNodeStateDigest:
             m256i saltedDataUniverse[2];
             saltedDataSpectrum[1] = spectrumDigest;
             saltedDataUniverse[1] = universeDigest;
-            int nonEmptyTick = 0;
-            int emptyTick = 0;
+
             for (auto& vote: votes)
             {
                 if (vote.transactionDigest == m256i::zero()) emptyTick++;
@@ -672,10 +673,22 @@ verifyNodeStateDigest:
         if (!matchedQuorum)
         {
             Logger::get()->warn("Failed to verify digests at tick {} -> {}, please check!", processFromTick, processToTick);
-            Logger::get()->warn("Entering rescue mode to refetch votes for tick {}", processToTick);
-            refetchTickVotes = processToTick;
-            SLEEP(1000);
-            goto verifyNodeStateDigest;
+            if (
+                    (nonEmptyTick >= 451 )
+                    || (emptyTick >= 226)
+               )
+            {
+                // quorum already reach but not matched
+                Logger::get()->critical("Misalignment states!!! Please contact dev team. Exit here.");
+                exit(1);
+            }
+            else
+            {
+                Logger::get()->warn("Entering rescue mode to refetch votes for tick {}", processToTick);
+                refetchTickVotes = processToTick;
+                SLEEP(1000);
+                goto verifyNodeStateDigest;
+            }
         }
         else
         {
