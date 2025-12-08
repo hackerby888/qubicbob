@@ -234,15 +234,25 @@ namespace {
                             return true;
                         };
 
-                        uint32_t startTick, endTick, scIndex, logType;
+
+                        uint32_t tick, startTick, endTick, scIndex, logType;
                         uint32_t epoch;
-                        if (!getU32("startTick", startTick) ||
-                            !getU32("endTick", endTick) ||
+                        if (
                             !getU32("scIndex", scIndex) ||
                             !getU32("logType", logType) ||
                             !getU32("epoch", epoch)) {
-                            callback(makeError("All numeric fields must be uint32: startTick, endTick, epoch, scIndex, logType"));
+                            callback(makeError("All numeric fields must be uint32: epoch, scIndex, logType"));
                             return;
+                        }
+                        if (getU32("tick", tick)) {
+                            startTick = tick;
+                            endTick = tick;
+                        } else {
+                            if (!getU32("startTick", startTick) ||
+                                !getU32("endTick", endTick)) {
+                                callback(makeError("Either tick (uint32) or both startTick and endTick (uint32) are required"));
+                                return;
+                            }
                         }
 
                         std::string topics[3] = {"", "", ""};
