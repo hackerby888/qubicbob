@@ -245,19 +245,20 @@ namespace {
                             return;
                         }
 
-                        if (!j.isMember("topic1") || !j["topic1"].isString() ||
-                            !j.isMember("topic2") || !j["topic2"].isString() ||
-                            !j.isMember("topic3") || !j["topic3"].isString()) {
-                            callback(makeError("topic1, topic2, topic3 (strings) are required"));
-                            return;
+                        std::string topics[3] = {"", "", ""};
+                        for (int i = 1; i <= 3; ++i) {
+                            std::string key = "topic" + std::to_string(i);
+                            if (!j.isMember(key) || !j[key].isString()) {
+                                topics[i-1] = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFXIB";
+                            } else {
+                                topics[i-1] = j[key].asString();
+                                // To uppercase
+                                std::transform(topics[i-1].begin(), topics[i-1].end(), topics[i-1].begin(), ::toupper);
+                            }
                         }
 
-                        const std::string topic1 = j["topic1"].asString();
-                        const std::string topic2 = j["topic2"].asString();
-                        const std::string topic3 = j["topic3"].asString();
-
                         // Reuse the existing find API with a single-tick window
-                        std::string result = getCustomLog(scIndex, logType, topic1, topic2, topic3, epoch, startTick, endTick);
+                        std::string result = getCustomLog(scIndex, logType, topics[0], topics[1], topics[2], epoch, startTick, endTick);
                         callback(makeJsonResponse(result));
                     } catch (const std::exception& ex) {
                         callback(makeError(std::string("getlogcustom error: ") + ex.what(), drogon::k500InternalServerError));
