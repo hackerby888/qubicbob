@@ -413,7 +413,7 @@ bool db_delete_tick_vote(uint32_t tick);
 
 // New: get aggregated log range for the whole tick (from key "...:-1")
 // Returns true on success; outputs fromLogId and length.
-bool db_get_log_range_for_tick(uint32_t tick, long long& fromLogId, long long& length);
+bool db_try_get_log_range_for_tick(uint32_t tick, long long& fromLogId, long long& length);
 
 // Store and get Computors by epoch. Key: "computor:<epoch>"
 bool db_insert_computors(const Computors& comps);
@@ -503,6 +503,7 @@ std::vector<TickVote> db_try_get_tick_vote(uint32_t tick);
 void db_kvrocks_close();
 
 bool db_insert_cLogRange_to_kvrocks(uint32_t tick, const ResponseAllLogIdRangesFromTick& logRange);
+bool db_insert_TickLogRange_to_kvrocks(uint32_t tick, long long& logStart, long long& logLen);
 bool db_get_cLogRange_from_kvrocks(uint32_t tick, ResponseAllLogIdRangesFromTick& outLogRange);
 
 bool db_copy_transaction_to_kvrocks(const std::string &tx_hash);

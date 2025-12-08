@@ -356,6 +356,11 @@ void replyTickVotes(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
 {
     auto *request = (RequestedQuorumTick *)ptr;
     uint32_t tick = request->tick;
+    if (tick >= gCurrentVerifyLoggingTick)
+    {
+        conn->sendEndPacket();
+        return;
+    }
     auto votes = db_try_get_tick_vote(tick);
     for (auto& tv : votes)
     {
@@ -386,6 +391,11 @@ void replyTickData(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
 {
     uint32_t tick;
     memcpy((void*)&tick, ptr, 4);
+    if (tick >= gCurrentVerifyLoggingTick)
+    {
+        conn->sendEndPacket();
+        return;
+    }
     TickData td;
     if (!db_try_get_tick_data(tick, td))
     {
@@ -454,7 +464,7 @@ void replyLogEventSignature(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
         return;
     }
     long long ts,tl,te;
-    db_get_log_range_for_tick(request->tick, ts, tl);
+    db_try_get_log_range_for_tick(request->tick, ts, tl);
     te = ts + tl - 1;
     // check for correct range
     if (!(request->startLogId >= ts && request->endLogId <= te))
@@ -516,6 +526,11 @@ void replyLogEventSignature(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
 void replyLogRange(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
 {
     RequestAllLogIdRangesFromTick* request = (RequestAllLogIdRangesFromTick*)ptr;
+    if (request->tick >= gCurrentVerifyLoggingTick)
+    {
+        conn->sendEndPacket();
+        return;
+    }
     if (request->passcode[0] != 0 ||
         request->passcode[1] != 0 ||
         request->passcode[2] != 0 ||
@@ -558,7 +573,11 @@ void replyLogRangeSignature(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
         RequestResponseHeader resp;
         ResponseLogRangeSignature logRange;
     } pl;
-
+    if (request->tick >= gCurrentVerifyLoggingTick)
+    {
+        conn->sendEndPacket();
+        return;
+    }
     if (db_try_get_log_ranges(tick, pl.logRange.lr)) {
         pl.resp.setSize(8 + sizeof(ResponseLogRangeSignature));
         pl.resp.setDejavu(dejavu);
