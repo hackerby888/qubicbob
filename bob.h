@@ -22,7 +22,7 @@ std::string bobFindLog(uint32_t scIndex, uint32_t logType,
                        uint32_t fromTick, uint32_t toTick);
 std::string getCustomLog(uint32_t scIndex, uint32_t logType,
                        const std::string& st1, const std::string& st2, const std::string& st3,
-                         uint16_t epoch, uint32_t tick);
+                         uint16_t epoch, uint32_t startTick, uint32_t endTick);
 std::string bobGetStatus();
 std::string querySmartContract(uint32_t nonce, uint32_t scIndex, uint32_t funcNumber, uint8_t* data, uint32_t dataSize);
 bool enqueueSmartContractRequest(uint32_t nonce, uint32_t scIndex, uint32_t funcNumber, const uint8_t* data, uint32_t dataSize);

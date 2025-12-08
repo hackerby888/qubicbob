@@ -234,13 +234,14 @@ namespace {
                             return true;
                         };
 
-                        uint32_t tick, scIndex, logType;
+                        uint32_t startTick, endTick, scIndex, logType;
                         uint32_t epoch;
-                        if (!getU32("tick", tick) ||
+                        if (!getU32("startTick", startTick) ||
+                            !getU32("endTick", endTick) ||
                             !getU32("scIndex", scIndex) ||
                             !getU32("logType", logType) ||
                             !getU32("epoch", epoch)) {
-                            callback(makeError("All numeric fields must be uint32: tick, scIndex, logType"));
+                            callback(makeError("All numeric fields must be uint32: startTick, endTick, epoch, scIndex, logType"));
                             return;
                         }
 
@@ -256,7 +257,7 @@ namespace {
                         const std::string topic3 = j["topic3"].asString();
 
                         // Reuse the existing find API with a single-tick window
-                        std::string result = getCustomLog(scIndex, logType, topic1, topic2, topic3, epoch, tick);
+                        std::string result = getCustomLog(scIndex, logType, topic1, topic2, topic3, epoch, startTick, endTick);
                         callback(makeJsonResponse(result));
                     } catch (const std::exception& ex) {
                         callback(makeError(std::string("getlogcustom error: ") + ex.what(), drogon::k500InternalServerError));
