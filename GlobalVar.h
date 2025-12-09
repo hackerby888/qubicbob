@@ -42,6 +42,7 @@ struct GlobalState {
     long long refetchToId{-1};
     long long refetchLogFromTick{-1};
     long long refetchLogToTick{-1};
+    bool refetchLogFlag;
 
     // Rescue mode votes
     long long refetchTickVotes{-1};

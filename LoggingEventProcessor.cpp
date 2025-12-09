@@ -455,6 +455,7 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
         std::vector<LogEvent> vle;
         {
             PROFILE_SCOPE("db_get_logs_by_tick_range");
+gatherAllLoggingEvents:
             bool success = false;
             vle = db_get_logs_by_tick_range(gCurrentProcessingEpoch, processFromTick, processToTick, success);
             // verify if we have enough logging
@@ -467,19 +468,53 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
             }
             if (fromId != -1 && length != -1 && vle.size() != length)
             {
-
-                Logger::get()->info("Entering rescue mode to fetch missing data");
+                Logger::get()->info("Entering rescue mode to refetch malformed data");
                 Logger::get()->info("tick {}->{} unexpected behavior expected {} but get {}", processFromTick, processToTick, length, vle.size());
+                Logger::get()->info("Trying to refetch log ranges");
+                for (uint32_t t = processFromTick; t <= processToTick; t++) db_delete_log_ranges(t);
+                refetchLogFromTick = processFromTick;
+                refetchLogToTick = processToTick;
+                bool received_full = false;
+                while (!received_full)
+                {
+                    received_full = true;
+                    for (uint32_t t = processFromTick; t <= processToTick; t++)
+                    {
+                        if (!db_check_log_range(t))
+                        {
+                            received_full = false;
+                            break;
+                        }
+                    }
+                    if (!received_full) SLEEP(100);
+                }
+                refetchLogFromTick = -1;
+                refetchLogToTick = -1;
+                Logger::get()->info("Successfully refetched all log ranges");
+                db_get_combined_log_range_for_ticks(processFromTick, processToTick, fromId, length);
+                Logger::get()->info("New log range for tick {}->{} : logID {}->{}", processFromTick, processToTick, fromId, fromId+length-1);
+
                 auto endId = fromId + length - 1;
                 while (!stopFlag.load())
                 {
-                    while (checkLogExistAndVerify(gCurrentProcessingEpoch, fromId) && fromId <= endId) fromId++;
                     db_delete_logs(gCurrentProcessingEpoch, fromId, endId);
                     refetchFromId = fromId;
                     refetchToId = endId;
-                    refetchLogFromTick = processFromTick;
-                    refetchLogToTick = processToTick;
-                    SLEEP(1000);
+                    Logger::get()->info("Deleted malformed log, waiting for new data");
+                    bool received_full = false;
+                    while (!received_full)
+                    {
+                        received_full = true;
+                        for (auto lid = fromId; lid <= endId; lid++)
+                        {
+                            if (!checkLogExistAndVerify(gCurrentProcessingEpoch, lid))
+                            {
+                                received_full = false;
+                                break;
+                            }
+                        }
+                        if (!received_full) SLEEP(100);
+                    }
                     vle = db_get_logs_by_tick_range(gCurrentProcessingEpoch, processFromTick, processToTick, success);
                     if (vle.size() == length)
                     {
@@ -491,14 +526,8 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
                         Logger::get()->info("Failed to get data log for tick {}->{}: {} => {}", processFromTick, processToTick, refetchFromId, refetchToId);
                         Logger::get()->info("Expected {} but get {}", length, vle.size());
                     }
-                    if (refetchFromId > refetchToId)
-                    {
-                        Logger::get()->critical("Log ranges from tick {}=>{} are broken, please check.", processFromTick, processToTick);
-                    }
                 }
                 if (stopFlag.load()) return;
-                refetchFromId = -1;
-                refetchToId = -1;
                 refetchLogFromTick = -1;
                 refetchLogToTick = -1;
             }
@@ -785,6 +814,18 @@ void EventRequestFromTrustedNode(ConnectionPool& connPoolWithPwd,
 
     while (!stopFlag.load(std::memory_order_relaxed)) {
         try {
+            while (refetchLogFromTick != -1 && refetchLogToTick != -1 && !stopFlag.load(std::memory_order_relaxed))
+            {
+                for (uint32_t t = refetchLogFromTick; t <= refetchLogToTick; t++)
+                {
+                    if (!db_check_log_range(t))
+                    {
+                        RequestAllLogIdRangesFromTick ralr{{0,0,0,0},t};
+                        connPoolWithPwd.sendWithPasscodeToRandom((uint8_t*)&ralr, 0, sizeof(RequestAllLogIdRangesFromTick), RequestAllLogIdRangesFromTick::type(), true);
+                    }
+                }
+                SLEEP(1000);
+            }
             while (refetchFromId != -1 && refetchToId != -1 && !stopFlag.load(std::memory_order_relaxed))
             {
                 for (long long s = refetchFromId; s <= refetchToId; s += BOB_LOG_EVENT_CHUNK_SIZE) {
@@ -792,7 +833,7 @@ void EventRequestFromTrustedNode(ConnectionPool& connPoolWithPwd,
                     RequestLog rl{{0,0,0,0},(unsigned long long)(s),(unsigned long long)(e)};
                     connPoolWithPwd.sendWithPasscodeToRandom((uint8_t *) &rl, 0, sizeof(RequestLog), RequestLog::type(), true);
                 }
-                SLEEP(100);
+                SLEEP(1000);
             }
             while (gCurrentFetchingLogTick >= gCurrentFetchingTick && !stopFlag.load(std::memory_order_relaxed)) SLEEP(100);
             if (stopFlag.load(std::memory_order_relaxed)) break;
@@ -875,7 +916,6 @@ void EventRequestFromNormalNodes(ConnectionPool& connPoolNoPwd,
                             connPoolNoPwd.sendToMany((uint8_t*)&rls, sizeof(rls), 2, RequestLogEventSignature::type(), true);
                         }
                     }
-
                 }
                 SLEEP(100);
             }
