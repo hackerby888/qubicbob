@@ -1,0 +1,34 @@
+name: Release
+on:
+  push:
+    tags: ["*"]
+
+env:
+  RELEASE_BUILD_DIR: "build"
+  BUILD_CONFIGURATION: "Release"
+
+jobs:
+  build-linux:
+    uses: ./.github/workflows/linux-build.yml
+    with:
+      configuration: Release
+      build_dir: build
+
+  publish-linux:
+    needs: build-linux
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Linux build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: BobLinuxBuild-${{ env.BUILD_CONFIGURATION }}
+          path: ${{ env.RELEASE_BUILD_DIR }}
+
+      - name: Create release package
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Executable Release ${{ github.ref_name }}"
+          body: "Automated release of Bob version ${{ github.ref_name }}"
+          files: ${{ env.RELEASE_BUILD_DIR }}/bob
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
