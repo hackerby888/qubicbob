@@ -528,8 +528,8 @@ gatherAllLoggingEvents:
                     }
                 }
                 if (stopFlag.load()) return;
-                refetchLogFromTick = -1;
-                refetchLogToTick = -1;
+                refetchFromId = -1;
+                refetchToId = -1;
             }
         }
 
@@ -899,6 +899,18 @@ void EventRequestFromNormalNodes(ConnectionPool& connPoolNoPwd,
 
     while (!stopFlag.load(std::memory_order_relaxed)) {
         try {
+            while (refetchLogFromTick != -1 && refetchLogToTick != -1 && !stopFlag.load(std::memory_order_relaxed))
+            {
+                for (uint32_t t = refetchLogFromTick; t <= refetchLogToTick; t++)
+                {
+                    if (!db_check_log_range(t))
+                    {
+                        RequestLogRangeSignature rlrs{t};
+                        connPoolNoPwd.sendToRandom((uint8_t*)&rlrs, sizeof(RequestLogRangeSignature), RequestLogRangeSignature::type(), true);
+                    }
+                }
+                SLEEP(1000);
+            }
             while (refetchFromId != -1 && refetchToId != -1 && !stopFlag.load(std::memory_order_relaxed))
             {
                 for (uint32_t tick = refetchLogFromTick; tick < refetchLogToTick; tick++)
