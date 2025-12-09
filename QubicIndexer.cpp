@@ -91,7 +91,8 @@ static void indexTick(uint32_t tick, const TickData &td) {
     }
 
     // now handling all log events
-    auto vle = db_get_logs_by_tick_range(gCurrentProcessingEpoch, tick, tick);
+    bool success;
+    auto vle = db_get_logs_by_tick_range(gCurrentProcessingEpoch, tick, tick, success);
     uint32_t SC_index = 0;
     uint32_t logType = 0;
     m256i topic1, topic2, topic3;

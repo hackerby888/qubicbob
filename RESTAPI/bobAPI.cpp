@@ -336,7 +336,8 @@ std::string getCustomLog(uint32_t scIndex, uint32_t logType,
     getPublicKeyFromIdentity(st1.data(), topic[0].m256i_u8);
     getPublicKeyFromIdentity(st2.data(), topic[1].m256i_u8);
     getPublicKeyFromIdentity(st3.data(), topic[2].m256i_u8);
-    auto logs = db_get_logs_by_tick_range(epoch, startTick, endTick);
+    bool success;
+    auto logs = db_get_logs_by_tick_range(epoch, startTick, endTick, success);
     std::string result = "[";
     for (auto& le : logs)
     {
