@@ -362,6 +362,19 @@ static std::string bytes_to_hex_string(const unsigned char* bytes, size_t size) 
     return ss.str();
 }
 
+static bool checkLogExistAndVerify(uint16_t epoch, long long logId)
+{
+    LogEvent le{};
+    if (!db_try_get_log(epoch, logId, le))
+    {
+        return false;
+    }
+    if (!le.selfCheck(epoch))
+    {
+        return false;
+    }
+    return true;
+}
 
 void verifyLoggingEvent(std::atomic_bool& stopFlag)
 {
@@ -442,7 +455,8 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
         std::vector<LogEvent> vle;
         {
             PROFILE_SCOPE("db_get_logs_by_tick_range");
-            vle = db_get_logs_by_tick_range(gCurrentProcessingEpoch, processFromTick, processToTick);
+            bool success = false;
+            vle = db_get_logs_by_tick_range(gCurrentProcessingEpoch, processFromTick, processToTick, success);
             // verify if we have enough logging
             long long fromId, length;
             db_get_combined_log_range_for_ticks(processFromTick, processToTick, fromId, length);
@@ -459,13 +473,14 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
                 auto endId = fromId + length - 1;
                 while (!stopFlag.load())
                 {
-                    while (db_log_exists(gCurrentProcessingEpoch, fromId) && fromId <= endId) fromId++;
+                    while (checkLogExistAndVerify(gCurrentProcessingEpoch, fromId) && fromId <= endId) fromId++;
+                    db_delete_logs(gCurrentProcessingEpoch, fromId, endId);
                     refetchFromId = fromId;
                     refetchToId = endId;
                     refetchLogFromTick = processFromTick;
                     refetchLogToTick = processToTick;
                     SLEEP(1000);
-                    vle = db_get_logs_by_tick_range(gCurrentProcessingEpoch, processFromTick, processToTick);
+                    vle = db_get_logs_by_tick_range(gCurrentProcessingEpoch, processFromTick, processToTick, success);
                     if (vle.size() == length)
                     {
                         Logger::get()->info("Successfully refetch data log {} => {}", refetchFromId, refetchToId);

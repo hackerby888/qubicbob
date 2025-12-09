@@ -298,6 +298,7 @@ static bool isDataType(int type)
     if (type == ResponseLogSignature::type()) return true;
     if (type == ResponseLogRangeSignature::type()) return true;
     if (type == RespondContractFunction::type) return true;
+    if (type == RESPOND_BOOTSTRAP_INFO) return true;
     return false;
 }
 
