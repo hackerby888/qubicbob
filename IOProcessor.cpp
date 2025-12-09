@@ -126,7 +126,9 @@ bool verifyQuorum(uint32_t tick, TickData& td, std::vector<TickVote>& votes)
     KangarooTwelve((uint8_t*)&td, sizeof(TickData), tdHash, 32);
     if (memcmp(tdHash, maxDigest.m256i_u8, 32) != 0)
     {
-        Logger::get()->critical("Consensus error: tickData {} is mismatched (there are potentially 2 tick data)", td.tick);
+        Logger::get()->critical("Consensus error: tickData {} is mismatched (there are potentially 2 tick data). Delete the current one in DB.", td.tick);
+        db_delete_tick_data(tick);
+        return false;
     }
     return true; // quorum reach
 }
