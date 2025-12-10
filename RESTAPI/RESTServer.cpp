@@ -234,29 +234,41 @@ namespace {
                             return true;
                         };
 
-                        uint32_t tick, scIndex, logType;
+
+                        uint32_t tick, startTick, endTick, scIndex, logType;
                         uint32_t epoch;
-                        if (!getU32("tick", tick) ||
+                        if (
                             !getU32("scIndex", scIndex) ||
                             !getU32("logType", logType) ||
                             !getU32("epoch", epoch)) {
-                            callback(makeError("All numeric fields must be uint32: tick, scIndex, logType"));
+                            callback(makeError("All numeric fields must be uint32: epoch, scIndex, logType"));
                             return;
                         }
-
-                        if (!j.isMember("topic1") || !j["topic1"].isString() ||
-                            !j.isMember("topic2") || !j["topic2"].isString() ||
-                            !j.isMember("topic3") || !j["topic3"].isString()) {
-                            callback(makeError("topic1, topic2, topic3 (strings) are required"));
-                            return;
+                        if (getU32("tick", tick)) {
+                            startTick = tick;
+                            endTick = tick;
+                        } else {
+                            if (!getU32("startTick", startTick) ||
+                                !getU32("endTick", endTick)) {
+                                callback(makeError("Either tick (uint32) or both startTick and endTick (uint32) are required"));
+                                return;
+                            }
                         }
 
-                        const std::string topic1 = j["topic1"].asString();
-                        const std::string topic2 = j["topic2"].asString();
-                        const std::string topic3 = j["topic3"].asString();
+                        std::string topics[3] = {"", "", ""};
+                        for (int i = 1; i <= 3; ++i) {
+                            std::string key = "topic" + std::to_string(i);
+                            if (!j.isMember(key) || !j[key].isString()) {
+                                topics[i-1] = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFXIB";
+                            } else {
+                                topics[i-1] = j[key].asString();
+                                // To uppercase
+                                std::transform(topics[i-1].begin(), topics[i-1].end(), topics[i-1].begin(), ::toupper);
+                            }
+                        }
 
                         // Reuse the existing find API with a single-tick window
-                        std::string result = getCustomLog(scIndex, logType, topic1, topic2, topic3, epoch, tick);
+                        std::string result = getCustomLog(scIndex, logType, topics[0], topics[1], topics[2], epoch, startTick, endTick);
                         callback(makeJsonResponse(result));
                     } catch (const std::exception& ex) {
                         callback(makeError(std::string("getlogcustom error: ") + ex.what(), drogon::k500InternalServerError));

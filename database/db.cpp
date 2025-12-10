@@ -644,7 +644,8 @@ bool db_try_get_log(uint16_t epoch, uint64_t logId, LogEvent &log)
 }
 
 
-std::vector<LogEvent> db_get_logs_by_tick_range(uint16_t epoch, uint32_t start_tick, uint32_t end_tick) {
+std::vector<LogEvent> db_get_logs_by_tick_range(uint16_t epoch, uint32_t start_tick, uint32_t end_tick, bool& success) {
+    success = false;
     std::vector<LogEvent> out;
     if (!g_redis) return out;
 
@@ -659,7 +660,7 @@ std::vector<LogEvent> db_get_logs_by_tick_range(uint16_t epoch, uint32_t start_t
             long long length = -1;
             if (!db_try_get_log_range_for_tick(tick, fromLogId, length)) {
                 // On parsing/redis error: skip this tick.
-                continue;
+                return out;
             }
             if (fromLogId == -1 || length == -1 || length == 0) {
                 // No logs for this tick; continue.
@@ -695,26 +696,26 @@ std::vector<LogEvent> db_get_logs_by_tick_range(uint16_t epoch, uint32_t start_t
                     if (!le.hasPackedHeader())
                     {
                         Logger::get()->critical("Log event {} has broken header", startId + i);
-                        continue;
+                        return out;
                     }
                     if (le.getEpoch() != epoch)
                     {
                         Logger::get()->critical("Log event {} has broken epoch {}", startId + i, le.getEpoch());
-                        continue;
+                        return out;
                     }
 
                     const auto t = le.getTick();
                     if (t < start_tick || t > end_tick)
                     {
                         Logger::get()->critical("Log event {} has wrong tick {}", startId + i, le.getTick());
-                        continue;
+                        return out;
                     }
 
                     // Optional strict self-check against expected tick
                     if (!le.selfCheck(epoch))
                     {
                         Logger::get()->critical("Log event {} failed the selfcheck", startId + i);
-                        continue;
+                        return out;
                     }
 
                     out.emplace_back(std::move(le));
@@ -724,11 +725,13 @@ std::vector<LogEvent> db_get_logs_by_tick_range(uint16_t epoch, uint32_t start_t
     } catch (const sw::redis::Error& e) {
         Logger::get()->error("Redis error in db_get_logs_by_tick_range: %s\n", e.what());
         out.clear();
+        return out;
     } catch (const std::exception& e) {
         Logger::get()->error("Exception in db_get_logs_by_tick_range: %s\n", e.what());
         out.clear();
+        return out;
     }
-
+    success = true;
     return out;
 }
 

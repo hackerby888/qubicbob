@@ -35,7 +35,7 @@ static int do_connect(const char* nodeIp, int nodePort)
 
     // Configure timeouts (best-effort)
     struct timeval tv;
-    tv.tv_sec = 2;
+    tv.tv_sec = 10;
     tv.tv_usec = 0;
     if (setsockopt(serverSocket, SOL_SOCKET, SO_RCVTIMEO, (const void*)&tv, sizeof tv) < 0) {
         Logger::get()->warn("setsockopt(SO_RCVTIMEO) failed: {} ({})", errno, strerror(errno));
@@ -325,13 +325,16 @@ void QubicConnection::getBootstrapInfo(uint32_t& tick, uint16_t& epoch)
             _header.randomizeDejavu();
             _header.setType(REQUEST_BOOTSTRAP_INFO);
             enqueueSend((uint8_t *) &_header, 8);
+//            uint8_t* p = (uint8_t *) &_header;
+//            for (int i = 0; i < 8; i++)printf("%u, ", p[i]); printf("\n");
         }
         RequestResponseHeader header{};
         receiveAFullPacket(header, packet);
         if (!packet.empty())
         {
             memcpy((void*)&header, packet.data(), 8);
-            if (header.type() == RESPOND_BOOTSTRAP_INFO)
+            auto type = header.type();
+            if (type == RESPOND_BOOTSTRAP_INFO)
             {
                 if (header.size() == 8 + sizeof(BootstrapInfo))
                 {

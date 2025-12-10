@@ -375,7 +375,7 @@ std::vector<LogEvent> db_get_logs_by_tx_hash(const std::string& txHash);
  * Return Value
  * - Vector of LogEvent. Empty on failure or if none exist.
  */
-std::vector<LogEvent> db_get_logs_by_tick_range(uint16_t epoch, uint32_t start_tick, uint32_t end_tick);
+std::vector<LogEvent> db_get_logs_by_tick_range(uint16_t epoch, uint32_t start_tick, uint32_t end_tick, bool& success);
 
 /**
  * Retrieve TickData for a specific tick.

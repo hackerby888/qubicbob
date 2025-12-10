@@ -330,13 +330,14 @@ std::string bobFindLog(uint32_t scIndex, uint32_t logType,
 
 std::string getCustomLog(uint32_t scIndex, uint32_t logType,
                          const std::string& st1, const std::string& st2, const std::string& st3,
-                         uint16_t epoch, uint32_t tick)
+                         uint16_t epoch, uint32_t startTick, uint32_t endTick)
 {
     m256i topic[3];
     getPublicKeyFromIdentity(st1.data(), topic[0].m256i_u8);
     getPublicKeyFromIdentity(st2.data(), topic[1].m256i_u8);
     getPublicKeyFromIdentity(st3.data(), topic[2].m256i_u8);
-    auto logs = db_get_logs_by_tick_range(epoch, tick, tick);
+    bool success;
+    auto logs = db_get_logs_by_tick_range(epoch, startTick, endTick, success);
     std::string result = "[";
     for (auto& le : logs)
     {

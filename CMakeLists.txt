@@ -18,7 +18,7 @@ include(FetchContent)
 FetchContent_Declare(
   redis-plus-plus
   GIT_REPOSITORY https://github.com/sewenew/redis-plus-plus.git
-  GIT_TAG        1.3.8 # Using a specific tag for reproducibility
+  GIT_TAG        1.3.15 # Using a specific tag for reproducibility
 )
 # redis-plus-plus specific options
 set(REDIS_PLUS_PLUS_USE_HIREDIS_STATIC_LIB ON CACHE BOOL "" FORCE) # Avoid runtime dependency on hiredis
@@ -57,7 +57,7 @@ FetchContent_MakeAvailable(googletest)
 FetchContent_Declare(
 		zstd
 		GIT_REPOSITORY https://github.com/facebook/zstd.git
-		GIT_TAG v1.5.5
+		GIT_TAG v1.5.7
         SOURCE_SUBDIR build/cmake
 )
 set(ZSTD_BUILD_PROGRAMS OFF CACHE BOOL "" FORCE)
