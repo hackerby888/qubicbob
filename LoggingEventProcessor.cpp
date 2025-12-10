@@ -656,6 +656,7 @@ gatherAllLoggingEvents:
 
 verifyNodeStateDigest:
         if (gIsEndEpoch) break;
+        while (gCurrentVerifyLoggingTick == gCurrentFetchingTick) SLEEP(10); // need to wait until tick data and votes arrive
         if (stopFlag.load()) break;
         m256i spectrumDigest, universeDigest;
         std::vector<TickVote> votes;
