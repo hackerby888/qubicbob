@@ -372,34 +372,46 @@ namespace {
         // 2) Enqueue the request (non-blocking)
         enqueueSmartContractRequest(nonce, scIndex, funcNumber, dataBytes.data(), static_cast<uint32_t>(dataBytes.size()));
 
-        // 3) Async wait up to 2000ms with 100ms steps, on a child thread
-        std::thread([nonce, cb = std::move(callback)]() mutable {
-            for (int attempt = 0; attempt <= 20; ++attempt) {
-                std::vector<uint8_t> out;
-                if (responseSCData.get(nonce, out)) {
-                    Json::Value root;
-                    root["nonce"] = nonce;
-                    std::stringstream ss;
-                    ss << std::hex << std::setfill('0');
-                    for (const auto& b : out) ss << std::setw(2) << static_cast<int>(b);
-                    root["data"] = ss.str();
-                    Json::FastWriter writer;
-                    cb(makeJsonResponse(writer.write(root)));
-                    return;
-                }
-                if (attempt == 20) break;
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        // 3) Async wait using Drogon's event loop instead of detached threads
+        auto loop = drogon::app().getLoop();
+        auto startTime = std::make_shared<std::chrono::steady_clock::time_point>(std::chrono::steady_clock::now());
+        auto attemptCount = std::make_shared<int>(0);
+        
+        std::function<void()> checkResult;
+        checkResult = [nonce, cb = std::move(callback), loop, startTime, attemptCount, checkResult]() mutable {
+            std::vector<uint8_t> out;
+            if (responseSCData.get(nonce, out)) {
+                Json::Value root;
+                root["nonce"] = nonce;
+                std::stringstream ss;
+                ss << std::hex << std::setfill('0');
+                for (const auto& b : out) ss << std::setw(2) << static_cast<int>(b);
+                root["data"] = ss.str();
+                Json::FastWriter writer;
+                cb(makeJsonResponse(writer.write(root)));
+                return;
             }
-            // timeout ~2000ms
-            Json::Value root;
-            root["error"] = "pending";
-            root["message"] = "Query enqueued; try again with the same nonce";
-            root["nonce"] = nonce;
-            Json::FastWriter writer;
-            auto resp = makeJsonResponse(writer.write(root), k202Accepted);
-            resp->setCloseConnection(true);
-            cb(resp);
-        }).detach();
+            
+            (*attemptCount)++;
+            if (*attemptCount >= 20) {
+                // timeout ~2000ms
+                Json::Value root;
+                root["error"] = "pending";
+                root["message"] = "Query enqueued; try again with the same nonce";
+                root["nonce"] = nonce;
+                Json::FastWriter writer;
+                auto resp = makeJsonResponse(writer.write(root), k202Accepted);
+                resp->setCloseConnection(true);
+                cb(resp);
+                return;
+            }
+            
+            // Schedule next check in 100ms
+            loop->runAfter(0.1, checkResult);
+        };
+        
+        // Start checking
+        loop->runAfter(0.1, checkResult);
     } catch (const std::exception &ex) {
         callback(makeError(std::string("querySmartContract error: ") + ex.what(), k500InternalServerError));
     }
