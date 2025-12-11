@@ -372,13 +372,13 @@ namespace {
         // 2) Enqueue the request (non-blocking)
         enqueueSmartContractRequest(nonce, scIndex, funcNumber, dataBytes.data(), static_cast<uint32_t>(dataBytes.size()));
 
-        // 3) Async wait using Drogon's event loop instead of detached threads
-        auto loop = drogon::app().getLoop();
-        auto startTime = std::make_shared<std::chrono::steady_clock::time_point>(std::chrono::steady_clock::now());
+        // 3) Use Drogon's event loop timer instead of detached thread
+        auto sharedCallback = std::make_shared<std::function<void(const HttpResponsePtr&)>>(std::move(callback));
         auto attemptCount = std::make_shared<int>(0);
         
-        std::function<void()> checkResult;
-        checkResult = [nonce, cb = std::move(callback), loop, startTime, attemptCount, checkResult]() mutable {
+        auto loop = drogon::app().getIOLoop(0);  // Get an event loop
+        
+        std::function<void()> pollResult = [nonce, sharedCallback, attemptCount, loop]() {
             std::vector<uint8_t> out;
             if (responseSCData.get(nonce, out)) {
                 Json::Value root;
@@ -388,7 +388,7 @@ namespace {
                 for (const auto& b : out) ss << std::setw(2) << static_cast<int>(b);
                 root["data"] = ss.str();
                 Json::FastWriter writer;
-                cb(makeJsonResponse(writer.write(root)));
+                (*sharedCallback)(makeJsonResponse(writer.write(root)));
                 return;
             }
             
@@ -400,18 +400,51 @@ namespace {
                 root["message"] = "Query enqueued; try again with the same nonce";
                 root["nonce"] = nonce;
                 Json::FastWriter writer;
-                auto resp = makeJsonResponse(writer.write(root), k202Accepted);
+                auto resp = makeJsonResponse(writer.write(root), drogon::k202Accepted);
                 resp->setCloseConnection(true);
-                cb(resp);
+                (*sharedCallback)(resp);
                 return;
             }
             
-            // Schedule next check in 100ms
-            loop->runAfter(0.1, checkResult);
+            // Schedule next poll in 100ms - need to capture pollResult by value
+            // Use weak reference pattern to avoid circular reference issues
         };
         
-        // Start checking
-        loop->runAfter(0.1, checkResult);
+        // Use a shared_ptr to the function for proper capture
+        auto pollResultPtr = std::make_shared<std::function<void()>>();
+        *pollResultPtr = [nonce, sharedCallback, attemptCount, loop, pollResultPtr]() {
+            std::vector<uint8_t> out;
+            if (responseSCData.get(nonce, out)) {
+                Json::Value root;
+                root["nonce"] = nonce;
+                std::stringstream ss;
+                ss << std::hex << std::setfill('0');
+                for (const auto& b : out) ss << std::setw(2) << static_cast<int>(b);
+                root["data"] = ss.str();
+                Json::FastWriter writer;
+                (*sharedCallback)(makeJsonResponse(writer.write(root)));
+                return;
+            }
+            
+            (*attemptCount)++;
+            if (*attemptCount >= 20) {
+                Json::Value root;
+                root["error"] = "pending";
+                root["message"] = "Query enqueued; try again with the same nonce";
+                root["nonce"] = nonce;
+                Json::FastWriter writer;
+                auto resp = makeJsonResponse(writer.write(root), drogon::k202Accepted);
+                resp->setCloseConnection(true);
+                (*sharedCallback)(resp);
+                return;
+            }
+            
+            loop->runAfter(0.1, *pollResultPtr);
+        };
+        
+        // Start polling after 100ms
+        loop->runAfter(0.1, *pollResultPtr);
+        
     } catch (const std::exception &ex) {
         callback(makeError(std::string("querySmartContract error: ") + ex.what(), k500InternalServerError));
     }
@@ -488,6 +521,8 @@ namespace {
                 .setThreadNum(std::max(2, gMaxThreads))
                 .setIdleConnectionTimeout(10)
                 .setKeepaliveRequestsNumber(200)
+                .setMaxConnectionNum(1000)          // Limit max concurrent connections
+                .setMaxConnectionNumPerIP(100)      // Limit per-IP connections (prevents single client abuse)
                 .disableSigtermHandling();
 
             // Run Drogon in a background thread so it doesn't block the main program

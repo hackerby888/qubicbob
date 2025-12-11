@@ -315,7 +315,7 @@ int runBob(int argc, char *argv[])
 
     // Wake all data threads so none remain blocked on MRB.
     {
-        const size_t wake_count = v_data_thread.size() * 4; // ensure enough tokens
+        const size_t wake_count = v_data_thread.size() * 8; // ensure enough tokens
         std::vector<RequestResponseHeader> tokens(wake_count);
         for (auto& t : tokens) {
             t.randomizeDejavu();
