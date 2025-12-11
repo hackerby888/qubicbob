@@ -377,42 +377,12 @@ namespace {
         auto attemptCount = std::make_shared<int>(0);
         
         auto loop = drogon::app().getIOLoop(0);  // Get an event loop
-        
-        std::function<void()> pollResult = [nonce, sharedCallback, attemptCount, loop]() {
-            std::vector<uint8_t> out;
-            if (responseSCData.get(nonce, out)) {
-                Json::Value root;
-                root["nonce"] = nonce;
-                std::stringstream ss;
-                ss << std::hex << std::setfill('0');
-                for (const auto& b : out) ss << std::setw(2) << static_cast<int>(b);
-                root["data"] = ss.str();
-                Json::FastWriter writer;
-                (*sharedCallback)(makeJsonResponse(writer.write(root)));
-                return;
-            }
-            
-            (*attemptCount)++;
-            if (*attemptCount >= 20) {
-                // timeout ~2000ms
-                Json::Value root;
-                root["error"] = "pending";
-                root["message"] = "Query enqueued; try again with the same nonce";
-                root["nonce"] = nonce;
-                Json::FastWriter writer;
-                auto resp = makeJsonResponse(writer.write(root), drogon::k202Accepted);
-                resp->setCloseConnection(true);
-                (*sharedCallback)(resp);
-                return;
-            }
-            
-            // Schedule next poll in 100ms - need to capture pollResult by value
-            // Use weak reference pattern to avoid circular reference issues
-        };
-        
+
         // Use a shared_ptr to the function for proper capture
         auto pollResultPtr = std::make_shared<std::function<void()>>();
-        *pollResultPtr = [nonce, sharedCallback, attemptCount, loop, pollResultPtr]() {
+        std::weak_ptr<std::function<void()>> pollResultWeak = pollResultPtr;
+        
+        *pollResultPtr = [nonce, sharedCallback, attemptCount, loop, pollResultWeak]() {
             std::vector<uint8_t> out;
             if (responseSCData.get(nonce, out)) {
                 Json::Value root;
@@ -439,7 +409,10 @@ namespace {
                 return;
             }
             
-            loop->runAfter(0.1, *pollResultPtr);
+            // Use weak_ptr to avoid circular reference
+            if (auto pollFunc = pollResultWeak.lock()) {
+                loop->runAfter(0.1, *pollFunc);
+            }
         };
         
         // Start polling after 100ms
