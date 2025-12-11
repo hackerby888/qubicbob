@@ -120,10 +120,28 @@ namespace {
             QCPtr conn;
             std::thread th;
             int fd{-1};
+            std::atomic_bool finished{false};  // Track when thread is done
         };
 
         QubicServer() = default;
         ~QubicServer() { stop(); }
+
+        void cleanupFinishedClients() {
+            std::lock_guard<std::mutex> lk(clients_m_);
+            clients_.erase(
+                std::remove_if(clients_.begin(), clients_.end(),
+                    [](const std::shared_ptr<ClientCtx>& ctx) {
+                        if (ctx->finished.load(std::memory_order_acquire)) {
+                            if (ctx->th.joinable()) {
+                                ctx->th.join();
+                            }
+                            return true;  // Remove from vector
+                        }
+                        return false;
+                    }),
+                clients_.end()
+            );
+        }
 
         void acceptLoop() {
             while (running_) {
@@ -135,6 +153,9 @@ namespace {
                     // EAGAIN/EINTR acceptable during shutdown or transient
                     continue;
                 }
+
+                // Periodically clean up finished client threads
+                cleanupFinishedClients();
 
                 // Basic socket tuning
                 int one = 1;
@@ -168,15 +189,12 @@ namespace {
 
                     // Cleanup when receiver exits
                     if (ctx->conn) ctx->conn->disconnect();
-                    if (ctx->fd >= 0) {
-                        ::shutdown(ctx->fd, SHUT_RDWR);
-                        ::close(ctx->fd);
-                        ctx->fd = -1;
-                    }
+                    // Don't close ctx->fd here - QubicConnection owns and closes the socket
+                    ctx->fd = -1;  // Just mark as invalid
                     ctx->conn.reset();
 
-                    // Note: Do NOT detach or modify clients_ here to avoid races/deadlocks with stop().
-                    // The stop() method is responsible for joining threads and clearing the list.
+                    // Mark as finished so acceptLoop can clean it up
+                    ctx->finished.store(true, std::memory_order_release);
                 });
             }
         }
