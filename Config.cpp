@@ -5,6 +5,7 @@
 #include <sstream>
 #include <string>
 #include <memory>
+#include <thread>
 
 bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
     std::ifstream ifs(path);
@@ -144,6 +145,10 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
 
     // Maximum threads the system can use (0 means auto/unlimited)
     if (!validate_uint("max-thread", out.max_thread)) return false;
+    if (out.max_thread == 0)
+    {
+        out.max_thread = std::thread::hardware_concurrency();
+    }
 
     // Spam/Junk QU transfer detection threshold (default 0)
     if (!validate_uint("spam-qu-threshold", out.spam_qu_threshold)) return false;

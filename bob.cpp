@@ -83,6 +83,7 @@ int runBob(int argc, char *argv[])
     gTxStorageMode = cfg.tx_storage_mode;
     gTxTickToLive = cfg.tx_tick_to_live;
     gSpamThreshold = cfg.spam_qu_threshold;
+    gMaxThreads = cfg.max_thread;
 
     // Defaults for new knobs are already in AppConfig
     unsigned int request_cycle_ms = cfg.request_cycle_ms;
