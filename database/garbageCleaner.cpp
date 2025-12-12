@@ -113,7 +113,7 @@ void garbageCleaner(std::atomic_bool& stopFlag)
     }
     else
     {
-        lastCleanTickData = gCurrentFetchingTick - 1;
+        lastCleanTickData = gInitialTick;
         Logger::get()->info("No persisted lastCleanTickData found, using default: {}", lastCleanTickData);
     }
 
@@ -124,7 +124,7 @@ void garbageCleaner(std::atomic_bool& stopFlag)
     }
     else
     {
-        lastCleanTransactionTick = gCurrentFetchingTick - 1;
+        lastCleanTransactionTick = gInitialTick;
         Logger::get()->info("No persisted lastCleanTransactionTick found, using default: {}", lastCleanTransactionTick);
     }
 
