@@ -96,6 +96,27 @@ set(BUILD_DOC OFF CACHE BOOL "Build Drogon documentation" FORCE)
 FetchContent_MakeAvailable(drogon)
 include_directories(${drogon_SOURCE_DIR}/lib/inc)
 
+# Get git commit hash
+execute_process(
+    COMMAND git rev-parse HEAD
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE GIT_COMMIT_HASH
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+if(NOT GIT_COMMIT_HASH)
+    set(GIT_COMMIT_HASH "unknown")
+endif()
+
+# Get compiler name and version
+set(COMPILER_NAME "${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
+
+# Pass to compiler definitions
+add_compile_definitions(
+    GIT_COMMIT_HASH="${GIT_COMMIT_HASH}"
+    COMPILER_NAME="${COMPILER_NAME}"
+)
+
 # Check for AVX2 support
 include(CheckCXXCompilerFlag)
 CHECK_CXX_COMPILER_FLAG("-mavx2" COMPILER_SUPPORTS_AVX2)

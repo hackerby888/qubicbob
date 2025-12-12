@@ -450,38 +450,6 @@ void replyCurrentTickInfo(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
     conn->enqueueSend((uint8_t *) &pl, sizeof(pl));
 }
 
-void replyBootstrapInfo(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
-{
-    struct
-    {
-        RequestResponseHeader header;
-        BootstrapInfo bi;
-    } pl;
-
-    pl.header.setType(RESPOND_BOOTSTRAP_INFO);
-    pl.header.setSize(sizeof(pl));
-    pl.header.setDejavu(dejavu);
-
-    if (db_get_bootstrap_info(gCurrentProcessingEpoch, pl.bi))
-    {
-        conn->enqueueSend((uint8_t *) &pl, sizeof(pl));
-        return;
-    }
-    if (gIsTrustedNode)
-    {
-        pl.bi.initialTick = gInitialTick;
-        pl.bi.epoch = gCurrentProcessingEpoch;
-        pl.bi.identity = nodePublickey;
-        m256i digest;
-        KangarooTwelve((uint8_t*)&pl.bi, sizeof(pl.bi) - 64, digest.m256i_u8, 32);
-        sign(nodeSubseed.m256i_u8, nodePublickey.m256i_u8, digest.m256i_u8, pl.bi.signature);
-        conn->enqueueSend((uint8_t *) &pl, sizeof(pl));
-        db_insert_bootstrap_info(gCurrentProcessingEpoch, pl.bi);
-        return;
-    }
-
-    conn->sendEndPacket();
-}
 
 void RequestProcessorThread(std::atomic_bool& exitFlag)
 {
@@ -519,9 +487,6 @@ void RequestProcessorThread(std::atomic_bool& exitFlag)
                 break;
             case REQUEST_CURRENT_TICK_INFO:
                 replyCurrentTickInfo(conn, header.getDejavu(), ptr);
-                break;
-            case REQUEST_BOOTSTRAP_INFO:
-                replyBootstrapInfo(conn, header.getDejavu(), ptr);
                 break;
             case REQUEST_TICK_TRANSACTIONS: // Transaction
                 replyTransaction(conn, header.getDejavu(), ptr);

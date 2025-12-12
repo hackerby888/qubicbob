@@ -14,7 +14,7 @@
 #include <pthread.h> // thread naming on POSIX
 #include "shim.h"
 #include "bob.h"
-
+#include "Version.h"
 void IOVerifyThread(std::atomic_bool& stopFlag);
 void IORequestThread(ConnectionPool& conn_pool, std::atomic_bool& stopFlag, std::chrono::milliseconds requestCycle, uint32_t futureOffset);
 void EventRequestFromTrustedNode(ConnectionPool& connPoolWithPwd, std::atomic_bool& stopFlag, std::chrono::milliseconds request_logging_cycle_ms);
@@ -45,6 +45,15 @@ void requestToExitBob()
     stopFlag = true;
 }
 
+void printVersionInfo() {
+    Logger::get()->info("========================================");
+    Logger::get()->info("BOB Version: {}", BOB_VERSION);
+    Logger::get()->info("Git Commit:  {}", GIT_COMMIT_HASH);
+    Logger::get()->info("Compiler:    {}", COMPILER_NAME);
+    Logger::get()->info("========================================");
+}
+
+
 int runBob(int argc, char *argv[])
 {
     // Ignore SIGPIPE so write/send on a closed socket doesn't terminate the process.
@@ -64,8 +73,8 @@ int runBob(int argc, char *argv[])
     // trace - debug - info - warn - error - fatal
     std::string log_level = cfg.log_level;
     Logger::init(log_level);
-    gIsTrustedNode = cfg.is_trusted_node;
-    if (cfg.is_trusted_node)
+    printVersionInfo();
+
     {
         getSubseedFromSeed((uint8_t*)cfg.node_seed.c_str(), nodeSubseed.m256i_u8);
         getPrivateKeyFromSubSeed(nodeSubseed.m256i_u8, nodePrivatekey.m256i_u8);

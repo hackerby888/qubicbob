@@ -152,14 +152,6 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
     // Spam/Junk QU transfer detection threshold (default 0)
     if (!validate_uint("spam-qu-threshold", out.spam_qu_threshold)) return false;
 
-    if (root.isMember("is-trusted-node")) {
-        if (!root["is-trusted-node"].isBool()) {
-            error = "Invalid type: boolean required for key 'is-trusted-node'";
-            return false;
-        }
-        out.is_trusted_node = root["is-trusted-node"].asBool();
-    }
-
     if (root.isMember("node-seed")) {
         if (!root["node-seed"].isString()) {
             error = "Invalid type: string required for key 'node-seed'";

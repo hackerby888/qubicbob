@@ -9,7 +9,7 @@
 #include <vector>
 #include <sstream>
 #include <iomanip>
-
+#include "Version.h"
 // helper: hex-encode
 static std::string toHex(const std::vector<uint8_t>& data) {
     std::stringstream ss;
@@ -379,6 +379,14 @@ std::string getCustomLog(uint32_t scIndex, uint32_t logType,
     return result;
 }
 
+/*
+ * Logger::get()->info("========================================");
+    Logger::get()->info("BOB Version: {}", BOB_VERSION);
+    Logger::get()->info("Git Commit:  {}", GIT_COMMIT_HASH);
+    Logger::get()->info("Compiler:    {}", COMPILER_NAME);
+    Logger::get()->info("========================================");
+ * */
+
 std::string bobGetStatus()
 {
     return std::string("{") +
@@ -388,6 +396,9 @@ std::string bobGetStatus()
            ",\"currentVerifyLoggingTick\":" + std::to_string(gCurrentVerifyLoggingTick) +
            ",\"currentIndexingTick\":" + std::to_string(gCurrentIndexingTick) +
             ",\"initialTick\":" + std::to_string(gInitialTick) +
+            ",\"bobVersion\":" + BOB_VERSION +
+            ",\"bobVersionGitHash\":" + GIT_COMMIT_HASH +
+            ",\"bobCompiler\":" + COMPILER_NAME +
            "}";
 }
 

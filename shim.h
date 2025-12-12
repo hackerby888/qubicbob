@@ -28,7 +28,6 @@
 #define refetchLogFromTick             (GS().refetchLogFromTick)
 #define refetchLogToTick             (GS().refetchLogToTick)
 #define refetchLogFlag             (GS().refetchLogFlag)
-#define gIsTrustedNode               (GS().gIsTrustedNode)
 
 #define gTrustedEntities (GS().gTrustedEntities)
 

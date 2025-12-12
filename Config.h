@@ -29,7 +29,6 @@ struct AppConfig {
     unsigned request_logging_cycle_ms = 0;
     unsigned future_offset = 0;
     unsigned server_port = 0;
-    bool is_trusted_node = false;
     std::string node_seed;
     std::map<m256i, bool> trustedEntities;
 
