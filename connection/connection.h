@@ -200,7 +200,6 @@ private:
 
 void parseConnection(ConnectionPool& connPoolAll,
                      ConnectionPool& connPoolTrustedNode,
-                     ConnectionPool& connPoolP2P,
                      std::vector<std::string>& endpoints);
 void doHandshakeAndGetBootstrapInfo(ConnectionPool& cp, bool isTrusted, uint32_t& maxInitTick, uint16_t& maxInitEpoch);
 void getComputorList(ConnectionPool& cp, std::string arbitratorIdentity);

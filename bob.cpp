@@ -127,9 +127,7 @@ int runBob(int argc, char *argv[])
     // Collect endpoints from config
     ConnectionPool connPoolAll;
     ConnectionPool connPoolTrustedNode; // conn pool with passcode
-    ConnectionPool connPoolP2P;
-    parseConnection(connPoolAll, connPoolTrustedNode, connPoolP2P, cfg.trusted_nodes);
-    parseConnection(connPoolAll, connPoolTrustedNode, connPoolP2P, cfg.p2p_nodes);
+    parseConnection(connPoolAll, connPoolTrustedNode, cfg.trusted_nodes);
     if (connPoolAll.size() == 0)
     {
         Logger::get()->error("0 valid connection");
@@ -149,7 +147,6 @@ int runBob(int argc, char *argv[])
     )
     {
         doHandshakeAndGetBootstrapInfo(connPoolTrustedNode, true, initTick, initEpoch);
-        doHandshakeAndGetBootstrapInfo(connPoolP2P, false, initTick, initEpoch);
         if (isThisEpochAlreadyEnd) Logger::get()->info("Waiting for new epoch info from peers | PeerInitTick: {} PeerInitEpoch {}...", initTick, initEpoch);
         else Logger::get()->info("Doing handshakes and ask for bootstrap info | PeerInitTick: {} PeerInitEpoch {}...", initTick, initEpoch);
         if (initTick == 0 || initEpoch <= gCurrentProcessingEpoch) SLEEP(1000);

@@ -19,7 +19,6 @@ enum class TxStorageMode {
 
 struct AppConfig {
     std::vector<std::string> trusted_nodes;
-    std::vector<std::string> p2p_nodes;
 
     std::string log_level;
     std::string keydb_url;

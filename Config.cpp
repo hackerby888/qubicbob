@@ -50,8 +50,7 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
         }
     }
 
-    // Parse 'p2p-node' if present (array of strings)
-    out.p2p_nodes.clear();
+    // merge 'p2p-node' to trusted node
     if (root.isMember("p2p-node")) {
         if (!root["p2p-node"].isArray()) {
             error = "Invalid type: array required for key 'p2p-node'";
@@ -62,12 +61,12 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
                 error = "Invalid type: elements of 'p2p-node' must be strings";
                 return false;
             }
-            out.p2p_nodes.emplace_back(v.asString());
+            out.trusted_nodes.emplace_back(v.asString());
         }
     }
 
     // Require at least one list to be non-empty
-    if (out.trusted_nodes.empty() && out.p2p_nodes.empty()) {
+    if (out.trusted_nodes.empty()) {
         error = "Either 'trusted-node' or 'p2p-node' array is required";
         return false;
     }

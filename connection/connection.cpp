@@ -420,7 +420,6 @@ QubicConnection::QubicConnection(int existingSocket)
 
 void parseConnection(ConnectionPool& connPoolAll,
                      ConnectionPool& connPoolTrustedNode,
-                     ConnectionPool& connPoolP2P,
                      std::vector<std::string>& endpoints)
 {
     // Try endpoints in order, connect to the first that works
@@ -511,7 +510,6 @@ void parseConnection(ConnectionPool& connPoolAll,
         }
         connPoolAll.add(conn);
         if (has_passcode) connPoolTrustedNode.add(conn);
-        else connPoolP2P.add(conn);
 
         Logger::get()->info("Added {} node {}:{}{}", nodeType, ip, port, has_passcode ? " (trusted)" : "");
     }
