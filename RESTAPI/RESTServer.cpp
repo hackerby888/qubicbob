@@ -372,34 +372,52 @@ namespace {
         // 2) Enqueue the request (non-blocking)
         enqueueSmartContractRequest(nonce, scIndex, funcNumber, dataBytes.data(), static_cast<uint32_t>(dataBytes.size()));
 
-        // 3) Async wait up to 2000ms with 100ms steps, on a child thread
-        std::thread([nonce, cb = std::move(callback)]() mutable {
-            for (int attempt = 0; attempt <= 20; ++attempt) {
-                std::vector<uint8_t> out;
-                if (responseSCData.get(nonce, out)) {
-                    Json::Value root;
-                    root["nonce"] = nonce;
-                    std::stringstream ss;
-                    ss << std::hex << std::setfill('0');
-                    for (const auto& b : out) ss << std::setw(2) << static_cast<int>(b);
-                    root["data"] = ss.str();
-                    Json::FastWriter writer;
-                    cb(makeJsonResponse(writer.write(root)));
-                    return;
-                }
-                if (attempt == 20) break;
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        // 3) Use Drogon's event loop timer instead of detached thread
+        auto sharedCallback = std::make_shared<std::function<void(const HttpResponsePtr&)>>(std::move(callback));
+        auto attemptCount = std::make_shared<int>(0);
+        
+        auto loop = drogon::app().getIOLoop(0);  // Get an event loop
+
+        // Use a shared_ptr to the function for proper capture
+        auto pollResultPtr = std::make_shared<std::function<void()>>();
+        std::weak_ptr<std::function<void()>> pollResultWeak = pollResultPtr;
+        
+        *pollResultPtr = [nonce, sharedCallback, attemptCount, loop, pollResultWeak]() {
+            std::vector<uint8_t> out;
+            if (responseSCData.get(nonce, out)) {
+                Json::Value root;
+                root["nonce"] = nonce;
+                std::stringstream ss;
+                ss << std::hex << std::setfill('0');
+                for (const auto& b : out) ss << std::setw(2) << static_cast<int>(b);
+                root["data"] = ss.str();
+                Json::FastWriter writer;
+                (*sharedCallback)(makeJsonResponse(writer.write(root)));
+                return;
             }
-            // timeout ~2000ms
-            Json::Value root;
-            root["error"] = "pending";
-            root["message"] = "Query enqueued; try again with the same nonce";
-            root["nonce"] = nonce;
-            Json::FastWriter writer;
-            auto resp = makeJsonResponse(writer.write(root), k202Accepted);
-            resp->setCloseConnection(true);
-            cb(resp);
-        }).detach();
+            
+            (*attemptCount)++;
+            if (*attemptCount >= 20) {
+                Json::Value root;
+                root["error"] = "pending";
+                root["message"] = "Query enqueued; try again with the same nonce";
+                root["nonce"] = nonce;
+                Json::FastWriter writer;
+                auto resp = makeJsonResponse(writer.write(root), drogon::k202Accepted);
+                resp->setCloseConnection(true);
+                (*sharedCallback)(resp);
+                return;
+            }
+            
+            // Use weak_ptr to avoid circular reference
+            if (auto pollFunc = pollResultWeak.lock()) {
+                loop->runAfter(0.1, *pollFunc);
+            }
+        };
+        
+        // Start polling after 100ms
+        loop->runAfter(0.1, *pollResultPtr);
+        
     } catch (const std::exception &ex) {
         callback(makeError(std::string("querySmartContract error: ") + ex.what(), k500InternalServerError));
     }
@@ -476,6 +494,8 @@ namespace {
                 .setThreadNum(std::max(2, gMaxThreads))
                 .setIdleConnectionTimeout(10)
                 .setKeepaliveRequestsNumber(200)
+                .setMaxConnectionNum(1000)          // Limit max concurrent connections
+                .setMaxConnectionNumPerIP(100)      // Limit per-IP connections (prevents single client abuse)
                 .disableSigtermHandling();
 
             // Run Drogon in a background thread so it doesn't block the main program

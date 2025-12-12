@@ -95,3 +95,4 @@ GlobalState& GS();
 
 // the chunk size that has signature from trusted entity in bob
 static constexpr long long BOB_LOG_EVENT_CHUNK_SIZE = 1024; // do not edit
+

@@ -36,7 +36,7 @@ public:
     }
 
     // non-thread safe operation, only use these functions for bootstrap
-    void getTickInfoFromTrustedNode(uint32_t& tick, uint16_t& epoch);
+    void getBootstrapTickInfo(uint32_t& tick, uint16_t& epoch);
     void getBootstrapInfo(uint32_t& tick, uint16_t& epoch);
     void doHandshake();
     void getComputorList(const uint16_t epoch, Computors& compList);
@@ -88,6 +88,13 @@ public:
 
     std::size_t size() const { return conns_.size(); }
     QCPtr& get(int i) { return conns_[i];}
+
+    void randomlyRemove() {
+        if (conns_.empty()) return;
+        std::uniform_int_distribution<std::size_t> dist(0, conns_.size() - 1);
+        auto idx = dist(rng_);
+        conns_.erase(conns_.begin() + idx);
+    }
 
     // Sends to one random valid connection. Returns bytes sent, or -1 if none could be used.
     int sendToRandomBM(uint8_t* buffer, int sz, uint8_t type, bool randomDejavu) {
@@ -199,8 +206,8 @@ private:
 };
 
 void parseConnection(ConnectionPool& connPoolAll,
-                     ConnectionPool& connPoolTrustedNode,
-                     ConnectionPool& connPoolP2P,
                      std::vector<std::string>& endpoints);
 void doHandshakeAndGetBootstrapInfo(ConnectionPool& cp, bool isTrusted, uint32_t& maxInitTick, uint16_t& maxInitEpoch);
 void getComputorList(ConnectionPool& cp, std::string arbitratorIdentity);
+std::vector<std::string> GetPeerFromDNS();
+bool DownloadStateFiles(uint16_t epoch);

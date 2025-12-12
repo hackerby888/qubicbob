@@ -436,54 +436,6 @@ static_assert(sizeof(Computors) == 2 + 32 * NUMBER_OF_COMPUTORS + SIGNATURE_SIZE
 
 // list of structs that bob uses to communicate logging events
 
-// custom request in bob => request a signature from trusted entities about logging [startLogId, endLogId]
-struct RequestLogEventSignature
-{
-    uint32_t tick;
-    uint32_t chunkid;
-    long long startLogId;
-    long long endLogId;
-    static constexpr unsigned char type()
-    {
-        return 144;
-    }
-};
-
-struct ResponseLogSignature
-{
-    m256i identity;
-    uint32_t tick;
-    uint32_t chunkid;
-    long long startLogId, endLogId;
-    // dynamic size after this, signature is sign(K12(everything before sig))
-    // last 64 bytes is signature
-    static constexpr unsigned char type()
-    {
-        return 145;
-    }
-};
-
-// ask for signature of the log range
-struct RequestLogRangeSignature
-{
-    uint32_t tick;
-    static constexpr unsigned char type()
-    {
-        return 146;
-    }
-};
-
-struct ResponseLogRangeSignature
-{
-    ResponseAllLogIdRangesFromTick lr;
-    m256i identity;
-    uint8_t signature[64];
-    static constexpr unsigned char type()
-    {
-        return 147;
-    }
-};
-
 // for query smart contract
 struct RequestContractFunction // Invokes contract function
 {

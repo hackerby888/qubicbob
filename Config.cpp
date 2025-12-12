@@ -5,6 +5,7 @@
 #include <sstream>
 #include <string>
 #include <memory>
+#include <thread>
 
 bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
     std::ifstream ifs(path);
@@ -32,25 +33,8 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
         error = "invalid JSON: root must be an object";
         return false;
     }
-    
-    // Parse 'trusted-node' if present (array of strings)
-    out.trusted_nodes.clear();
-    if (root.isMember("trusted-node")) {
-        if (!root["trusted-node"].isArray()) {
-            error = "Invalid type: array required for key 'trusted-node'";
-            return false;
-        }
-        for (const auto& v : root["trusted-node"]) {
-            if (!v.isString()) {
-                error = "Invalid type: elements of 'trusted-node' must be strings";
-                return false;
-            }
-            out.trusted_nodes.emplace_back(v.asString());
-        }
-    }
 
-    // Parse 'p2p-node' if present (array of strings)
-    out.p2p_nodes.clear();
+    // merge 'p2p-node' to trusted node
     if (root.isMember("p2p-node")) {
         if (!root["p2p-node"].isArray()) {
             error = "Invalid type: array required for key 'p2p-node'";
@@ -63,12 +47,6 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
             }
             out.p2p_nodes.emplace_back(v.asString());
         }
-    }
-
-    // Require at least one list to be non-empty
-    if (out.trusted_nodes.empty() && out.p2p_nodes.empty()) {
-        error = "Either 'trusted-node' or 'p2p-node' array is required";
-        return false;
     }
 
     // Optional fields (use defaults from AppConfig if absent)
@@ -144,17 +122,13 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
 
     // Maximum threads the system can use (0 means auto/unlimited)
     if (!validate_uint("max-thread", out.max_thread)) return false;
+    if (out.max_thread == 0)
+    {
+        out.max_thread = std::thread::hardware_concurrency();
+    }
 
     // Spam/Junk QU transfer detection threshold (default 0)
     if (!validate_uint("spam-qu-threshold", out.spam_qu_threshold)) return false;
-
-    if (root.isMember("is-trusted-node")) {
-        if (!root["is-trusted-node"].isBool()) {
-            error = "Invalid type: boolean required for key 'is-trusted-node'";
-            return false;
-        }
-        out.is_trusted_node = root["is-trusted-node"].asBool();
-    }
 
     if (root.isMember("node-seed")) {
         if (!root["node-seed"].isString()) {
@@ -162,34 +136,10 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
             return false;
         }
         out.node_seed = root["node-seed"].asString();
+    } else {
+        out.node_seed = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     }
 
-    if (root.isMember("trusted-entities")) {
-        if (!root["trusted-entities"].isArray()) {
-            error = "Invalid type: array required for key 'trusted-entities'";
-            return false;
-        }
-        for (const auto &v: root["trusted-entities"]) {
-            if (!v.isString()) {
-                error = "Invalid type: elements of 'trusted-entities' must be strings";
-                return false;
-            }
-            const std::string &id = v.asString();
-            if (id.length() != 60) {
-                error = "Invalid trusted entity ID length: must be 60 characters";
-                return false;
-            }
-            for (char c: id) {
-                if (c < 'A' || c > 'Z') {
-                    error = "Invalid trusted entity ID format: must be uppercase letters only";
-                    return false;
-                }
-            }
-            m256i pubkey;
-            getPublicKeyFromIdentity(id.data(), pubkey.m256i_u8);
-            out.trustedEntities[pubkey] = true;
-        }
-    }
 
     // Parse 'tick-storage-mode' and related options
     {

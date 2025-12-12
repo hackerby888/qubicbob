@@ -283,11 +283,8 @@ static bool isRequestType(int type)
     if (type == RequestTickData::type) return true;                   // request tickdata
     if (type == REQUEST_CURRENT_TICK_INFO) return true;               // REQUEST_CURRENT_TICK_INFO
     if (type == RequestedTickTransactions::type) return true;         // request tx
-    if (type == REQUEST_BOOTSTRAP_INFO) return true;
     if (type == RequestLog::type()) return true;                      // request log
     if (type == RequestAllLogIdRangesFromTick::type()) return true;   // request log range
-    if (type == RequestLogEventSignature::type()) return true;
-    if (type == RequestLogRangeSignature::type()) return true;
     return false;
 }
 static bool isDataType(int type)
@@ -297,10 +294,7 @@ static bool isDataType(int type)
     if (type == BROADCAST_TRANSACTION) return true;                   // tx
     if (type == RespondLog::type()) return true;                      // log
     if (type == ResponseAllLogIdRangesFromTick::type()) return true;  // logrange
-    if (type == ResponseLogSignature::type()) return true;
-    if (type == ResponseLogRangeSignature::type()) return true;
     if (type == RespondContractFunction::type) return true;
-    if (type == RESPOND_BOOTSTRAP_INFO) return true;
     return false;
 }
 

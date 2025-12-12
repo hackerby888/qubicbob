@@ -10,17 +10,15 @@
 #include <cstdlib>   // strtoull
 #include <limits>    // std::numeric_limits
 #include <algorithm> // std::max
+#include <random>    // std::random_device, std::mt19937
 #include "K12AndKeyUtil.h"
 #include <pthread.h> // thread naming on POSIX
 #include "shim.h"
 #include "bob.h"
-
+#include "Version.h"
 void IOVerifyThread(std::atomic_bool& stopFlag);
 void IORequestThread(ConnectionPool& conn_pool, std::atomic_bool& stopFlag, std::chrono::milliseconds requestCycle, uint32_t futureOffset);
 void EventRequestFromTrustedNode(ConnectionPool& connPoolWithPwd, std::atomic_bool& stopFlag, std::chrono::milliseconds request_logging_cycle_ms);
-void EventRequestFromNormalNodes(ConnectionPool& connPoolNoPwd,
-                                 std::atomic_bool& stopFlag,
-                                 std::chrono::milliseconds request_logging_cycle_ms);
 void connReceiver(QCPtr& conn, const bool isTrustedNode, std::atomic_bool& stopFlag);
 void DataProcessorThread(std::atomic_bool& exitFlag);
 void RequestProcessorThread(std::atomic_bool& exitFlag);
@@ -48,6 +46,15 @@ void requestToExitBob()
     stopFlag = true;
 }
 
+void printVersionInfo() {
+    Logger::get()->info("========================================");
+    Logger::get()->info("BOB Version: {}", BOB_VERSION);
+    Logger::get()->info("Git Commit:  {}", GIT_COMMIT_HASH);
+    Logger::get()->info("Compiler:    {}", COMPILER_NAME);
+    Logger::get()->info("========================================");
+}
+
+
 int runBob(int argc, char *argv[])
 {
     // Ignore SIGPIPE so write/send on a closed socket doesn't terminate the process.
@@ -67,22 +74,22 @@ int runBob(int argc, char *argv[])
     // trace - debug - info - warn - error - fatal
     std::string log_level = cfg.log_level;
     Logger::init(log_level);
-    gIsTrustedNode = cfg.is_trusted_node;
-    if (cfg.is_trusted_node)
+    printVersionInfo();
     {
-        getSubseedFromSeed((uint8_t*)cfg.node_seed.c_str(), nodeSubseed.m256i_u8);
+        getSubseedFromSeed((uint8_t *) cfg.node_seed.c_str(), nodeSubseed.m256i_u8);
         getPrivateKeyFromSubSeed(nodeSubseed.m256i_u8, nodePrivatekey.m256i_u8);
         getPublicKeyFromPrivateKey(nodePrivatekey.m256i_u8, nodePublickey.m256i_u8);
         char identity[64] = {0};
         getIdentityFromPublicKey(nodePublickey.m256i_u8, identity, false);
-        Logger::get()->info("Trusted node identity: {}", identity);
+        if (cfg.node_seed == "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+            Logger::get()->warn("Using default bob seed: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
     }
-    gTrustedEntities = cfg.trustedEntities;
     gTickStorageMode = cfg.tick_storage_mode;
     gLastNTickStorage = cfg.last_n_tick_storage;
     gTxStorageMode = cfg.tx_storage_mode;
     gTxTickToLive = cfg.tx_tick_to_live;
     gSpamThreshold = cfg.spam_qu_threshold;
+    gMaxThreads = cfg.max_thread;
 
     // Defaults for new knobs are already in AppConfig
     unsigned int request_cycle_ms = cfg.request_cycle_ms;
@@ -127,16 +134,19 @@ int runBob(int argc, char *argv[])
         Logger::get()->info("Connected to kvrocks");
     }
     // Collect endpoints from config
-    ConnectionPool connPoolAll;
-    ConnectionPool connPoolTrustedNode; // conn pool with passcode
-    ConnectionPool connPoolP2P;
-    parseConnection(connPoolAll, connPoolTrustedNode, connPoolP2P, cfg.trusted_nodes);
-    parseConnection(connPoolAll, connPoolTrustedNode, connPoolP2P, cfg.p2p_nodes);
-    if (connPoolAll.size() == 0)
+    ConnectionPool connPool; // conn pool with passcode
+    if (cfg.p2p_nodes.empty())
+    {
+        Logger::get()->info("Getting peers info from qubic.global");
+        cfg.p2p_nodes = GetPeerFromDNS();
+    }
+    parseConnection(connPool, cfg.p2p_nodes);
+    if (connPool.size() == 0)
     {
         Logger::get()->error("0 valid connection");
         exit(1);
     }
+    while (connPool.size() > 4) connPool.randomlyRemove();
 
 
     uint32_t initTick = 0;
@@ -150,8 +160,7 @@ int runBob(int argc, char *argv[])
             )
     )
     {
-        doHandshakeAndGetBootstrapInfo(connPoolTrustedNode, true, initTick, initEpoch);
-        doHandshakeAndGetBootstrapInfo(connPoolP2P, false, initTick, initEpoch);
+        doHandshakeAndGetBootstrapInfo(connPool, true, initTick, initEpoch);
         if (isThisEpochAlreadyEnd) Logger::get()->info("Waiting for new epoch info from peers | PeerInitTick: {} PeerInitEpoch {}...", initTick, initEpoch);
         else Logger::get()->info("Doing handshakes and ask for bootstrap info | PeerInitTick: {} PeerInitEpoch {}...", initTick, initEpoch);
         if (initTick == 0 || initEpoch <= gCurrentProcessingEpoch) SLEEP(1000);
@@ -176,7 +185,7 @@ int runBob(int argc, char *argv[])
     {
         while (computorsList.epoch != gCurrentProcessingEpoch.load())
         {
-            getComputorList(connPoolAll, cfg.arbitrator_identity);
+            getComputorList(connPool, cfg.arbitrator_identity);
             SLEEP(1000);
         }
     }
@@ -186,7 +195,7 @@ int runBob(int argc, char *argv[])
             [&](){
                 set_this_thread_name("io-req");
                 IORequestThread(
-                        std::ref(connPoolAll),
+                        std::ref(connPool),
                         std::ref(stopFlag),
                         std::chrono::milliseconds(request_cycle_ms),
                         static_cast<uint32_t>(future_offset)
@@ -199,12 +208,7 @@ int runBob(int argc, char *argv[])
     });
     auto log_request_trusted_nodes_thread = std::thread([&](){
         set_this_thread_name("trusted-log-req");
-        EventRequestFromTrustedNode(std::ref(connPoolTrustedNode), std::ref(stopFlag),
-                                    std::chrono::milliseconds(request_logging_cycle_ms));
-    });
-    auto log_request_p2p_thread = std::thread([&](){
-        set_this_thread_name("p2p-log-req");
-        EventRequestFromNormalNodes(std::ref(connPoolP2P), std::ref(stopFlag),
+        EventRequestFromTrustedNode(std::ref(connPool), std::ref(stopFlag),
                                     std::chrono::milliseconds(request_logging_cycle_ms));
     });
     auto indexer_thread = std::thread([&](){
@@ -213,9 +217,9 @@ int runBob(int argc, char *argv[])
     });
     auto sc_thread = std::thread([&](){
         set_this_thread_name("sc");
-        querySmartContractThread(connPoolAll, std::ref(stopFlag));
+        querySmartContractThread(connPool, std::ref(stopFlag));
     });
-    int pool_size = connPoolAll.size();
+    int pool_size = connPool.size();
     std::vector<std::thread> v_recv_thread;
     std::vector<std::thread> v_data_thread;
     Logger::get()->info("Starting {} data processor threads", pool_size);
@@ -226,7 +230,7 @@ int runBob(int argc, char *argv[])
             char nm[16];
             std::snprintf(nm, sizeof(nm), "recv-%d", i);
             set_this_thread_name(nm);
-            connReceiver(std::ref(connPoolAll.get(i)), isTrustedNode, std::ref(stopFlag));
+            connReceiver(std::ref(connPool.get(i)), isTrustedNode, std::ref(stopFlag));
         });
     }
     for (int i = 0; i < std::max(gMaxThreads, pool_size); i++)
@@ -289,7 +293,7 @@ int runBob(int argc, char *argv[])
         while (count++ < sleep_time*10 && !stopFlag.load()) SLEEP(100);
     }
     // Signal stop, disconnect sockets first to break any blocking I/O.
-    for (int i = 0; i < connPoolAll.size(); i++) connPoolAll.get(i)->disconnect();
+    for (int i = 0; i < connPool.size(); i++) connPool.get(i)->disconnect();
     // Stop and join producer/request threads first so they cannot enqueue more work.
     verify_thread.join();
     Logger::get()->info("Exited Verifying thread");
@@ -297,8 +301,6 @@ int runBob(int argc, char *argv[])
     Logger::get()->info("Exited TickDataRequest thread");
     log_request_trusted_nodes_thread.join();
     Logger::get()->info("Exited LogEventRequestTrustedNodes thread");
-    log_request_p2p_thread.join();
-    Logger::get()->info("Exited LogEventRequestP2P thread");
     indexer_thread.join();
     Logger::get()->info("Exited indexer thread");
     sc_thread.join();
@@ -315,7 +317,7 @@ int runBob(int argc, char *argv[])
 
     // Wake all data threads so none remain blocked on MRB.
     {
-        const size_t wake_count = v_data_thread.size() * 4; // ensure enough tokens
+        const size_t wake_count = v_data_thread.size() * 8; // ensure enough tokens
         std::vector<RequestResponseHeader> tokens(wake_count);
         for (auto& t : tokens) {
             t.randomizeDejavu();

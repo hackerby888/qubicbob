@@ -380,6 +380,7 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
 {
     gIsEndEpoch = false;
     bool saveLastTick = false;
+    bool needBootstrapFiles = false;
     uint32_t lastQuorumTick = 0;
     uint32_t lastVerifiedTick = db_get_latest_verified_tick();
     std::string spectrumFilePath;
@@ -399,11 +400,22 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
     } else {
         spectrumFilePath = "spectrum." + std::to_string(gCurrentProcessingEpoch);
         assetFilePath    = "universe." + std::to_string(gCurrentProcessingEpoch);
+        needBootstrapFiles = true;
         lastVerifiedTick =  gInitialTick - 1;
     }
 
     if (!loadFile(spectrumFilePath, spectrum, sizeof(EntityRecord), SPECTRUM_CAPACITY, "spectrum")) {
-        return;
+        if (needBootstrapFiles)
+        {
+            Logger::get()->info("Cannot find bootstrap files, trying to download from qubic.global");
+            DownloadStateFiles(gCurrentProcessingEpoch);
+            if (!loadFile(spectrumFilePath, spectrum, sizeof(EntityRecord), SPECTRUM_CAPACITY, "spectrum"))
+            {
+                return;
+            }
+        } else {
+            return;
+        }
     }
 
     if (!loadFile(assetFilePath, assets, sizeof(AssetRecord), ASSETS_CAPACITY, "universe")) {
@@ -487,6 +499,7 @@ gatherAllLoggingEvents:
                         }
                     }
                     if (!received_full) SLEEP(100);
+                    if (stopFlag.load(std::memory_order_relaxed)) return;
                 }
                 refetchLogFromTick = -1;
                 refetchLogToTick = -1;
@@ -656,6 +669,11 @@ gatherAllLoggingEvents:
 
 verifyNodeStateDigest:
         if (gIsEndEpoch) break;
+        while (gCurrentVerifyLoggingTick == gCurrentFetchingTick)
+        {
+            SLEEP(10); // need to wait until tick data and votes arrive
+            if (stopFlag.load(std::memory_order_relaxed)) return;
+        }
         if (stopFlag.load()) break;
         m256i spectrumDigest, universeDigest;
         std::vector<TickVote> votes;
@@ -835,7 +853,7 @@ void EventRequestFromTrustedNode(ConnectionPool& connPoolWithPwd,
                 }
                 SLEEP(1000);
             }
-            while (gCurrentFetchingLogTick >= gCurrentFetchingTick && !stopFlag.load(std::memory_order_relaxed)) SLEEP(100);
+            while (gCurrentFetchingLogTick >= (gCurrentFetchingTick+1) && !stopFlag.load(std::memory_order_relaxed)) SLEEP(100);
             if (stopFlag.load(std::memory_order_relaxed)) break;
             if (!db_check_log_range(gCurrentFetchingLogTick))
             {
@@ -882,98 +900,4 @@ void EventRequestFromTrustedNode(ConnectionPool& connPoolWithPwd,
     }
 
     Logger::get()->info("EventRequestFromTrustedNode stopping gracefully.");
-}
-
-static bool isIntersect(const long long a, const long long b, const long long c, const long long d)
-{
-    long long latest_start = std::max(a,c);
-    long long earliest_end = std::min(b,d);
-    return latest_start <= earliest_end;
-}
-
-void EventRequestFromNormalNodes(ConnectionPool& connPoolNoPwd,
-                                 std::atomic_bool& stopFlag,
-                                 std::chrono::milliseconds request_logging_cycle_ms)
-{
-    auto idleBackoff = request_logging_cycle_ms;
-
-    while (!stopFlag.load(std::memory_order_relaxed)) {
-        try {
-            while (refetchLogFromTick != -1 && refetchLogToTick != -1 && !stopFlag.load(std::memory_order_relaxed))
-            {
-                for (uint32_t t = refetchLogFromTick; t <= refetchLogToTick; t++)
-                {
-                    if (!db_check_log_range(t))
-                    {
-                        RequestLogRangeSignature rlrs{t};
-                        connPoolNoPwd.sendToRandom((uint8_t*)&rlrs, sizeof(RequestLogRangeSignature), RequestLogRangeSignature::type(), true);
-                    }
-                }
-                SLEEP(1000);
-            }
-            while (refetchFromId != -1 && refetchToId != -1 && !stopFlag.load(std::memory_order_relaxed))
-            {
-                for (uint32_t tick = refetchLogFromTick; tick < refetchLogToTick; tick++)
-                {
-                    long long ts,te,tl;
-                    db_try_get_log_range_for_tick(tick, ts, tl);
-                    te = ts + tl - 1;
-                    uint32_t chunk_count = 0;
-                    for (long long s = ts; s <= te; s += BOB_LOG_EVENT_CHUNK_SIZE, chunk_count++)
-                    {
-                        long long e = std::min(te, s + BOB_LOG_EVENT_CHUNK_SIZE - 1);
-                        if (isIntersect(s,e,refetchFromId,refetchToId))
-                        {
-                            RequestLogEventSignature rls{tick, chunk_count,s,e};
-                            connPoolNoPwd.sendToMany((uint8_t*)&rls, sizeof(rls), 2, RequestLogEventSignature::type(), true);
-                        }
-                    }
-                }
-                SLEEP(100);
-            }
-            while (gCurrentFetchingLogTick >= gCurrentFetchingTick && !stopFlag.load(std::memory_order_relaxed)) SLEEP(100);
-            if (stopFlag.load(std::memory_order_relaxed)) break;
-            if (!db_check_log_range(gCurrentFetchingLogTick))
-            {
-                RequestLogRangeSignature rlrs{gCurrentFetchingLogTick};
-                connPoolNoPwd.sendToRandom((uint8_t*)&rlrs, sizeof(RequestLogRangeSignature), RequestLogRangeSignature::type(), true);
-            } else {
-                long long fromId, length;
-                if (!db_try_get_log_range_for_tick(gCurrentFetchingLogTick, fromId, length)) continue;
-                if (fromId == -1 || length == -1)
-                {
-                    continue;
-                }
-                long long endId = fromId + length - 1; // inclusive
-                long long tmpFromId = fromId;
-                while (db_log_exists(gCurrentProcessingEpoch, fromId) && fromId <= endId) fromId++;
-                uint32_t chunk_count = 0;
-                if (fromId <= endId)
-                {
-                    for (long long s = tmpFromId; s <= endId; s += BOB_LOG_EVENT_CHUNK_SIZE, chunk_count++)
-                    {
-                        long long e = std::min(endId, s + BOB_LOG_EVENT_CHUNK_SIZE - 1);
-                        if (isIntersect(s,e,fromId,endId))
-                        {
-                            RequestLogEventSignature rls{gCurrentFetchingLogTick, chunk_count,s,e};
-                            connPoolNoPwd.sendToMany((uint8_t*)&rls, sizeof(rls), 1, RequestLogEventSignature::type(), true);
-                        }
-                    }
-                }
-            }
-            for (int i = 1; i < 5; i++)
-            {
-                if (!db_check_log_range(gCurrentFetchingLogTick + i))
-                {
-                    RequestLogRangeSignature rlrs{gCurrentFetchingLogTick + i};
-                    connPoolNoPwd.sendToRandom((uint8_t*)&rlrs, sizeof(RequestLogRangeSignature), RequestLogRangeSignature::type(), true);
-                }
-            }
-            SLEEP(idleBackoff);
-        } catch (std::logic_error &ex) {
-
-        }
-    }
-
-    Logger::get()->info("EventRequestFromNormalNodes stopping gracefully.");
 }
