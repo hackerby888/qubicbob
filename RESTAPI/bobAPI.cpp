@@ -396,9 +396,9 @@ std::string bobGetStatus()
            ",\"currentVerifyLoggingTick\":" + std::to_string(gCurrentVerifyLoggingTick) +
            ",\"currentIndexingTick\":" + std::to_string(gCurrentIndexingTick) +
             ",\"initialTick\":" + std::to_string(gInitialTick) +
-            ",\"bobVersion\":" + BOB_VERSION +
-            ",\"bobVersionGitHash\":" + GIT_COMMIT_HASH +
-            ",\"bobCompiler\":" + COMPILER_NAME +
+            R"(,"bobVersion": ")" + BOB_VERSION + "\""
+            ",\"bobVersionGitHash\": \"" + GIT_COMMIT_HASH + "\""
+            ",\"bobCompiler\": \"" + COMPILER_NAME + "\""
            "}";
 }
 
