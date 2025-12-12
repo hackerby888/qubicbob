@@ -487,6 +487,7 @@ gatherAllLoggingEvents:
                         }
                     }
                     if (!received_full) SLEEP(100);
+                    if (stopFlag.load(std::memory_order_relaxed)) return;
                 }
                 refetchLogFromTick = -1;
                 refetchLogToTick = -1;
@@ -656,7 +657,11 @@ gatherAllLoggingEvents:
 
 verifyNodeStateDigest:
         if (gIsEndEpoch) break;
-        while (gCurrentVerifyLoggingTick == gCurrentFetchingTick) SLEEP(10); // need to wait until tick data and votes arrive
+        while (gCurrentVerifyLoggingTick == gCurrentFetchingTick)
+        {
+            SLEEP(10); // need to wait until tick data and votes arrive
+            if (stopFlag.load(std::memory_order_relaxed)) return;
+        }
         if (stopFlag.load()) break;
         m256i spectrumDigest, universeDigest;
         std::vector<TickVote> votes;
