@@ -54,7 +54,7 @@ namespace {
                 return false;
             }
 
-            if (::listen(listen_fd_, 128) < 0) {
+            if (::listen(listen_fd_, MAX_CONCURRENT_CONNECTIONS) < 0) {
                 Logger::get()->critical("QubicServer: listen() failed (errno={})", errno);
                 ::close(listen_fd_);
                 listen_fd_ = -1;
@@ -63,7 +63,8 @@ namespace {
 
             running_ = true;
             accept_thread_ = std::thread(&QubicServer::acceptLoop, this);
-            Logger::get()->info("QubicServer: listening on port {}", port);
+            Logger::get()->info("QubicServer: listening on port {} (max {} connections, {} sec timeout)", 
+                               port, MAX_CONCURRENT_CONNECTIONS, 2);
             return true;
         }
 
@@ -200,6 +201,7 @@ namespace {
         }
 
     private:
+        static constexpr size_t MAX_CONCURRENT_CONNECTIONS = 676;
         std::mutex m_;
         std::atomic_bool running_{false};
         int listen_fd_{-1};
