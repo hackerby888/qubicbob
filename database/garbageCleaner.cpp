@@ -1,20 +1,22 @@
 #include "database/db.h"
 #include "shim.h"
+static const std::string KEY_LAST_CLEAN_TICK_DATA = "garbage_cleaner:last_clean_tick_data";
+static const std::string KEY_LAST_CLEAN_TX_TICK = "garbage_cleaner:last_clean_tx_tick";
+
 bool cleanTransactionAndLogsAndSaveToDisk(TickData& td, ResponseAllLogIdRangesFromTick& lr)
 {
     for (int i = 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK; i++)
     {
         if (td.transactionDigests[i] != m256i::zero())
         {
-            db_copy_transaction_to_kvrocks(td.transactionDigests[i].toQubicHash());
+            if (gTxStorageMode == TxStorageMode::Kvrocks) db_copy_transaction_to_kvrocks(td.transactionDigests[i].toQubicHash());
+
             if (lr.fromLogId[i] > 0 && lr.length[i] > 0)
             {
                 long long start = lr.fromLogId[i];
                 long long end = start + lr.length[i] - 1; // inclusive
-                if (db_move_logs_to_kvrocks_by_range(td.epoch, start, end))
-                {
-                    db_delete_logs(td.epoch, start, end);
-                }
+                if (gTxStorageMode == TxStorageMode::Kvrocks) db_move_logs_to_kvrocks_by_range(td.epoch, start, end);
+                db_delete_logs(td.epoch, start, end);
             }
             db_delete_transaction(td.transactionDigests[i].toQubicHash());
         }
@@ -98,8 +100,36 @@ bool cleanRawTick(uint32_t fromTick, uint32_t toTick, bool withTransactions)
 void garbageCleaner(std::atomic_bool& stopFlag)
 {
     Logger::get()->info("Start garbage cleaner");
-    long long lastCleanTickData = gCurrentFetchingTick - 1;
-    long long lastCleanTransactionTick = gCurrentFetchingTick - 1;
+    uint32_t loadedCleanTickData = 0;
+    uint32_t loadedCleanTxTick = 0;
+
+    long long lastCleanTickData;
+    long long lastCleanTransactionTick;
+
+    if (db_get_u32(KEY_LAST_CLEAN_TICK_DATA, loadedCleanTickData) && loadedCleanTickData > 0)
+    {
+        lastCleanTickData = loadedCleanTickData;
+        Logger::get()->info("Loaded lastCleanTickData from DB: {}", lastCleanTickData);
+    }
+    else
+    {
+        lastCleanTickData = gCurrentFetchingTick - 1;
+        Logger::get()->info("No persisted lastCleanTickData found, using default: {}", lastCleanTickData);
+    }
+
+    if (db_get_u32(KEY_LAST_CLEAN_TX_TICK, loadedCleanTxTick) && loadedCleanTxTick > 0)
+    {
+        lastCleanTransactionTick = loadedCleanTxTick;
+        Logger::get()->info("Loaded lastCleanTransactionTick from DB: {}", lastCleanTransactionTick);
+    }
+    else
+    {
+        lastCleanTransactionTick = gCurrentFetchingTick - 1;
+        Logger::get()->info("No persisted lastCleanTransactionTick found, using default: {}", lastCleanTransactionTick);
+    }
+
+    if (lastCleanTickData < gInitialTick) lastCleanTickData = gInitialTick;
+    if (lastCleanTransactionTick < gInitialTick) lastCleanTransactionTick = gInitialTick;
     uint32_t lastReportedTick = 0;
     while (!stopFlag.load())
     {
@@ -114,6 +144,7 @@ void garbageCleaner(std::atomic_bool& stopFlag)
                 if (cleanRawTick(lastCleanTickData + 1, cleanToTick, gTxStorageMode == TxStorageMode::LastNTick /*also clean txs*/))
                 {
                     lastCleanTickData = cleanToTick;
+                    db_insert_u32(KEY_LAST_CLEAN_TICK_DATA, static_cast<uint32_t>(lastCleanTickData));
                 }
 
                 if (cleanToTick - lastReportedTick > 1000)
@@ -136,6 +167,7 @@ void garbageCleaner(std::atomic_bool& stopFlag)
                 if (cleanRawTick(lastCleanTickData + 1, cleanToTick, false /*do not clean txs instantly*/))
                 {
                     lastCleanTickData = cleanToTick;
+                    db_insert_u32(KEY_LAST_CLEAN_TICK_DATA, static_cast<uint32_t>(lastCleanTickData));
                 }
                 Logger::get()->trace("Cleaned tick {}->{} in keydb", lastCleanTickData + 1, cleanToTick);
                 if (cleanToTick - lastReportedTick > 1000)
@@ -157,6 +189,7 @@ void garbageCleaner(std::atomic_bool& stopFlag)
                     cleanTransactionLogs(t);
                 }
                 lastCleanTransactionTick = cleanToTick;
+                db_insert_u32(KEY_LAST_CLEAN_TX_TICK, static_cast<uint32_t>(lastCleanTransactionTick));
             }
         }
     }
@@ -171,6 +204,7 @@ void garbageCleaner(std::atomic_bool& stopFlag)
                 if (cleanRawTick(lastCleanTickData + 1, cleanToTick, true))
                 {
                     Logger::get()->info("Cleaned all raw tick data");
+                    db_insert_u32(KEY_LAST_CLEAN_TICK_DATA, static_cast<uint32_t>(cleanToTick));
                 }
             }
         }
@@ -187,6 +221,7 @@ void garbageCleaner(std::atomic_bool& stopFlag)
                 if (cleanRawTick(lastCleanTickData + 1, cleanToTick, true))
                 {
                     Logger::get()->info("Cleaned all raw tick data");
+                    db_insert_u32(KEY_LAST_CLEAN_TICK_DATA, static_cast<uint32_t>(cleanToTick));
                 }
             }
         }
