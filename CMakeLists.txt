@@ -125,22 +125,21 @@ if (NOT COMPILER_SUPPORTS_AVX2)
 endif ()
 
 # --- Project Sources ---
-SET(FILES ${CMAKE_SOURCE_DIR}/connection/connection.cpp
-          ${CMAKE_SOURCE_DIR}/database/db.cpp
+SET(FILES
+		${CMAKE_SOURCE_DIR}/connection/connection.cpp
+		${CMAKE_SOURCE_DIR}/connection/NodeIntroducer.cpp
+        ${CMAKE_SOURCE_DIR}/database/db.cpp
 		${CMAKE_SOURCE_DIR}/database/garbageCleaner.cpp
-		  ${CMAKE_SOURCE_DIR}/Logger.cpp
-		  ${CMAKE_SOURCE_DIR}/DataProcessors.cpp
-		  ${CMAKE_SOURCE_DIR}/IOProcessor.cpp
-		  ${CMAKE_SOURCE_DIR}/LoggingEventProcessor.cpp
-		  ${CMAKE_SOURCE_DIR}/QubicServer.cpp
-		  ${CMAKE_SOURCE_DIR}/QubicIndexer.cpp
-		  ${CMAKE_SOURCE_DIR}/Config.cpp
-		  ${CMAKE_SOURCE_DIR}/bob.cpp
-
-		  ${CMAKE_SOURCE_DIR}/GlobalVar.cpp
-
-		  ${CMAKE_SOURCE_DIR}/LogEvent.cpp
-
+		${CMAKE_SOURCE_DIR}/Logger.cpp
+		${CMAKE_SOURCE_DIR}/DataProcessors.cpp
+		${CMAKE_SOURCE_DIR}/IOProcessor.cpp
+		${CMAKE_SOURCE_DIR}/LoggingEventProcessor.cpp
+		${CMAKE_SOURCE_DIR}/QubicServer.cpp
+		${CMAKE_SOURCE_DIR}/QubicIndexer.cpp
+		${CMAKE_SOURCE_DIR}/Config.cpp
+		${CMAKE_SOURCE_DIR}/bob.cpp
+		${CMAKE_SOURCE_DIR}/GlobalVar.cpp
+		${CMAKE_SOURCE_DIR}/LogEvent.cpp
 		${CMAKE_SOURCE_DIR}/RESTAPI/bobAPI.cpp
 		${CMAKE_SOURCE_DIR}/RESTAPI/querySmartContract.cpp
 		${CMAKE_SOURCE_DIR}/RESTAPI/RESTServer.cpp

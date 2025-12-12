@@ -49,12 +49,6 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
         }
     }
 
-    // Require at least one list to be non-empty
-    if (out.p2p_nodes.empty()) {
-        error = "'p2p-node' array is required";
-        return false;
-    }
-
     // Optional fields (use defaults from AppConfig if absent)
     if (root.isMember("log-level")) {
         if (!root["log-level"].isString()) {
@@ -142,7 +136,10 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
             return false;
         }
         out.node_seed = root["node-seed"].asString();
+    } else {
+        out.node_seed = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     }
+
 
     // Parse 'tick-storage-mode' and related options
     {

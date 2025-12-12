@@ -1,5 +1,4 @@
 {
-  "trusted-node": ["BM:157.180.10.49:21841:0-0-0-0","BM:65.109.122.174:21841:0-0-0-0"],
   "request-cycle-ms": 100,
   "request-logging-cycle-ms": 30,
   "future-offset": 3,
@@ -8,7 +7,6 @@
   "run-server": false,
   "server-port": 21842,
   "arbitrator-identity": "AFZPUAIYVPNUYGJRQVLUKOPPVLHAZQTGLYAAUUNBXFTVTAMSBKQBLEIEPCVJ",
-  "trusted-entities": ["QCTBOBEPDEZGBBCSOWGBYCAIZESDMEVRGLWVNBZAPBIZYEJFFZSPPIVGSCVL"],
   "tick-storage-mode": "kvrocks",
   "kvrocks-url": "tcp://127.0.0.1:6666",
   "tx-storage-mode" : "kvrocks",

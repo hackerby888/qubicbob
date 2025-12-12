@@ -76,13 +76,15 @@ int runBob(int argc, char *argv[])
     Logger::init(log_level);
     printVersionInfo();
 
+
     {
-        getSubseedFromSeed((uint8_t*)cfg.node_seed.c_str(), nodeSubseed.m256i_u8);
+        getSubseedFromSeed((uint8_t *) cfg.node_seed.c_str(), nodeSubseed.m256i_u8);
         getPrivateKeyFromSubSeed(nodeSubseed.m256i_u8, nodePrivatekey.m256i_u8);
         getPublicKeyFromPrivateKey(nodePrivatekey.m256i_u8, nodePublickey.m256i_u8);
         char identity[64] = {0};
         getIdentityFromPublicKey(nodePublickey.m256i_u8, identity, false);
-        Logger::get()->info("Trusted node identity: {}", identity);
+        if (cfg.node_seed == "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+            Logger::get()->warn("Using default bob seed: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
     }
     gTickStorageMode = cfg.tick_storage_mode;
     gLastNTickStorage = cfg.last_n_tick_storage;
@@ -135,6 +137,11 @@ int runBob(int argc, char *argv[])
     }
     // Collect endpoints from config
     ConnectionPool connPool; // conn pool with passcode
+    if (cfg.p2p_nodes.empty())
+    {
+        Logger::get()->info("Getting peers info from qubic.global");
+        cfg.p2p_nodes = GetPeerFromDNS();
+    }
     parseConnection(connPool, cfg.p2p_nodes);
     if (connPool.size() == 0)
     {
