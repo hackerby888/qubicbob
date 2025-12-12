@@ -380,6 +380,7 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
 {
     gIsEndEpoch = false;
     bool saveLastTick = false;
+    bool needBootstrapFiles = false;
     uint32_t lastQuorumTick = 0;
     uint32_t lastVerifiedTick = db_get_latest_verified_tick();
     std::string spectrumFilePath;
@@ -399,11 +400,22 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
     } else {
         spectrumFilePath = "spectrum." + std::to_string(gCurrentProcessingEpoch);
         assetFilePath    = "universe." + std::to_string(gCurrentProcessingEpoch);
+        needBootstrapFiles = true;
         lastVerifiedTick =  gInitialTick - 1;
     }
 
     if (!loadFile(spectrumFilePath, spectrum, sizeof(EntityRecord), SPECTRUM_CAPACITY, "spectrum")) {
-        return;
+        if (needBootstrapFiles)
+        {
+            Logger::get()->info("Cannot find bootstrap files, trying to download from qubic.global");
+            DownloadStateFiles(gCurrentProcessingEpoch);
+            if (!loadFile(spectrumFilePath, spectrum, sizeof(EntityRecord), SPECTRUM_CAPACITY, "spectrum"))
+            {
+                return;
+            }
+        } else {
+            return;
+        }
     }
 
     if (!loadFile(assetFilePath, assets, sizeof(AssetRecord), ASSETS_CAPACITY, "universe")) {

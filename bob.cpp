@@ -75,8 +75,6 @@ int runBob(int argc, char *argv[])
     std::string log_level = cfg.log_level;
     Logger::init(log_level);
     printVersionInfo();
-
-
     {
         getSubseedFromSeed((uint8_t *) cfg.node_seed.c_str(), nodeSubseed.m256i_u8);
         getPrivateKeyFromSubSeed(nodeSubseed.m256i_u8, nodePrivatekey.m256i_u8);
