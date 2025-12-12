@@ -10,6 +10,7 @@
 #include <cstdlib>   // strtoull
 #include <limits>    // std::numeric_limits
 #include <algorithm> // std::max
+#include <random>    // std::random_device, std::mt19937
 #include "K12AndKeyUtil.h"
 #include <pthread.h> // thread naming on POSIX
 #include "shim.h"
@@ -140,6 +141,8 @@ int runBob(int argc, char *argv[])
         Logger::get()->error("0 valid connection");
         exit(1);
     }
+    while (connPool.size() > 4) connPool.randomlyRemove();
+
 
     uint32_t initTick = 0;
     uint16_t initEpoch = 0;

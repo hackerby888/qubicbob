@@ -89,6 +89,13 @@ public:
     std::size_t size() const { return conns_.size(); }
     QCPtr& get(int i) { return conns_[i];}
 
+    void randomlyRemove() {
+        if (conns_.empty()) return;
+        std::uniform_int_distribution<std::size_t> dist(0, conns_.size() - 1);
+        auto idx = dist(rng_);
+        conns_.erase(conns_.begin() + idx);
+    }
+
     // Sends to one random valid connection. Returns bytes sent, or -1 if none could be used.
     int sendToRandomBM(uint8_t* buffer, int sz, uint8_t type, bool randomDejavu) {
         if (conns_.empty()) return -1;
