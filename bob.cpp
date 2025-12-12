@@ -83,7 +83,6 @@ int runBob(int argc, char *argv[])
         getIdentityFromPublicKey(nodePublickey.m256i_u8, identity, false);
         Logger::get()->info("Trusted node identity: {}", identity);
     }
-    gTrustedEntities = cfg.trustedEntities;
     gTickStorageMode = cfg.tick_storage_mode;
     gLastNTickStorage = cfg.last_n_tick_storage;
     gTxStorageMode = cfg.tx_storage_mode;
@@ -134,15 +133,13 @@ int runBob(int argc, char *argv[])
         Logger::get()->info("Connected to kvrocks");
     }
     // Collect endpoints from config
-    ConnectionPool connPoolAll;
-    ConnectionPool connPoolTrustedNode; // conn pool with passcode
-    parseConnection(connPoolAll, connPoolTrustedNode, cfg.trusted_nodes);
-    if (connPoolAll.size() == 0)
+    ConnectionPool connPool; // conn pool with passcode
+    parseConnection(connPool, cfg.p2p_nodes);
+    if (connPool.size() == 0)
     {
         Logger::get()->error("0 valid connection");
         exit(1);
     }
-
 
     uint32_t initTick = 0;
     uint16_t initEpoch = 0;
@@ -155,7 +152,7 @@ int runBob(int argc, char *argv[])
             )
     )
     {
-        doHandshakeAndGetBootstrapInfo(connPoolTrustedNode, true, initTick, initEpoch);
+        doHandshakeAndGetBootstrapInfo(connPool, true, initTick, initEpoch);
         if (isThisEpochAlreadyEnd) Logger::get()->info("Waiting for new epoch info from peers | PeerInitTick: {} PeerInitEpoch {}...", initTick, initEpoch);
         else Logger::get()->info("Doing handshakes and ask for bootstrap info | PeerInitTick: {} PeerInitEpoch {}...", initTick, initEpoch);
         if (initTick == 0 || initEpoch <= gCurrentProcessingEpoch) SLEEP(1000);
@@ -180,7 +177,7 @@ int runBob(int argc, char *argv[])
     {
         while (computorsList.epoch != gCurrentProcessingEpoch.load())
         {
-            getComputorList(connPoolAll, cfg.arbitrator_identity);
+            getComputorList(connPool, cfg.arbitrator_identity);
             SLEEP(1000);
         }
     }
@@ -190,7 +187,7 @@ int runBob(int argc, char *argv[])
             [&](){
                 set_this_thread_name("io-req");
                 IORequestThread(
-                        std::ref(connPoolAll),
+                        std::ref(connPool),
                         std::ref(stopFlag),
                         std::chrono::milliseconds(request_cycle_ms),
                         static_cast<uint32_t>(future_offset)
@@ -203,7 +200,7 @@ int runBob(int argc, char *argv[])
     });
     auto log_request_trusted_nodes_thread = std::thread([&](){
         set_this_thread_name("trusted-log-req");
-        EventRequestFromTrustedNode(std::ref(connPoolTrustedNode), std::ref(stopFlag),
+        EventRequestFromTrustedNode(std::ref(connPool), std::ref(stopFlag),
                                     std::chrono::milliseconds(request_logging_cycle_ms));
     });
     auto indexer_thread = std::thread([&](){
@@ -212,9 +209,9 @@ int runBob(int argc, char *argv[])
     });
     auto sc_thread = std::thread([&](){
         set_this_thread_name("sc");
-        querySmartContractThread(connPoolAll, std::ref(stopFlag));
+        querySmartContractThread(connPool, std::ref(stopFlag));
     });
-    int pool_size = connPoolAll.size();
+    int pool_size = connPool.size();
     std::vector<std::thread> v_recv_thread;
     std::vector<std::thread> v_data_thread;
     Logger::get()->info("Starting {} data processor threads", pool_size);
@@ -225,7 +222,7 @@ int runBob(int argc, char *argv[])
             char nm[16];
             std::snprintf(nm, sizeof(nm), "recv-%d", i);
             set_this_thread_name(nm);
-            connReceiver(std::ref(connPoolAll.get(i)), isTrustedNode, std::ref(stopFlag));
+            connReceiver(std::ref(connPool.get(i)), isTrustedNode, std::ref(stopFlag));
         });
     }
     for (int i = 0; i < std::max(gMaxThreads, pool_size); i++)
@@ -288,7 +285,7 @@ int runBob(int argc, char *argv[])
         while (count++ < sleep_time*10 && !stopFlag.load()) SLEEP(100);
     }
     // Signal stop, disconnect sockets first to break any blocking I/O.
-    for (int i = 0; i < connPoolAll.size(); i++) connPoolAll.get(i)->disconnect();
+    for (int i = 0; i < connPool.size(); i++) connPool.get(i)->disconnect();
     // Stop and join producer/request threads first so they cannot enqueue more work.
     verify_thread.join();
     Logger::get()->info("Exited Verifying thread");

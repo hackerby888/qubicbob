@@ -18,7 +18,7 @@ enum class TxStorageMode {
 };
 
 struct AppConfig {
-    std::vector<std::string> trusted_nodes;
+    std::vector<std::string> p2p_nodes;
 
     std::string log_level;
     std::string keydb_url;
@@ -30,7 +30,6 @@ struct AppConfig {
     unsigned future_offset = 0;
     unsigned server_port = 0;
     std::string node_seed;
-    std::map<m256i, bool> trustedEntities;
 
     // Add new tick storage config with defaults
     TickStorageMode tick_storage_mode = TickStorageMode::LastNTick;

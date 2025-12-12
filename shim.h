@@ -29,8 +29,6 @@
 #define refetchLogToTick             (GS().refetchLogToTick)
 #define refetchLogFlag             (GS().refetchLogFlag)
 
-#define gTrustedEntities (GS().gTrustedEntities)
-
 #define refetchTickVotes           (GS().refetchTickVotes)
 #define gIsEndEpoch (GS().gIsEndEpoch)
 #define nodeSubseed                 (GS().nodeSubseed)

@@ -36,7 +36,7 @@ public:
     }
 
     // non-thread safe operation, only use these functions for bootstrap
-    void getTickInfoFromTrustedNode(uint32_t& tick, uint16_t& epoch);
+    void getBootstrapTickInfo(uint32_t& tick, uint16_t& epoch);
     void getBootstrapInfo(uint32_t& tick, uint16_t& epoch);
     void doHandshake();
     void getComputorList(const uint16_t epoch, Computors& compList);
@@ -199,7 +199,6 @@ private:
 };
 
 void parseConnection(ConnectionPool& connPoolAll,
-                     ConnectionPool& connPoolTrustedNode,
                      std::vector<std::string>& endpoints);
 void doHandshakeAndGetBootstrapInfo(ConnectionPool& cp, bool isTrusted, uint32_t& maxInitTick, uint16_t& maxInitEpoch);
 void getComputorList(ConnectionPool& cp, std::string arbitratorIdentity);

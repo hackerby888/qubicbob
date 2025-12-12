@@ -33,22 +33,6 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
         error = "invalid JSON: root must be an object";
         return false;
     }
-    
-    // Parse 'trusted-node' if present (array of strings)
-    out.trusted_nodes.clear();
-    if (root.isMember("trusted-node")) {
-        if (!root["trusted-node"].isArray()) {
-            error = "Invalid type: array required for key 'trusted-node'";
-            return false;
-        }
-        for (const auto& v : root["trusted-node"]) {
-            if (!v.isString()) {
-                error = "Invalid type: elements of 'trusted-node' must be strings";
-                return false;
-            }
-            out.trusted_nodes.emplace_back(v.asString());
-        }
-    }
 
     // merge 'p2p-node' to trusted node
     if (root.isMember("p2p-node")) {
@@ -61,13 +45,13 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
                 error = "Invalid type: elements of 'p2p-node' must be strings";
                 return false;
             }
-            out.trusted_nodes.emplace_back(v.asString());
+            out.p2p_nodes.emplace_back(v.asString());
         }
     }
 
     // Require at least one list to be non-empty
-    if (out.trusted_nodes.empty()) {
-        error = "Either 'trusted-node' or 'p2p-node' array is required";
+    if (out.p2p_nodes.empty()) {
+        error = "'p2p-node' array is required";
         return false;
     }
 
@@ -158,33 +142,6 @@ bool LoadConfig(const std::string& path, AppConfig& out, std::string& error) {
             return false;
         }
         out.node_seed = root["node-seed"].asString();
-    }
-
-    if (root.isMember("trusted-entities")) {
-        if (!root["trusted-entities"].isArray()) {
-            error = "Invalid type: array required for key 'trusted-entities'";
-            return false;
-        }
-        for (const auto &v: root["trusted-entities"]) {
-            if (!v.isString()) {
-                error = "Invalid type: elements of 'trusted-entities' must be strings";
-                return false;
-            }
-            const std::string &id = v.asString();
-            if (id.length() != 60) {
-                error = "Invalid trusted entity ID length: must be 60 characters";
-                return false;
-            }
-            for (char c: id) {
-                if (c < 'A' || c > 'Z') {
-                    error = "Invalid trusted entity ID format: must be uppercase letters only";
-                    return false;
-                }
-            }
-            m256i pubkey;
-            getPublicKeyFromIdentity(id.data(), pubkey.m256i_u8);
-            out.trustedEntities[pubkey] = true;
-        }
     }
 
     // Parse 'tick-storage-mode' and related options

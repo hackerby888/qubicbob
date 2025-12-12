@@ -274,7 +274,7 @@ void QubicConnection::doHandshake()
     enqueueSend((uint8_t *) &payload, sizeof(payload));
 }
 
-void QubicConnection::getTickInfoFromTrustedNode(uint32_t& tick, uint16_t& epoch)
+void QubicConnection::getBootstrapTickInfo(uint32_t& tick, uint16_t& epoch)
 {
     RequestResponseHeader header{};
     std::vector<uint8_t> packet;
@@ -304,56 +304,6 @@ void QubicConnection::getTickInfoFromTrustedNode(uint32_t& tick, uint16_t& epoch
                     tick = ctick.initialTick;
                     epoch = ctick.epoch;
                     break;
-                }
-            }
-        }
-    }
-}
-
-void QubicConnection::getBootstrapInfo(uint32_t& tick, uint16_t& epoch)
-{
-    RequestResponseHeader _header;
-    std::vector<uint8_t> packet;
-    int count = 0;
-    while (count < 60)
-    {
-        // trying to get until bootstrap packet arrive
-        // resend each 20 packets
-        if ( count++ % 20 == 0 )
-        {
-            _header.setSize(sizeof(_header));
-            _header.randomizeDejavu();
-            _header.setType(REQUEST_BOOTSTRAP_INFO);
-            enqueueSend((uint8_t *) &_header, 8);
-//            uint8_t* p = (uint8_t *) &_header;
-//            for (int i = 0; i < 8; i++)printf("%u, ", p[i]); printf("\n");
-        }
-        RequestResponseHeader header{};
-        receiveAFullPacket(header, packet);
-        if (!packet.empty())
-        {
-            memcpy((void*)&header, packet.data(), 8);
-            auto type = header.type();
-            if (type == RESPOND_BOOTSTRAP_INFO)
-            {
-                if (header.size() == 8 + sizeof(BootstrapInfo))
-                {
-                    BootstrapInfo bi{};
-                    memcpy((void*)&bi, packet.data()+8, sizeof(BootstrapInfo));
-                    if (gTrustedEntities.find(bi.identity) == gTrustedEntities.end())
-                    {
-                        // not trusted entity
-                        continue;
-                    }
-                    m256i digest;
-                    KangarooTwelve((uint8_t*)&bi, sizeof(bi) - 64, digest.m256i_u8, 32);
-                    if (verify(bi.identity.m256i_u8, digest.m256i_u8, bi.signature))
-                    {
-                        tick = bi.initialTick;
-                        epoch = bi.epoch;
-                        db_insert_bootstrap_info(epoch, bi);
-                        break;
-                    }
                 }
             }
         }
@@ -419,7 +369,6 @@ QubicConnection::QubicConnection(int existingSocket)
 }
 
 void parseConnection(ConnectionPool& connPoolAll,
-                     ConnectionPool& connPoolTrustedNode,
                      std::vector<std::string>& endpoints)
 {
     // Try endpoints in order, connect to the first that works
@@ -509,8 +458,6 @@ void parseConnection(ConnectionPool& connPoolAll,
             conn->updatePasscode(passcode_arr);
         }
         connPoolAll.add(conn);
-        if (has_passcode) connPoolTrustedNode.add(conn);
-
         Logger::get()->info("Added {} node {}:{}{}", nodeType, ip, port, has_passcode ? " (trusted)" : "");
     }
 }
@@ -526,14 +473,7 @@ void doHandshakeAndGetBootstrapInfo(ConnectionPool& cp, bool isTrusted, uint32_t
                 uint32_t initTick = 0;
                 uint16_t initEpoch = 0;
                 conn->doHandshake();
-                if (isTrusted)
-                {
-                    conn->getTickInfoFromTrustedNode(initTick, initEpoch);
-                }
-                else
-                {
-                    conn->getBootstrapInfo(initTick, initEpoch);
-                }
+                conn->getBootstrapTickInfo(initTick, initEpoch);
                 maxInitTick = std::max(maxInitTick, initTick);
                 maxInitEpoch = std::max(maxInitEpoch, initEpoch);
             }
