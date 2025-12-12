@@ -18,9 +18,6 @@
 void IOVerifyThread(std::atomic_bool& stopFlag);
 void IORequestThread(ConnectionPool& conn_pool, std::atomic_bool& stopFlag, std::chrono::milliseconds requestCycle, uint32_t futureOffset);
 void EventRequestFromTrustedNode(ConnectionPool& connPoolWithPwd, std::atomic_bool& stopFlag, std::chrono::milliseconds request_logging_cycle_ms);
-void EventRequestFromNormalNodes(ConnectionPool& connPoolNoPwd,
-                                 std::atomic_bool& stopFlag,
-                                 std::chrono::milliseconds request_logging_cycle_ms);
 void connReceiver(QCPtr& conn, const bool isTrustedNode, std::atomic_bool& stopFlag);
 void DataProcessorThread(std::atomic_bool& exitFlag);
 void RequestProcessorThread(std::atomic_bool& exitFlag);
@@ -203,11 +200,6 @@ int runBob(int argc, char *argv[])
         EventRequestFromTrustedNode(std::ref(connPoolTrustedNode), std::ref(stopFlag),
                                     std::chrono::milliseconds(request_logging_cycle_ms));
     });
-    auto log_request_p2p_thread = std::thread([&](){
-        set_this_thread_name("p2p-log-req");
-        EventRequestFromNormalNodes(std::ref(connPoolP2P), std::ref(stopFlag),
-                                    std::chrono::milliseconds(request_logging_cycle_ms));
-    });
     auto indexer_thread = std::thread([&](){
         set_this_thread_name("indexer");
         indexVerifiedTicks(std::ref(stopFlag));
@@ -298,8 +290,6 @@ int runBob(int argc, char *argv[])
     Logger::get()->info("Exited TickDataRequest thread");
     log_request_trusted_nodes_thread.join();
     Logger::get()->info("Exited LogEventRequestTrustedNodes thread");
-    log_request_p2p_thread.join();
-    Logger::get()->info("Exited LogEventRequestP2P thread");
     indexer_thread.join();
     Logger::get()->info("Exited indexer thread");
     sc_thread.join();
