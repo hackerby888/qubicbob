@@ -390,18 +390,11 @@ bool db_get_latest_tick_and_epoch(uint32_t& tick, uint16_t& epoch)
 bool db_update_latest_event_tick_and_epoch(uint32_t tick, uint16_t epoch) {
     if (!g_redis) return false;
     try {
-        const char* script = R"lua(
-local new_tick = tonumber(ARGV[1])
-local current_tick = tonumber(redis.call('hget', KEYS[1], 'latest_event_tick')) or 0
-if new_tick > current_tick then
-    redis.call('hset', KEYS[1], 'latest_event_tick', new_tick, 'latest_event_epoch', ARGV[2])
-    return 1
-end
-return 0
-)lua";
-        std::vector<std::string> keys = {"db_status"};
-        std::vector<std::string> args = {std::to_string(tick), std::to_string(epoch)};
-        g_redis->eval<long long>(script, keys.begin(), keys.end(), args.begin(), args.end());
+        g_redis->hset("db_status",
+                      std::initializer_list<std::pair<std::string, std::string>>{
+                              {"latest_event_tick", std::to_string(tick)},
+                              {"latest_event_epoch", std::to_string(epoch)}
+                      });
     } catch (const sw::redis::Error& e) {
         Logger::get()->error("Redis error: {}\n", e.what());
         return false;
