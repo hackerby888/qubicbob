@@ -14,16 +14,6 @@ SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} ${CXX_BOB_FLAGS}")
 # --- Fetch and configure dependencies ---
 include(FetchContent)
 
-# hiredis (must be before redis-plus-plus)
-FetchContent_Declare(
-  hiredis
-  GIT_REPOSITORY https://github.com/redis/hiredis.git
-  GIT_TAG        v1.1.0
-)
-set(DISABLE_TESTS ON CACHE BOOL "" FORCE)
-set(ENABLE_SSL OFF CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(hiredis)
-
 # redis-plus-plus
 FetchContent_Declare(
   redis-plus-plus
@@ -163,7 +153,7 @@ add_library(XKCP_avx2 STATIC XKCP/KangarooTwelve.c
 
 # Create a library from the source files to be shared between the main executable and tests
 add_library(bob_lib STATIC ${FILES})
-target_link_libraries(bob_lib PRIVATE redis++_static hiredis_static spdlog::spdlog cxxopts::cxxopts
+target_link_libraries(bob_lib PRIVATE redis++_static hiredis spdlog::spdlog cxxopts::cxxopts
 		${ZSTD_TARGET} XKCP_avx2 drogon ${JSONCPP_TARGET})
 
 
@@ -181,7 +171,7 @@ include(GoogleTest)
 include_directories(${CMAKE_SOURCE_DIR}/)
 file(GLOB TEST_FILES "tests/*.cpp")
 add_executable(bob_tests ${TEST_FILES})
-target_link_libraries(bob_tests PRIVATE XKCP_avx2 bob_lib gtest_main redis++_static hiredis_static spdlog::spdlog)
+target_link_libraries(bob_tests PRIVATE XKCP_avx2 bob_lib gtest_main redis++_static hiredis spdlog::spdlog)
 gtest_discover_tests(bob_tests)
 
 # Copy configuration file after building bob

@@ -33,7 +33,7 @@ void db_connect(const std::string& connectionString) {
         g_redis->ping();
     } catch (const sw::redis::Error& e) {
         g_redis.reset();
-        throw std::runtime_error("Cannot connect to Redis: " + std::string(e.what()));
+        throw std::runtime_error("Cannot connect to KeyDB: " + std::string(e.what()));
         exit(1);
     }
     Logger::get()->trace("Connected to DB!");
