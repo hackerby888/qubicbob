@@ -343,14 +343,23 @@ int runBob(int argc, char *argv[])
     {
         Logger::get()->info("Received END_EPOCH message. Closing BOB");
     }
+
+    if (run_server)
+    {
+        StopQubicServer();
+        Logger::get()->info("Closed Qubic server at port 21842");
+    }
+
+    stopRESTServer();
+    Logger::get()->info("Closed REST server at port 40420");
+
     db_close();
+    Logger::get()->info("Closed KEYDB connection");
     if (gTickStorageMode == TickStorageMode::Kvrocks)
     {
         db_kvrocks_close();
+        Logger::get()->info("Closed KVROCKS connection");
     }
-    // Stop embedded server (if it was started) before shutting down logger
-    StopQubicServer();
-    stopRESTServer();
     ProfilerRegistry::instance().printSummary();
     Logger::get()->info("Shutting down logger");
     spdlog::shutdown();
