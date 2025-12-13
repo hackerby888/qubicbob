@@ -175,7 +175,7 @@ void processLogRanges(RequestResponseHeader& header, const uint8_t* ptr)
     }
     else
     {
-        Logger::get()->warn("Cannot find suitable tick to map the log range");
+        Logger::get()->warn("Cannot find suitable tick to map the log range. Please increase request-logging-cycle-ms. Your internet is not fast enough for tight request cycle");
     }
 }
 
