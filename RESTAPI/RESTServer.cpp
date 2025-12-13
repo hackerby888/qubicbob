@@ -496,7 +496,9 @@ namespace {
                 .setKeepaliveRequestsNumber(200)
                 .setMaxConnectionNum(1000)          // Limit max concurrent connections
                 .setMaxConnectionNumPerIP(100)      // Limit per-IP connections (prevents single client abuse)
-                .disableSigtermHandling();
+                .disableSigtermHandling()
+                .reusePort()                        // Enable SO_REUSEADDR to avoid "Address already in use" errors
+                ;
 
             // Run Drogon in a background thread so it doesn't block the main program
             std::thread([]() {
@@ -504,11 +506,6 @@ namespace {
             }).detach();
         });
     }
-
-    // Auto-start the REST server when this translation unit is loaded.
-    struct RestAutoStarter {
-        RestAutoStarter() { startServerIfNeeded(); }
-    } g_autoStarter;
 } // namespace
 
 // Optional explicit control APIs (in case another part of the program wants to manage lifecycle)

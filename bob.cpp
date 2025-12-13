@@ -128,6 +128,9 @@ int runBob(int argc, char *argv[])
         Logger::get()->info("Loaded DB. DATA: Tick: {} | epoch: {}", gCurrentFetchingTick.load(), gCurrentProcessingEpoch.load());
         Logger::get()->info("Loaded DB. EVENT: Tick: {} | epoch: {}", gCurrentFetchingLogTick.load(), event_epoch);
     }
+
+    startRESTServer();
+
     if (gTickStorageMode == TickStorageMode::Kvrocks)
     {
         db_kvrocks_connect(cfg.kvrocks_url);
@@ -251,7 +254,6 @@ int runBob(int argc, char *argv[])
         set_this_thread_name("log-ver");
         verifyLoggingEvent(std::ref(stopFlag));
     });
-    startRESTServer();
     std::thread garbage_thread;
     if (cfg.tick_storage_mode != TickStorageMode::Free || cfg.tx_storage_mode != TxStorageMode::Free)
     {
