@@ -462,18 +462,7 @@ std::vector<TickVote> db_try_to_get_votes(uint32_t tick);
 std::vector<uint32_t> db_search_log(uint32_t scIndex, uint32_t scLogType, uint32_t fromTick, uint32_t toTick,
                                     std::string topic1, std::string topic2, std::string topic3);
 
-bool db_vtick_exists(uint32_t tick);
-
-void db_insert_log_sig(uint32_t tick, uint32_t chunkid, uint8_t* pubkey, const uint8_t* signature);
-bool db_get_log_sig(uint32_t tick, uint32_t chunkid, uint8_t* pubkey, uint8_t* signature);
-
-void db_insert_log_range_sig(uint32_t tick, uint8_t* pubkey, const uint8_t* signature);
-bool db_get_log_range_sig(uint32_t tick, uint8_t* pubkey, uint8_t* signature);
 bool db_get_log_ranges(uint32_t tick, ResponseAllLogIdRangesFromTick &logRange);
-
-
-bool db_insert_bootstrap_info(uint16_t epoch, const BootstrapInfo &info);
-bool db_get_bootstrap_info(uint16_t epoch, BootstrapInfo &info);
 
 bool db_insert_u32(const std::string key, uint32_t value);
 bool db_get_u32(const std::string key, uint32_t &value);
