@@ -447,7 +447,7 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
         // detect END_EPOCH
         for (uint32_t tick = processFromTick; tick <= processToTick; tick++)
         {
-            ResponseAllLogIdRangesFromTick lr{};
+            LogRangesPerTxInTick lr{};
             if (db_try_get_log_ranges(tick, lr))
             {
                 if (lr.fromLogId[SC_END_EPOCH_TX] != -1 && lr.length[SC_END_EPOCH_TX] != -1)

@@ -138,11 +138,11 @@ bool db_insert_log(uint16_t epoch, uint32_t tick, uint64_t logId, int logSize, c
     return true;
 }
 
-bool db_insert_log_range(uint32_t tick, const ResponseAllLogIdRangesFromTick& logRange) {
+bool db_insert_log_range(uint32_t tick, const LogRangesPerTxInTick& logRange) {
     if (!g_redis) return false;
     try {
         std::string key_struct = "log_ranges:" + std::to_string(tick);
-        if (isArrayZero((uint8_t*)&logRange, sizeof(ResponseAllLogIdRangesFromTick)))
+        if (isArrayZero((uint8_t*)&logRange, sizeof(LogRangesPerTxInTick)))
         {
             return false;
         }
@@ -172,7 +172,7 @@ bool db_insert_log_range(uint32_t tick, const ResponseAllLogIdRangesFromTick& lo
         }
 
         // Store the whole struct for the tick
-        sw::redis::StringView val(reinterpret_cast<const char*>(&logRange), sizeof(ResponseAllLogIdRangesFromTick));
+        sw::redis::StringView val(reinterpret_cast<const char*>(&logRange), sizeof(LogRangesPerTxInTick));
         g_redis->set(key_struct, val, std::chrono::milliseconds(0), sw::redis::UpdateType::NOT_EXIST);
 
         std::string key_summary = "tick_log_range:" + std::to_string(tick);
@@ -212,11 +212,11 @@ bool db_log_exists(uint16_t epoch, uint64_t logId) {
     return false;
 }
 
-bool db_get_log_ranges(uint32_t tick, ResponseAllLogIdRangesFromTick &logRange) {
+bool db_get_log_ranges(uint32_t tick, LogRangesPerTxInTick &logRange) {
     if (!g_redis) return false;
     try {
         // Default to -1s
-        memset(&logRange, -1, sizeof(ResponseAllLogIdRangesFromTick));
+        memset(&logRange, -1, sizeof(LogRangesPerTxInTick));
 
         // Fetch the whole struct for the tick
         std::string key = "log_ranges:" + std::to_string(tick);
@@ -224,12 +224,12 @@ bool db_get_log_ranges(uint32_t tick, ResponseAllLogIdRangesFromTick &logRange) 
         if (!val) {
             return false;
         }
-        if (val->size() != sizeof(ResponseAllLogIdRangesFromTick)) {
+        if (val->size() != sizeof(LogRangesPerTxInTick)) {
             Logger::get()->warn("LogRange size mismatch for key %s: got %zu, expected %zu",
-                                key.c_str(), val->size(), sizeof(ResponseAllLogIdRangesFromTick));
+                                key.c_str(), val->size(), sizeof(LogRangesPerTxInTick));
             return false;
         }
-        memcpy((void*)&logRange, val->data(), sizeof(ResponseAllLogIdRangesFromTick));
+        memcpy((void*)&logRange, val->data(), sizeof(LogRangesPerTxInTick));
         return true;
     } catch (const sw::redis::Error &e) {
         Logger::get()->error("Redis error in db_try_get_log_ranges: %s\n", e.what());
@@ -254,7 +254,7 @@ bool db_delete_log_ranges(uint32_t tick) {
 }
 
 
-bool db_try_get_log_ranges(uint32_t tick, ResponseAllLogIdRangesFromTick &logRange)
+bool db_try_get_log_ranges(uint32_t tick, LogRangesPerTxInTick &logRange)
 {
     if (db_get_log_ranges(tick, logRange))
     {
@@ -1381,11 +1381,11 @@ bool db_insert_TickLogRange_to_kvrocks(uint32_t tick, long long& logStart, long 
 }
 
 // Compress and insert ResponseAllLogIdRangesFromTick under key "cLogRange:<tick>"
-bool db_insert_cLogRange_to_kvrocks(uint32_t tick, const ResponseAllLogIdRangesFromTick& logRange)
+bool db_insert_cLogRange_to_kvrocks(uint32_t tick, const LogRangesPerTxInTick& logRange)
 {
     if (!g_kvrocks) return false;
     try {
-        const size_t srcSize = sizeof(ResponseAllLogIdRangesFromTick);
+        const size_t srcSize = sizeof(LogRangesPerTxInTick);
         const size_t maxCompressed = ZSTD_compressBound(srcSize);
 
         std::string compressed;
@@ -1418,7 +1418,7 @@ bool db_insert_cLogRange_to_kvrocks(uint32_t tick, const ResponseAllLogIdRangesF
 }
 
 // Get and decompress ResponseAllLogIdRangesFromTick stored at "cLogRange:<tick>"
-bool db_get_cLogRange_from_kvrocks(uint32_t tick, ResponseAllLogIdRangesFromTick& outLogRange)
+bool db_get_cLogRange_from_kvrocks(uint32_t tick, LogRangesPerTxInTick& outLogRange)
 {
     if (!g_kvrocks) return false;
     try {
@@ -1428,7 +1428,7 @@ bool db_get_cLogRange_from_kvrocks(uint32_t tick, ResponseAllLogIdRangesFromTick
             return false;
         }
 
-        const size_t dstSize = sizeof(ResponseAllLogIdRangesFromTick);
+        const size_t dstSize = sizeof(LogRangesPerTxInTick);
         size_t const dSize = ZSTD_decompress(
                 reinterpret_cast<void*>(&outLogRange),
                 dstSize,

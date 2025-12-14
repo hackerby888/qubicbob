@@ -3,7 +3,7 @@
 static const std::string KEY_LAST_CLEAN_TICK_DATA = "garbage_cleaner:last_clean_tick_data";
 static const std::string KEY_LAST_CLEAN_TX_TICK = "garbage_cleaner:last_clean_tx_tick";
 
-bool cleanTransactionAndLogsAndSaveToDisk(TickData& td, ResponseAllLogIdRangesFromTick& lr)
+bool cleanTransactionAndLogsAndSaveToDisk(TickData& td, LogRangesPerTxInTick& lr)
 {
     for (int i = 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK; i++)
     {
@@ -45,7 +45,7 @@ void compressTickAndMoveToKVRocks(uint32_t tick)
         Logger::get()->error("compressTick: Failed to insert vtick for tick {}", tick);
         return;
     }
-    ResponseAllLogIdRangesFromTick lr{};
+    LogRangesPerTxInTick lr{};
     if (db_get_log_ranges(tick, lr))
     {
         db_insert_cLogRange_to_kvrocks(tick, lr);
@@ -61,7 +61,7 @@ void compressTickAndMoveToKVRocks(uint32_t tick)
 bool cleanTransactionLogs(uint32_t tick)
 {
     TickData td{};
-    ResponseAllLogIdRangesFromTick lr{};
+    LogRangesPerTxInTick lr{};
     if (!db_try_get_tick_data(tick, td))
     {
         return false;

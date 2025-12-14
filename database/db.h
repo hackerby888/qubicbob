@@ -176,7 +176,7 @@ bool db_insert_log(uint16_t epoch, uint32_t tick, uint64_t logId, int logSize, c
  * - true on success
  * - false on write failure or invalid data
  */
-bool db_insert_log_range(uint32_t tick, const ResponseAllLogIdRangesFromTick& logRange);
+bool db_insert_log_range(uint32_t tick, const LogRangesPerTxInTick& logRange);
 
 /**
  * Atomically updates the latest tick and epoch in the global DB status if and only if
@@ -398,7 +398,7 @@ bool db_get_tick_data(uint32_t tick, TickData& data);
  */
 
 bool db_check_log_range(uint32_t tick);
-bool db_try_get_log_ranges(uint32_t tick, ResponseAllLogIdRangesFromTick &logRange);
+bool db_try_get_log_ranges(uint32_t tick, LogRangesPerTxInTick &logRange);
 bool db_has_tick_data(uint32_t tick);
 bool db_try_get_transaction(const std::string& tx_hash, std::vector<uint8_t>& tx_data);
 bool db_check_transaction_exist(const std::string& tx_hash);
@@ -462,7 +462,7 @@ std::vector<TickVote> db_try_to_get_votes(uint32_t tick);
 std::vector<uint32_t> db_search_log(uint32_t scIndex, uint32_t scLogType, uint32_t fromTick, uint32_t toTick,
                                     std::string topic1, std::string topic2, std::string topic3);
 
-bool db_get_log_ranges(uint32_t tick, ResponseAllLogIdRangesFromTick &logRange);
+bool db_get_log_ranges(uint32_t tick, LogRangesPerTxInTick &logRange);
 
 bool db_insert_u32(const std::string key, uint32_t value);
 bool db_get_u32(const std::string key, uint32_t &value);
@@ -491,9 +491,9 @@ std::vector<TickVote> db_try_get_tick_vote(uint32_t tick);
 
 void db_kvrocks_close();
 
-bool db_insert_cLogRange_to_kvrocks(uint32_t tick, const ResponseAllLogIdRangesFromTick& logRange);
+bool db_insert_cLogRange_to_kvrocks(uint32_t tick, const LogRangesPerTxInTick& logRange);
 bool db_insert_TickLogRange_to_kvrocks(uint32_t tick, long long& logStart, long long& logLen);
-bool db_get_cLogRange_from_kvrocks(uint32_t tick, ResponseAllLogIdRangesFromTick& outLogRange);
+bool db_get_cLogRange_from_kvrocks(uint32_t tick, LogRangesPerTxInTick& outLogRange);
 
 bool db_copy_transaction_to_kvrocks(const std::string &tx_hash);
 

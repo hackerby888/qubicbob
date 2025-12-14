@@ -20,7 +20,7 @@ static std::string getTransactionHash(const unsigned char *digest) {
     return std::string(hash);
 }
 
-static int getTransactionIndexFromLogId(const ResponseAllLogIdRangesFromTick &logrange, long long logId) {
+static int getTransactionIndexFromLogId(const LogRangesPerTxInTick &logrange, long long logId) {
     for (int i = 0; i < LOG_TX_PER_TICK; i++) {
         if (logId >= logrange.fromLogId[i] && logId < logrange.fromLogId[i] + logrange.length[i]) {
             return i;
@@ -46,7 +46,7 @@ static uint64_t calculateUnixTimestamp(const TickData &td) {
 }
 
 static void indexTick(uint32_t tick, const TickData &td) {
-    ResponseAllLogIdRangesFromTick logrange{};
+    LogRangesPerTxInTick logrange{};
     uint64_t timestamp = td.epoch == gCurrentProcessingEpoch ? calculateUnixTimestamp(td) : 0;
     db_try_get_log_ranges(tick, logrange);
     if (td.tick == tick)

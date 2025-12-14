@@ -274,7 +274,7 @@ struct RequestAllLogIdRangesFromTick
 #define LOG_TX_NUMBER_OF_SPECIAL_EVENT 5
 #define LOG_TX_PER_TICK (NUMBER_OF_TRANSACTIONS_PER_TICK + LOG_TX_NUMBER_OF_SPECIAL_EVENT)// +5 special events
 // Response logid ranges of all txs from a tick
-struct ResponseAllLogIdRangesFromTick
+struct LogRangesPerTxInTick
 {
     long long fromLogId[LOG_TX_PER_TICK];
     long long length[LOG_TX_PER_TICK];

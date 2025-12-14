@@ -166,10 +166,10 @@ void processLogRanges(RequestResponseHeader& header, const uint8_t* ptr)
     {
         memcpy((void*)&packet, request.data(), sizeof(packet));
         int header_sz = header.size();
-        int needed_sz = sizeof(RequestResponseHeader) + sizeof(ResponseAllLogIdRangesFromTick);
+        int needed_sz = sizeof(RequestResponseHeader) + sizeof(LogRangesPerTxInTick);
         if (header_sz == needed_sz)
         {
-            const auto* logRange = reinterpret_cast<const ResponseAllLogIdRangesFromTick*>(ptr);
+            const auto* logRange = reinterpret_cast<const LogRangesPerTxInTick*>(ptr);
             db_insert_log_range(packet.tick, *logRange);
         }
     }
@@ -216,7 +216,7 @@ void DataProcessorThread(std::atomic_bool& exitFlag)
             case RespondLog::type(): // log event
                 processLogEvent(payload, packet_size - 8);
                 break;
-            case ResponseAllLogIdRangesFromTick::type(): // logID ranges
+            case LogRangesPerTxInTick::type(): // logID ranges
                 processLogRanges(header, payload);
                 break;
             case RespondContractFunction::type:
@@ -410,13 +410,13 @@ void replyLogRange(QCPtr& conn, uint32_t dejavu, uint8_t* ptr)
     struct
     {
         RequestResponseHeader resp;
-        ResponseAllLogIdRangesFromTick logRange;
+        LogRangesPerTxInTick logRange;
     } pl;
 
     if (db_try_get_log_ranges(tick, pl.logRange)) {
-        pl.resp.setSize(8 + sizeof(ResponseAllLogIdRangesFromTick));
+        pl.resp.setSize(8 + sizeof(LogRangesPerTxInTick));
         pl.resp.setDejavu(dejavu);
-        pl.resp.setType(ResponseAllLogIdRangesFromTick::type());
+        pl.resp.setType(LogRangesPerTxInTick::type());
         conn->enqueueSend((uint8_t *) &pl, sizeof(pl));
         return;
     }

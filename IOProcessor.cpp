@@ -108,6 +108,15 @@ bool verifyQuorum(uint32_t tick, TickData& td, std::vector<TickVote>& votes)
     {
         return false;
     }
+    uint8_t tdHash[32];
+    KangarooTwelve((uint8_t*)&td, sizeof(TickData), tdHash, 32);
+    if (memcmp(tdHash, maxDigest.m256i_u8, 32) != 0)
+    {
+        Logger::get()->critical("Consensus error: tickData {} is mismatched (there are potentially 2 tick data). Delete the current one in DB.", td.tick);
+        db_delete_tick_data(tick);
+        return false;
+    }
+
     for (int i= 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK; i++)
     {
         if (!(td.transactionDigests[i] == m256i::zero()))
@@ -122,14 +131,6 @@ bool verifyQuorum(uint32_t tick, TickData& td, std::vector<TickVote>& votes)
         }
     }
 
-    uint8_t tdHash[32];
-    KangarooTwelve((uint8_t*)&td, sizeof(TickData), tdHash, 32);
-    if (memcmp(tdHash, maxDigest.m256i_u8, 32) != 0)
-    {
-        Logger::get()->critical("Consensus error: tickData {} is mismatched (there are potentially 2 tick data). Delete the current one in DB.", td.tick);
-        db_delete_tick_data(tick);
-        return false;
-    }
     return true; // quorum reach
 }
 
@@ -272,7 +273,7 @@ void IOVerifyThread(std::atomic_bool& stopFlag)
 static bool checkAllowedTypeForNonTrusted(int type)
 {
     if (type == RespondLog::type()) return false;
-    if (type == ResponseAllLogIdRangesFromTick::type()) return false;
+    if (type == LogRangesPerTxInTick::type()) return false;
     return true;
 }
 
@@ -293,7 +294,7 @@ static bool isDataType(int type)
     if (type == TickData::type()) return true;                        // tickdata
     if (type == BROADCAST_TRANSACTION) return true;                   // tx
     if (type == RespondLog::type()) return true;                      // log
-    if (type == ResponseAllLogIdRangesFromTick::type()) return true;  // logrange
+    if (type == LogRangesPerTxInTick::type()) return true;  // logrange
     if (type == RespondContractFunction::type) return true;
     return false;
 }
