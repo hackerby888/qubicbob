@@ -1251,6 +1251,7 @@ bool db_move_log_to_kvrocks(uint16_t epoch, uint64_t logId) {
     try {
         const std::string key = "log:" + std::to_string(epoch) + ":" + std::to_string(logId);
 
+        if (!g_redis->exists(key)) return false;
         // Read log data from KeyDB
         auto val = g_redis->get(key);
         if (!val) {

@@ -464,3 +464,47 @@ std::string bobGetEpochInfo(uint16_t epoch)
     Json::FastWriter writer;
     return writer.write(root);
 }
+
+std::string getTxHashQuTransferForIdentity(uint32_t fromTick, uint32_t toTick, std::string identity)
+{
+    // Validate tick range
+    if (toTick < fromTick) {
+        return "{\"error\":\"Invalid tick range: toTick must be >= fromTick\"}";
+    }
+    if (toTick - fromTick >= 1000) {
+        return "{\"error\":\"Invalid tick range: toTick - fromTick must be < 1000\"}";
+    }
+    if (identity.length() != 60) {
+        return "{\"error\":\"Invalid identity length\"}";
+    }
+
+    // Get ticks for outgoing transfers (identity is sender - topic1)
+    std::vector<uint32_t> outgoingTicks = db_search_log(0, 0, fromTick, toTick, identity, "ANY", "ANY");
+
+    // Get ticks for incoming transfers (identity is receiver - topic2)
+    std::vector<uint32_t> incomingTicks = db_search_log(0, 0, fromTick, toTick, "ANY", identity, "ANY");
+
+    Json::Value result;
+    Json::Value inArray(Json::arrayValue);
+    Json::Value outArray(Json::arrayValue);
+    bool overflow = false;
+
+    // Process outgoing transfers
+    for (uint32_t tick : outgoingTicks) {
+        // TODO: Implement processing for each tick to extract transaction hashes
+        // Placeholder for outgoing transfer processing
+    }
+
+    // Process incoming transfers
+    for (uint32_t tick : incomingTicks) {
+        // TODO: Implement processing for each tick to extract transaction hashes
+        // Placeholder for incoming transfer processing
+    }
+
+    result["in"] = inArray;
+    result["out"] = outArray;
+    result["overflow"] = overflow;
+
+    Json::FastWriter writer;
+    return writer.write(result);
+}

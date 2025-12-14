@@ -96,5 +96,5 @@ GlobalState& GS();
 #define CUSTOM_MESSAGE_OP_END_EPOCH 4850183582582591045ULL //END_EPOC
 
 // the chunk size that has signature from trusted entity in bob
-static constexpr long long BOB_LOG_EVENT_CHUNK_SIZE = 1024; // do not edit
+static constexpr long long BOB_LOG_EVENT_CHUNK_SIZE = 128; // do not edit
 
