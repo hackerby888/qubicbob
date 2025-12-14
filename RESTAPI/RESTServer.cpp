@@ -277,6 +277,100 @@ namespace {
                 {Post}
         );
 
+        // POST /getQuTransferForIdentity
+        app().registerHandler(
+            "/getQuTransferForIdentity",
+            [](const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback) {
+                try {
+                    auto jsonPtr = req->getJsonObject();
+                    if (!jsonPtr) {
+                        callback(makeError("Invalid JSON body"));
+                        return;
+                    }
+                    const auto& json = *jsonPtr;
+                    
+                    if (!json.isMember("fromTick") || !json.isMember("toTick") || !json.isMember("identity")) {
+                        callback(makeError("Missing required fields: fromTick, toTick, identity"));
+                        return;
+                    }
+                    
+                    uint32_t fromTick = json["fromTick"].asUInt();
+                    uint32_t toTick = json["toTick"].asUInt();
+                    std::string identity = json["identity"].asString();
+                    
+                    std::string result = getQuTransferForIdentity(fromTick, toTick, identity);
+                    callback(makeJsonResponse(result));
+                } catch (const std::exception& ex) {
+                    callback(makeError(std::string("getQuTransferForIdentity error: ") + ex.what(), k500InternalServerError));
+                }
+            },
+            {Post}
+        );
+
+        // POST /getAssetTransferForIdentity
+        app().registerHandler(
+            "/getAssetTransferForIdentity",
+            [](const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback) {
+                try {
+                    auto jsonPtr = req->getJsonObject();
+                    if (!jsonPtr) {
+                        callback(makeError("Invalid JSON body"));
+                        return;
+                    }
+                    const auto& json = *jsonPtr;
+                    
+                    if (!json.isMember("fromTick") || !json.isMember("toTick") || !json.isMember("identity") ||
+                        !json.isMember("assetIssuer") || !json.isMember("assetName")) {
+                        callback(makeError("Missing required fields: fromTick, toTick, identity, assetIssuer, assetName"));
+                        return;
+                    }
+                    
+                    uint32_t fromTick = json["fromTick"].asUInt();
+                    uint32_t toTick = json["toTick"].asUInt();
+                    std::string identity = json["identity"].asString();
+                    std::string assetIssuer = json["assetIssuer"].asString();
+                    std::string assetName = json["assetName"].asString();
+                    
+                    std::string result = getAssetTransferForIdentity(fromTick, toTick, identity, assetIssuer, assetName);
+                    callback(makeJsonResponse(result));
+                } catch (const std::exception& ex) {
+                    callback(makeError(std::string("getAssetTransferForIdentity error: ") + ex.what(), k500InternalServerError));
+                }
+            },
+            {Post}
+        );
+
+        // POST /getAllAssetTransfer
+        app().registerHandler(
+            "/getAllAssetTransfer",
+            [](const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback) {
+                try {
+                    auto jsonPtr = req->getJsonObject();
+                    if (!jsonPtr) {
+                        callback(makeError("Invalid JSON body"));
+                        return;
+                    }
+                    const auto& json = *jsonPtr;
+                    
+                    if (!json.isMember("fromTick") || !json.isMember("toTick") || 
+                        !json.isMember("assetIssuer") || !json.isMember("assetName")) {
+                        callback(makeError("Missing required fields: fromTick, toTick, assetIssuer, assetName"));
+                        return;
+                    }
+                    
+                    uint32_t fromTick = json["fromTick"].asUInt();
+                    uint32_t toTick = json["toTick"].asUInt();
+                    std::string assetIssuer = json["assetIssuer"].asString();
+                    std::string assetName = json["assetName"].asString();
+                    
+                    std::string result = getAllAssetTransfer(fromTick, toTick, assetIssuer, assetName);
+                    callback(makeJsonResponse(result));
+                } catch (const std::exception& ex) {
+                    callback(makeError(std::string("getAllAssetTransfer error: ") + ex.what(), k500InternalServerError));
+                }
+            },
+            {Post}
+        );
 
         // GET /status - Returns node status information
         app().registerHandler(

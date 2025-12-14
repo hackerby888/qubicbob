@@ -28,6 +28,14 @@ std::string querySmartContract(uint32_t nonce, uint32_t scIndex, uint32_t funcNu
 bool enqueueSmartContractRequest(uint32_t nonce, uint32_t scIndex, uint32_t funcNumber, const uint8_t* data, uint32_t dataSize);
 std::string broadcastTransaction(uint8_t* txDataWithHeader, int size);
 std::string bobGetEpochInfo(uint16_t epoch);
+
+//extra APIs:
+std::string getQuTransferForIdentity(uint32_t fromTick, uint32_t toTick, const std::string& identity);
+std::string getAssetTransferForIdentity(uint32_t fromTick, uint32_t toTick, const std::string& identity,
+                                        const std::string& assetIssuer, const std::string& assetName);
+std::string getAllAssetTransfer(uint32_t fromTick, uint32_t toTick, const std::string& assetIssuer, const std::string& assetName);
+
+
 // no one request for C ABI atm, add later if needed
 //#ifdef __cplusplus
 //}

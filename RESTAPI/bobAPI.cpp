@@ -465,7 +465,7 @@ std::string bobGetEpochInfo(uint16_t epoch)
     return writer.write(root);
 }
 
-std::string getTxHashQuTransferForIdentity(uint32_t fromTick, uint32_t toTick, std::string identity)
+std::string getQuTransferForIdentity(uint32_t fromTick, uint32_t toTick, const std::string& identity)
 {
     // Validate tick range
     if (toTick < fromTick) {
@@ -487,23 +487,277 @@ std::string getTxHashQuTransferForIdentity(uint32_t fromTick, uint32_t toTick, s
     Json::Value result;
     Json::Value inArray(Json::arrayValue);
     Json::Value outArray(Json::arrayValue);
-    bool overflow = false;
 
-    // Process outgoing transfers
-    for (uint32_t tick : outgoingTicks) {
-        // TODO: Implement processing for each tick to extract transaction hashes
-        // Placeholder for outgoing transfer processing
+    LogRangesPerTxInTick lr{};
+    TickData td{};
+    m256i requester;
+    getPublicKeyFromIdentity(identity.data(), requester.m256i_u8);
+
+    for (auto tick : outgoingTicks)
+    {
+        db_get_log_ranges(tick, lr);
+        db_try_get_tick_data(tick, td);
+        if (td.epoch == 0) continue;
+        for (int i = 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK + NUMBER_OF_SPECIAL_EVENT_PER_TICK; i++)
+        {
+            long long s,e,l;
+            s = lr.fromLogId[i];
+            l = lr.length[i];
+            e = s + l - 1;
+            auto vle = db_try_get_logs(td.epoch, s, e);
+            for (auto& le : vle)
+            {
+                if (le.getType() == ASSET_OWNERSHIP_CHANGE || le.getType() == ASSET_POSSESSION_CHANGE)
+                {
+                    auto qt = le.getStruct<QuTransfer>();
+                    if (qt->sourcePublicKey == requester)
+                    {
+                        if (i < NUMBER_OF_TRANSACTIONS_PER_TICK)
+                        {
+                            outArray.append(td.transactionDigests[i].toQubicHash());
+                        }
+                        else
+                        {
+                            if (i == SC_INITIALIZE_TX) outArray.append("SC_INITIALIZE_TX");
+                            if (i == SC_BEGIN_EPOCH_TX) outArray.append("SC_BEGIN_EPOCH_TX");
+                            if (i == SC_BEGIN_TICK_TX) outArray.append("SC_BEGIN_TICK_TX");
+                            if (i == SC_END_TICK_TX) outArray.append("SC_END_TICK_TX");
+                            if (i == SC_END_EPOCH_TX) outArray.append("SC_END_EPOCH_TX");
+                        }
+                    }
+                }
+            }
+        }
     }
 
-    // Process incoming transfers
-    for (uint32_t tick : incomingTicks) {
-        // TODO: Implement processing for each tick to extract transaction hashes
-        // Placeholder for incoming transfer processing
+    for (auto tick : incomingTicks)
+    {
+        db_get_log_ranges(tick, lr);
+        db_try_get_tick_data(tick, td);
+        if (td.epoch == 0) continue;
+        for (int i = 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK + NUMBER_OF_SPECIAL_EVENT_PER_TICK; i++)
+        {
+            long long s,e,l;
+            s = lr.fromLogId[i];
+            l = lr.length[i];
+            e = s + l - 1;
+            auto vle = db_try_get_logs(td.epoch, s, e);
+            for (auto& le : vle)
+            {
+                if (le.getType() == ASSET_OWNERSHIP_CHANGE || le.getType() == ASSET_POSSESSION_CHANGE)
+                {
+                    auto qt = le.getStruct<QuTransfer>();
+                    if (qt->destinationPublicKey == requester)
+                    {
+                        if (i < NUMBER_OF_TRANSACTIONS_PER_TICK)
+                        {
+                            inArray.append(td.transactionDigests[i].toQubicHash());
+                        }
+                        else
+                        {
+                            if (i == SC_INITIALIZE_TX) inArray.append("SC_INITIALIZE_TX");
+                            if (i == SC_BEGIN_EPOCH_TX) inArray.append("SC_BEGIN_EPOCH_TX");
+                            if (i == SC_BEGIN_TICK_TX) inArray.append("SC_BEGIN_TICK_TX");
+                            if (i == SC_END_TICK_TX) inArray.append("SC_END_TICK_TX");
+                            if (i == SC_END_EPOCH_TX) inArray.append("SC_END_EPOCH_TX");
+                        }
+                    }
+                }
+            }
+        }
     }
 
     result["in"] = inArray;
     result["out"] = outArray;
-    result["overflow"] = overflow;
+
+    Json::FastWriter writer;
+    return writer.write(result);
+}
+
+std::string getAssetTransferForIdentity(uint32_t fromTick, uint32_t toTick, const std::string& identity,
+                                              const std::string& assetIssuer, const std::string& assetName)
+{
+    // Validate tick range
+    if (toTick < fromTick) {
+        return "{\"error\":\"Invalid tick range: toTick must be >= fromTick\"}";
+    }
+    if (toTick - fromTick >= 1000) {
+        return "{\"error\":\"Invalid tick range: toTick - fromTick must be < 1000\"}";
+    }
+    if (identity.length() != 60 || assetIssuer.length() != 60) {
+        return "{\"error\":\"Invalid identity length\"}";
+    }
+
+    if (assetName.length() > 7) {
+        return "{\"error\":\"Invalid assetName length\"}";
+    }
+    uint8_t assetHash[39] = {0};
+    getPublicKeyFromIdentity(assetIssuer.c_str(), assetHash);
+    memcpy(assetHash + 32, assetName.data(), assetName.size());
+    uint8_t out[32];
+    char hash[64] = {0};
+    KangarooTwelve(assetHash, 39, out, 32);
+    getIdentityFromPublicKey(out, hash, true);
+    std::string assetHashStr(hash);
+
+    std::vector<uint32_t> outgoingTicks = db_search_log(0, ASSET_OWNERSHIP_CHANGE, fromTick, toTick, identity, "ANY", assetHashStr);
+    std::vector<uint32_t> incomingTicks = db_search_log(0, ASSET_OWNERSHIP_CHANGE, fromTick, toTick, "ANY", identity, assetHashStr);
+
+    Json::Value result;
+    Json::Value inArray(Json::arrayValue);
+    Json::Value outArray(Json::arrayValue);
+
+    LogRangesPerTxInTick lr{};
+    TickData td{};
+    m256i requester;
+    getPublicKeyFromIdentity(identity.data(), requester.m256i_u8);
+    for (auto tick : outgoingTicks)
+    {
+        db_get_log_ranges(tick, lr);
+        db_try_get_tick_data(tick, td);
+        if (td.epoch == 0) continue;
+        for (int i = 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK + NUMBER_OF_SPECIAL_EVENT_PER_TICK; i++)
+        {
+            long long s,e,l;
+            s = lr.fromLogId[i];
+            l = lr.length[i];
+            e = s + l - 1;
+            auto vle = db_try_get_logs(td.epoch, s, e);
+            for (auto& le : vle)
+            {
+                if (le.getType() == ASSET_OWNERSHIP_CHANGE || le.getType() == ASSET_POSSESSION_CHANGE)
+                {
+                    auto aoc = le.getStruct<AssetOwnershipChange>();
+                    if (aoc->sourcePublicKey == requester)
+                    {
+                        if (i < NUMBER_OF_TRANSACTIONS_PER_TICK)
+                        {
+                            outArray.append(td.transactionDigests[i].toQubicHash());
+                        }
+                        else
+                        {
+                            if (i == SC_INITIALIZE_TX) outArray.append("SC_INITIALIZE_TX");
+                            if (i == SC_BEGIN_EPOCH_TX) outArray.append("SC_BEGIN_EPOCH_TX");
+                            if (i == SC_BEGIN_TICK_TX) outArray.append("SC_BEGIN_TICK_TX");
+                            if (i == SC_END_TICK_TX) outArray.append("SC_END_TICK_TX");
+                            if (i == SC_END_EPOCH_TX) outArray.append("SC_END_EPOCH_TX");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    for (auto tick : incomingTicks)
+    {
+        db_get_log_ranges(tick, lr);
+        db_try_get_tick_data(tick, td);
+        if (td.epoch == 0) continue;
+        for (int i = 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK + NUMBER_OF_SPECIAL_EVENT_PER_TICK; i++)
+        {
+            long long s,e,l;
+            s = lr.fromLogId[i];
+            l = lr.length[i];
+            e = s + l - 1;
+            auto vle = db_try_get_logs(td.epoch, s, e);
+            for (auto& le : vle)
+            {
+                if (le.getType() == ASSET_OWNERSHIP_CHANGE || le.getType() == ASSET_POSSESSION_CHANGE)
+                {
+                    auto aoc = le.getStruct<AssetOwnershipChange>();
+                    if (aoc->destinationPublicKey == requester)
+                    {
+                        if (i < NUMBER_OF_TRANSACTIONS_PER_TICK)
+                        {
+                            inArray.append(td.transactionDigests[i].toQubicHash());
+                        }
+                        else
+                        {
+                            if (i == SC_INITIALIZE_TX) inArray.append("SC_INITIALIZE_TX");
+                            if (i == SC_BEGIN_EPOCH_TX) inArray.append("SC_BEGIN_EPOCH_TX");
+                            if (i == SC_BEGIN_TICK_TX) inArray.append("SC_BEGIN_TICK_TX");
+                            if (i == SC_END_TICK_TX) inArray.append("SC_END_TICK_TX");
+                            if (i == SC_END_EPOCH_TX) inArray.append("SC_END_EPOCH_TX");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    result["in"] = inArray;
+    result["out"] = outArray;
+
+    Json::FastWriter writer;
+    return writer.write(result);
+}
+
+std::string getAllAssetTransfer(uint32_t fromTick, uint32_t toTick, const std::string& assetIssuer, const std::string& assetName)
+{
+    // Validate tick range
+    if (toTick < fromTick) {
+        return "{\"error\":\"Invalid tick range: toTick must be >= fromTick\"}";
+    }
+    if (toTick - fromTick >= 1000) {
+        return "{\"error\":\"Invalid tick range: toTick - fromTick must be < 1000\"}";
+    }
+    if (assetIssuer.length() != 60) {
+        return "{\"error\":\"Invalid identity length\"}";
+    }
+
+    if (assetName.length() > 7) {
+        return "{\"error\":\"Invalid assetName length\"}";
+    }
+    uint8_t assetHash[39] = {0};
+    getPublicKeyFromIdentity(assetIssuer.c_str(), assetHash);
+    memcpy(assetHash + 32, assetName.data(), assetName.size());
+    uint8_t out[32];
+    char hash[64] = {0};
+    KangarooTwelve(assetHash, 39, out, 32);
+    getIdentityFromPublicKey(out, hash, true);
+    std::string assetHashStr(hash);
+
+    std::vector<uint32_t> outgoingTicks = db_search_log(0, ASSET_OWNERSHIP_CHANGE, fromTick, toTick, "ANY", "ANY", assetHashStr);
+
+    Json::Value result;
+    Json::Value outArray(Json::arrayValue);
+    LogRangesPerTxInTick lr{};
+    TickData td{};
+
+    for (auto tick : outgoingTicks)
+    {
+        db_get_log_ranges(tick, lr);
+        db_try_get_tick_data(tick, td);
+        if (td.epoch == 0) continue;
+        for (int i = 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK + NUMBER_OF_SPECIAL_EVENT_PER_TICK; i++)
+        {
+            long long s,e,l;
+            s = lr.fromLogId[i];
+            l = lr.length[i];
+            e = s + l - 1;
+            auto vle = db_try_get_logs(td.epoch, s, e);
+            for (auto& le : vle)
+            {
+                if (le.getType() == ASSET_OWNERSHIP_CHANGE || le.getType() == ASSET_POSSESSION_CHANGE)
+                {
+                    if (i < NUMBER_OF_TRANSACTIONS_PER_TICK)
+                    {
+                        outArray.append(td.transactionDigests[i].toQubicHash());
+                    }
+                    else
+                    {
+                        if (i == SC_INITIALIZE_TX) outArray.append("SC_INITIALIZE_TX");
+                        if (i == SC_BEGIN_EPOCH_TX) outArray.append("SC_BEGIN_EPOCH_TX");
+                        if (i == SC_BEGIN_TICK_TX) outArray.append("SC_BEGIN_TICK_TX");
+                        if (i == SC_END_TICK_TX) outArray.append("SC_END_TICK_TX");
+                        if (i == SC_END_EPOCH_TX) outArray.append("SC_END_EPOCH_TX");
+                    }
+                }
+            }
+        }
+    }
+
+    result = outArray;
 
     Json::FastWriter writer;
     return writer.write(result);

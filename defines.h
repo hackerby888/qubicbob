@@ -1,5 +1,6 @@
 #include "commonFunctions.h"
 #define NUMBER_OF_TRANSACTIONS_PER_TICK 1024
+#define NUMBER_OF_SPECIAL_EVENT_PER_TICK 5
 #define SIGNATURE_SIZE 64
 #define SPECTRUM_DEPTH 24 // Is derived from SPECTRUM_CAPACITY (=N)
 #define ASSETS_DEPTH 24 // Is derived from ASSETS_CAPACITY (=N)

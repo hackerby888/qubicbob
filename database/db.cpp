@@ -577,6 +577,19 @@ bool db_try_get_log(uint16_t epoch, uint64_t logId, LogEvent &log)
     }
 }
 
+std::vector<LogEvent> db_try_get_logs(uint16_t epoch, long long logIdStart, long long logIdEnd)
+{
+    std::vector<LogEvent> results;
+    for (long long l = logIdStart; l <= logIdEnd; l++)
+    {
+        LogEvent le;
+        if (db_try_get_log(epoch, l, le))
+        {
+            results.push_back(le);
+        }
+    }
+    return results;
+}
 
 std::vector<LogEvent> db_get_logs_by_tick_range(uint16_t epoch, uint32_t start_tick, uint32_t end_tick, bool& success) {
     success = false;

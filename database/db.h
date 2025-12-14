@@ -421,6 +421,7 @@ bool db_get_computors(uint16_t epoch, Computors& comps);
 bool db_log_exists(uint16_t epoch, uint64_t logId);
 
 bool db_try_get_log(uint16_t epoch, uint64_t logId, LogEvent &log);
+std::vector<LogEvent> db_try_get_logs(uint16_t epoch, long long logIdStart, long long logIdEnd);
 
 long long db_get_last_indexed_tick();
 bool db_update_last_indexed_tick(uint32_t tick);
