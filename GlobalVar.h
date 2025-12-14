@@ -67,6 +67,8 @@ struct GlobalState {
 
     TxStorageMode gTxStorageMode = TxStorageMode::LastNTick;
     uint32_t gTxTickToLive = 10000;
+
+    int gNumBMConnection = 0;
 };
 
 // Safe, lazy singleton accessor avoids static init order issues.

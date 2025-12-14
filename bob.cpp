@@ -227,6 +227,7 @@ int runBob(int argc, char *argv[])
     std::vector<std::thread> v_data_thread;
     Logger::get()->info("Starting {} data processor threads", pool_size);
     const bool isTrustedNode = true;
+    gNumBMConnection = 0;
     for (int i = 0; i < pool_size; i++)
     {
         v_recv_thread.emplace_back([&, i](){
@@ -235,6 +236,7 @@ int runBob(int argc, char *argv[])
             set_this_thread_name(nm);
             connReceiver(std::ref(connPool.get(i)), isTrustedNode, std::ref(stopFlag));
         });
+        if (connPool.get(i)->isBM()) gNumBMConnection++;
     }
     for (int i = 0; i < std::max(gMaxThreads, pool_size); i++)
     {

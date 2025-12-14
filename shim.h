@@ -43,3 +43,5 @@
 
 #define gMaxThreads (GS().gMaxThreads)
 #define gSpamThreshold (GS().gSpamThreshold)
+
+#define gNumBMConnection (GS().gNumBMConnection)

@@ -297,6 +297,11 @@ namespace {
                 "/querySmartContract",
                 [](const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback) {
     try {
+        if (gNumBMConnection == 0)
+        {
+            callback(makeError("Bob has no connection to any BM"));
+            return;
+        }
         auto jsonPtr = req->getJsonObject();
         if (!jsonPtr) {
             callback(makeError("Invalid or missing JSON body"));
