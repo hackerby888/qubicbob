@@ -671,7 +671,7 @@ verifyNodeStateDigest:
         if (gIsEndEpoch) break;
         while (gCurrentVerifyLoggingTick == gCurrentFetchingTick)
         {
-            SLEEP(10); // need to wait until tick data and votes arrive
+            SLEEP(100); // need to wait until tick data and votes arrive
             if (stopFlag.load(std::memory_order_relaxed)) return;
         }
         if (stopFlag.load()) break;
