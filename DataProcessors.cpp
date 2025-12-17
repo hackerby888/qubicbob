@@ -149,6 +149,11 @@ void processLogEvent(const uint8_t* _ptr, uint32_t chunkSize)
                 Logger::get()->warn("Failed to add log {}", logId);
             }
         }
+        else
+        {
+            // break here and get the rest of logging chunk later
+            break;
+        }
 
         offset += messageSize + LogEvent::PackedHeaderSize;
         maxLogId = std::max(maxLogId, logId);
