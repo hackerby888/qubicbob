@@ -45,7 +45,7 @@ void compressTickAndMoveToKVRocks(uint32_t tick)
     {
         Logger::get()->warn("Tick {} Votes ({}) are deleted before being saved to disk, please check your KeyDB and bob config, make sure data is not evicted too early.", tick, count);
     }
-    if (db_get_tick_data(tick, full.td))
+    if (!db_get_tick_data(tick, full.td))
     {
         // failed to get tick data, find out if it's really empty tick
         if (emptyCount <= 255)
