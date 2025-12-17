@@ -140,10 +140,19 @@ void processLogEvent(const uint8_t* _ptr, uint32_t chunkSize)
         memcpy((void*)&tmp, ptr + 6, sizeof(tmp));
         memcpy((void*)&logId, ptr + 10, sizeof(logId));
         uint32_t messageSize = tmp & 0x00FFFFFF;
-
-        if (!db_insert_log(epoch, tick, logId, messageSize + LogEvent::PackedHeaderSize, ptr))
+        LogEvent le;
+        le.updateContent(ptr, messageSize + LogEvent::PackedHeaderSize);
+        if (le.selfCheck(gCurrentProcessingEpoch))
         {
-            Logger::get()->warn("Failed to add log {}", logId);
+            if (!db_insert_log(epoch, tick, logId, messageSize + LogEvent::PackedHeaderSize, ptr))
+            {
+                Logger::get()->warn("Failed to add log {}", logId);
+            }
+        }
+        else
+        {
+            // break here and get the rest of logging chunk later
+            break;
         }
 
         offset += messageSize + LogEvent::PackedHeaderSize;

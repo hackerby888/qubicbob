@@ -20,7 +20,7 @@ private:
 public:
     // Returns a pointer to the start of the log body (after the packed header).
     // Requires hasPackedHeader() == true.
-    const uint8_t* getLogBodyPtr(){ return content.data() + PackedHeaderSize;}
+    const uint8_t* getLogBodyPtr() const { return content.data() + PackedHeaderSize;}
     uint8_t* getRawPtr(){return content.data();}
     // Replaces internal content with [ptr, ptr+size).
     void updateContent(const uint8_t* ptr, const int size)
@@ -124,6 +124,12 @@ public:
         if (min_needed > 0 && sz < min_needed) {
             Logger::get()->critical("LogEvent body too small for type {}: need >= {}, got {} (epoch {}, tick {}, logId {})",
                                     getType(), min_needed, sz, getEpoch(), getTick(), getLogId());
+            return false;
+        }
+        uint64_t logDigest = 0;
+        KangarooTwelve(this->getLogBodyPtr(), getLogSize(), (uint8_t*)&logDigest, 8);
+        if (logDigest != getLogDigest())
+        {
             return false;
         }
         return true;
