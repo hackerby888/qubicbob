@@ -37,9 +37,9 @@ int main(int argc, char *argv[]) {
         while (true){
             int r = system(command.c_str());
             printf("bob exited with code %d, if you want to exit bob completely, press Ctrl+C one more time\n", r);
-            printf("sleep for 30 seconds and start again\n");
+            printf("sleep for 2 seconds and start again\n");
             if (bob_client_stop_flag) break;
-            std::this_thread::sleep_for(std::chrono::seconds (30));
+            std::this_thread::sleep_for(std::chrono::seconds (2));
         }
     }
     else
