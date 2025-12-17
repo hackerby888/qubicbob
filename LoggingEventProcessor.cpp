@@ -447,7 +447,7 @@ void verifyLoggingEvent(std::atomic_bool& stopFlag)
         // detect END_EPOCH
         for (uint32_t tick = processFromTick; tick <= processToTick; tick++)
         {
-            ResponseAllLogIdRangesFromTick lr{};
+            LogRangesPerTxInTick lr{};
             if (db_try_get_log_ranges(tick, lr))
             {
                 if (lr.fromLogId[SC_END_EPOCH_TX] != -1 && lr.length[SC_END_EPOCH_TX] != -1)
@@ -741,8 +741,18 @@ verifyNodeStateDigest:
                )
             {
                 // quorum already reach but not matched
-                Logger::get()->critical("Misalignment states!!! Please contact dev team. Exit here.");
-                exit(1);
+                Logger::get()->critical("Misalignment states!!! Cleaning all potential malformed data and restarting bob");
+                stopFlag.store(true);
+                SLEEP(1000);
+                processToTick = gCurrentFetchingLogTick - 1;
+                long long fromId, length;
+                db_get_combined_log_range_for_ticks(processFromTick, processToTick, fromId, length);
+                auto endId = fromId + length - 1;
+                for (uint32_t t = processFromTick; t <= processToTick; t++) db_delete_log_ranges(t);
+                db_delete_logs(gCurrentProcessingEpoch, fromId, endId);
+                Logger::get()->info("Deleted all potential malformed data. Setting last fetched logging to {}", processFromTick-1);
+                db_update_latest_event_tick_and_epoch(processFromTick-1, gCurrentProcessingEpoch);
+                break;
             }
             else
             {

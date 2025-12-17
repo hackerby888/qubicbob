@@ -3,7 +3,7 @@
 static const std::string KEY_LAST_CLEAN_TICK_DATA = "garbage_cleaner:last_clean_tick_data";
 static const std::string KEY_LAST_CLEAN_TX_TICK = "garbage_cleaner:last_clean_tx_tick";
 
-bool cleanTransactionAndLogsAndSaveToDisk(TickData& td, ResponseAllLogIdRangesFromTick& lr)
+bool cleanTransactionAndLogsAndSaveToDisk(TickData& td, LogRangesPerTxInTick& lr)
 {
     for (int i = 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK; i++)
     {
@@ -29,23 +29,39 @@ void compressTickAndMoveToKVRocks(uint32_t tick)
     // Prepare the aggregated struct
     FullTickStruct full{};
     std::memset((void*)&full, 0, sizeof(full));
-    db_get_tick_data(tick, full.td);
+    int count = 0;
+    int emptyCount = 0;
     auto votes = db_get_tick_votes(tick);
     for (const auto& v : votes)
     {
         if (v.computorIndex < 676 && v.epoch != 0)
         {
             std::memcpy((void*)&full.tv[v.computorIndex], &v, sizeof(TickVote));
+            count++;
+            if (v.transactionDigest == m256i::zero()) emptyCount++;
         }
     }
-
+    if (count <= 255)
+    {
+        Logger::get()->warn("Tick {} Votes ({}) are deleted before being saved to disk, please check your KeyDB and bob config, make sure data is not evicted too early.", tick, count);
+    }
+    if (!db_get_tick_data(tick, full.td))
+    {
+        // failed to get tick data, find out if it's really empty tick
+        if (emptyCount <= 255)
+        {
+            Logger::get()->warn("Tick Data are deleted before being saved to disk, please check your KeyDB and bob config, make sure data is not evicted too early.");
+            Logger::get()->warn("Failed to save tick {}", tick);
+            return;
+        }
+    }
     // Insert the compressed record
     if (!db_insert_vtick_to_kvrocks(tick, full))
     {
         Logger::get()->error("compressTick: Failed to insert vtick for tick {}", tick);
         return;
     }
-    ResponseAllLogIdRangesFromTick lr{};
+    LogRangesPerTxInTick lr{};
     if (db_get_log_ranges(tick, lr))
     {
         db_insert_cLogRange_to_kvrocks(tick, lr);
@@ -61,7 +77,7 @@ void compressTickAndMoveToKVRocks(uint32_t tick)
 bool cleanTransactionLogs(uint32_t tick)
 {
     TickData td{};
-    ResponseAllLogIdRangesFromTick lr{};
+    LogRangesPerTxInTick lr{};
     if (!db_try_get_tick_data(tick, td))
     {
         return false;

@@ -176,7 +176,7 @@ bool db_insert_log(uint16_t epoch, uint32_t tick, uint64_t logId, int logSize, c
  * - true on success
  * - false on write failure or invalid data
  */
-bool db_insert_log_range(uint32_t tick, const ResponseAllLogIdRangesFromTick& logRange);
+bool db_insert_log_range(uint32_t tick, const LogRangesPerTxInTick& logRange);
 
 /**
  * Atomically updates the latest tick and epoch in the global DB status if and only if
@@ -398,7 +398,7 @@ bool db_get_tick_data(uint32_t tick, TickData& data);
  */
 
 bool db_check_log_range(uint32_t tick);
-bool db_try_get_log_ranges(uint32_t tick, ResponseAllLogIdRangesFromTick &logRange);
+bool db_try_get_log_ranges(uint32_t tick, LogRangesPerTxInTick &logRange);
 bool db_has_tick_data(uint32_t tick);
 bool db_try_get_transaction(const std::string& tx_hash, std::vector<uint8_t>& tx_data);
 bool db_check_transaction_exist(const std::string& tx_hash);
@@ -421,6 +421,7 @@ bool db_get_computors(uint16_t epoch, Computors& comps);
 bool db_log_exists(uint16_t epoch, uint64_t logId);
 
 bool db_try_get_log(uint16_t epoch, uint64_t logId, LogEvent &log);
+std::vector<LogEvent> db_try_get_logs(uint16_t epoch, long long logIdStart, long long logIdEnd);
 
 long long db_get_last_indexed_tick();
 bool db_update_last_indexed_tick(uint32_t tick);
@@ -462,18 +463,7 @@ std::vector<TickVote> db_try_to_get_votes(uint32_t tick);
 std::vector<uint32_t> db_search_log(uint32_t scIndex, uint32_t scLogType, uint32_t fromTick, uint32_t toTick,
                                     std::string topic1, std::string topic2, std::string topic3);
 
-bool db_vtick_exists(uint32_t tick);
-
-void db_insert_log_sig(uint32_t tick, uint32_t chunkid, uint8_t* pubkey, const uint8_t* signature);
-bool db_get_log_sig(uint32_t tick, uint32_t chunkid, uint8_t* pubkey, uint8_t* signature);
-
-void db_insert_log_range_sig(uint32_t tick, uint8_t* pubkey, const uint8_t* signature);
-bool db_get_log_range_sig(uint32_t tick, uint8_t* pubkey, uint8_t* signature);
-bool db_get_log_ranges(uint32_t tick, ResponseAllLogIdRangesFromTick &logRange);
-
-
-bool db_insert_bootstrap_info(uint16_t epoch, const BootstrapInfo &info);
-bool db_get_bootstrap_info(uint16_t epoch, BootstrapInfo &info);
+bool db_get_log_ranges(uint32_t tick, LogRangesPerTxInTick &logRange);
 
 bool db_insert_u32(const std::string key, uint32_t value);
 bool db_get_u32(const std::string key, uint32_t &value);
@@ -502,9 +492,9 @@ std::vector<TickVote> db_try_get_tick_vote(uint32_t tick);
 
 void db_kvrocks_close();
 
-bool db_insert_cLogRange_to_kvrocks(uint32_t tick, const ResponseAllLogIdRangesFromTick& logRange);
+bool db_insert_cLogRange_to_kvrocks(uint32_t tick, const LogRangesPerTxInTick& logRange);
 bool db_insert_TickLogRange_to_kvrocks(uint32_t tick, long long& logStart, long long& logLen);
-bool db_get_cLogRange_from_kvrocks(uint32_t tick, ResponseAllLogIdRangesFromTick& outLogRange);
+bool db_get_cLogRange_from_kvrocks(uint32_t tick, LogRangesPerTxInTick& outLogRange);
 
 bool db_copy_transaction_to_kvrocks(const std::string &tx_hash);
 

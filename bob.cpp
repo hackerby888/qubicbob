@@ -128,6 +128,9 @@ int runBob(int argc, char *argv[])
         Logger::get()->info("Loaded DB. DATA: Tick: {} | epoch: {}", gCurrentFetchingTick.load(), gCurrentProcessingEpoch.load());
         Logger::get()->info("Loaded DB. EVENT: Tick: {} | epoch: {}", gCurrentFetchingLogTick.load(), event_epoch);
     }
+
+    startRESTServer();
+
     if (gTickStorageMode == TickStorageMode::Kvrocks)
     {
         db_kvrocks_connect(cfg.kvrocks_url);
@@ -224,6 +227,7 @@ int runBob(int argc, char *argv[])
     std::vector<std::thread> v_data_thread;
     Logger::get()->info("Starting {} data processor threads", pool_size);
     const bool isTrustedNode = true;
+    gNumBMConnection = 0;
     for (int i = 0; i < pool_size; i++)
     {
         v_recv_thread.emplace_back([&, i](){
@@ -232,6 +236,7 @@ int runBob(int argc, char *argv[])
             set_this_thread_name(nm);
             connReceiver(std::ref(connPool.get(i)), isTrustedNode, std::ref(stopFlag));
         });
+        if (connPool.get(i)->isBM()) gNumBMConnection++;
     }
     for (int i = 0; i < std::max(gMaxThreads, pool_size); i++)
     {
@@ -251,7 +256,6 @@ int runBob(int argc, char *argv[])
         set_this_thread_name("log-ver");
         verifyLoggingEvent(std::ref(stopFlag));
     });
-    startRESTServer();
     std::thread garbage_thread;
     if (cfg.tick_storage_mode != TickStorageMode::Free || cfg.tx_storage_mode != TxStorageMode::Free)
     {
@@ -341,14 +345,23 @@ int runBob(int argc, char *argv[])
     {
         Logger::get()->info("Received END_EPOCH message. Closing BOB");
     }
+
+    if (run_server)
+    {
+        StopQubicServer();
+        Logger::get()->info("Closed Qubic server at port 21842");
+    }
+
+    stopRESTServer();
+    Logger::get()->info("Closed REST server at port 40420");
+
     db_close();
+    Logger::get()->info("Closed KEYDB connection");
     if (gTickStorageMode == TickStorageMode::Kvrocks)
     {
         db_kvrocks_close();
+        Logger::get()->info("Closed KVROCKS connection");
     }
-    // Stop embedded server (if it was started) before shutting down logger
-    StopQubicServer();
-    stopRESTServer();
     ProfilerRegistry::instance().printSummary();
     Logger::get()->info("Shutting down logger");
     spdlog::shutdown();

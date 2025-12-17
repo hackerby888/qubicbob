@@ -33,7 +33,7 @@ void db_connect(const std::string& connectionString) {
         g_redis->ping();
     } catch (const sw::redis::Error& e) {
         g_redis.reset();
-        throw std::runtime_error("Cannot connect to Redis: " + std::string(e.what()));
+        throw std::runtime_error("Cannot connect to KeyDB: " + std::string(e.what()));
         exit(1);
     }
     Logger::get()->trace("Connected to DB!");
@@ -138,11 +138,11 @@ bool db_insert_log(uint16_t epoch, uint32_t tick, uint64_t logId, int logSize, c
     return true;
 }
 
-bool db_insert_log_range(uint32_t tick, const ResponseAllLogIdRangesFromTick& logRange) {
+bool db_insert_log_range(uint32_t tick, const LogRangesPerTxInTick& logRange) {
     if (!g_redis) return false;
     try {
         std::string key_struct = "log_ranges:" + std::to_string(tick);
-        if (isArrayZero((uint8_t*)&logRange, sizeof(ResponseAllLogIdRangesFromTick)))
+        if (isArrayZero((uint8_t*)&logRange, sizeof(LogRangesPerTxInTick)))
         {
             return false;
         }
@@ -172,7 +172,7 @@ bool db_insert_log_range(uint32_t tick, const ResponseAllLogIdRangesFromTick& lo
         }
 
         // Store the whole struct for the tick
-        sw::redis::StringView val(reinterpret_cast<const char*>(&logRange), sizeof(ResponseAllLogIdRangesFromTick));
+        sw::redis::StringView val(reinterpret_cast<const char*>(&logRange), sizeof(LogRangesPerTxInTick));
         g_redis->set(key_struct, val, std::chrono::milliseconds(0), sw::redis::UpdateType::NOT_EXIST);
 
         std::string key_summary = "tick_log_range:" + std::to_string(tick);
@@ -212,11 +212,11 @@ bool db_log_exists(uint16_t epoch, uint64_t logId) {
     return false;
 }
 
-bool db_get_log_ranges(uint32_t tick, ResponseAllLogIdRangesFromTick &logRange) {
+bool db_get_log_ranges(uint32_t tick, LogRangesPerTxInTick &logRange) {
     if (!g_redis) return false;
     try {
         // Default to -1s
-        memset(&logRange, -1, sizeof(ResponseAllLogIdRangesFromTick));
+        memset(&logRange, -1, sizeof(LogRangesPerTxInTick));
 
         // Fetch the whole struct for the tick
         std::string key = "log_ranges:" + std::to_string(tick);
@@ -224,12 +224,12 @@ bool db_get_log_ranges(uint32_t tick, ResponseAllLogIdRangesFromTick &logRange) 
         if (!val) {
             return false;
         }
-        if (val->size() != sizeof(ResponseAllLogIdRangesFromTick)) {
+        if (val->size() != sizeof(LogRangesPerTxInTick)) {
             Logger::get()->warn("LogRange size mismatch for key %s: got %zu, expected %zu",
-                                key.c_str(), val->size(), sizeof(ResponseAllLogIdRangesFromTick));
+                                key.c_str(), val->size(), sizeof(LogRangesPerTxInTick));
             return false;
         }
-        memcpy((void*)&logRange, val->data(), sizeof(ResponseAllLogIdRangesFromTick));
+        memcpy((void*)&logRange, val->data(), sizeof(LogRangesPerTxInTick));
         return true;
     } catch (const sw::redis::Error &e) {
         Logger::get()->error("Redis error in db_try_get_log_ranges: %s\n", e.what());
@@ -254,7 +254,7 @@ bool db_delete_log_ranges(uint32_t tick) {
 }
 
 
-bool db_try_get_log_ranges(uint32_t tick, ResponseAllLogIdRangesFromTick &logRange)
+bool db_try_get_log_ranges(uint32_t tick, LogRangesPerTxInTick &logRange)
 {
     if (db_get_log_ranges(tick, logRange))
     {
@@ -390,18 +390,11 @@ bool db_get_latest_tick_and_epoch(uint32_t& tick, uint16_t& epoch)
 bool db_update_latest_event_tick_and_epoch(uint32_t tick, uint16_t epoch) {
     if (!g_redis) return false;
     try {
-        const char* script = R"lua(
-local new_tick = tonumber(ARGV[1])
-local current_tick = tonumber(redis.call('hget', KEYS[1], 'latest_event_tick')) or 0
-if new_tick > current_tick then
-    redis.call('hset', KEYS[1], 'latest_event_tick', new_tick, 'latest_event_epoch', ARGV[2])
-    return 1
-end
-return 0
-)lua";
-        std::vector<std::string> keys = {"db_status"};
-        std::vector<std::string> args = {std::to_string(tick), std::to_string(epoch)};
-        g_redis->eval<long long>(script, keys.begin(), keys.end(), args.begin(), args.end());
+        g_redis->hset("db_status",
+                      std::initializer_list<std::pair<std::string, std::string>>{
+                              {"latest_event_tick", std::to_string(tick)},
+                              {"latest_event_epoch", std::to_string(epoch)}
+                      });
     } catch (const sw::redis::Error& e) {
         Logger::get()->error("Redis error: {}\n", e.what());
         return false;
@@ -456,28 +449,6 @@ bool db_get_end_epoch_log_range(uint16_t epoch, long long &fromLogId, long long 
     return false;
 }
 
-bool db_update_latest_log_id(uint64_t logId) {
-    if (!g_redis) return false;
-    try {
-        const char *script = R"lua(
-local new_id = tonumber(ARGV[1])
-local current_id = tonumber(redis.call('hget', KEYS[1], 'latest_log_id')) or 0
-if new_id > current_id then
-    redis.call('hset', KEYS[1], 'latest_log_id', new_id)
-    return 1
-end
-return 0
-)lua";
-        std::vector<std::string> keys = {"db_status"};
-        std::vector<std::string> args = {std::to_string(logId)};
-        g_redis->eval<long long>(script, keys.begin(), keys.end(), args.begin(), args.end());
-    } catch (const sw::redis::Error &e) {
-        Logger::get()->error("Redis error: {}\n", e.what());
-        return false;
-    }
-    return true;
-}
-
 bool db_update_latest_log_id(uint16_t epoch, long long logId) {
     if (!g_redis) return false;
     try {
@@ -502,22 +473,6 @@ return 0
         return false;
     }
     return true;
-}
-
-long long db_get_latest_log_id(uint16_t epoch) {
-    if (!g_redis) return 0;
-    try {
-        const std::string key = "db_status:epoch:" + std::to_string(epoch);
-        auto val = g_redis->hget(key, "latest_log_id");
-        if (val) {
-            return std::stoull(*val);
-        }
-    } catch (const sw::redis::Error &e) {
-        Logger::get()->error("Redis error: {}\n", e.what());
-    } catch (const std::logic_error &e) {
-        Logger::get()->error("Parsing error while getting latest log ID: %s\n", e.what());
-    }
-    return -1;
 }
 
 bool db_update_latest_verified_tick(uint32_t tick) {
@@ -557,27 +512,6 @@ long long db_get_latest_verified_tick() {
         Logger::get()->error("Parsing error while getting latest verified tick: %s\n", e.what());
     }
     return -1;
-}
-
-static bool fill_log_from_key_and_fields(const std::string& key,
-                                         const std::vector<sw::redis::Optional<std::string>>& vals,
-                                         LogEvent& log) {
-
-    try {
-        if (!(vals.size() == 1 && vals[0])) {
-            Logger::get()->warn("Could not retrieve content for log key {}", key.c_str());
-            return false;
-        }
-        // Assemble packed buffer: header (26 bytes) + payload
-        const std::string& payload = *vals[0];
-        log.updateContent((uint8_t*)payload.data(),payload.size());
-
-        return true;
-    } catch(const std::logic_error& e) {
-        Logger::get()->error("Failed to parse log fields for key {}: {}", key.c_str(), e.what());
-    }
-
-    return false;
 }
 
 bool _db_get_log(uint16_t epoch, uint64_t logId, LogEvent &log) {
@@ -643,6 +577,19 @@ bool db_try_get_log(uint16_t epoch, uint64_t logId, LogEvent &log)
     }
 }
 
+std::vector<LogEvent> db_try_get_logs(uint16_t epoch, long long logIdStart, long long logIdEnd)
+{
+    std::vector<LogEvent> results;
+    for (long long l = logIdStart; l <= logIdEnd; l++)
+    {
+        LogEvent le;
+        if (db_try_get_log(epoch, l, le))
+        {
+            results.push_back(le);
+        }
+    }
+    return results;
+}
 
 std::vector<LogEvent> db_get_logs_by_tick_range(uint16_t epoch, uint32_t start_tick, uint32_t end_tick, bool& success) {
     success = false;
@@ -1198,117 +1145,6 @@ std::vector<uint32_t> db_search_log(uint32_t scIndex, uint32_t scLogType, uint32
     return result;
 }
 
-
-// Store first signature seen for a tick/chunk pair; value layout: 32-byte pubkey || 64-byte signature
-void db_insert_log_sig(uint32_t tick, uint32_t chunkid, uint8_t* pubkey, const uint8_t* signature) {
-    if (!g_redis) return;
-    try {
-        const std::string key = "log_sig:" + std::to_string(tick) + ":" + std::to_string(chunkid);
-        uint8_t buf[32 + 64];
-        // pubkey is 32 bytes, signature is 64 bytes
-        std::memcpy(buf, pubkey, 32);
-        std::memcpy(buf + 32, signature, 64);
-        sw::redis::StringView val(reinterpret_cast<const char*>(buf), sizeof(buf));
-        // Only store if not exists
-        g_redis->set(key, val, std::chrono::milliseconds(0), sw::redis::UpdateType::NOT_EXIST);
-    } catch (const sw::redis::Error& e) {
-        Logger::get()->error("Redis error in db_insert_log_sig: {}\n", e.what());
-    }
-}
-
-// Retrieve signature stored for a tick/chunk pair; fills pubkey (32 bytes) and signature (64 bytes) if present
-bool db_get_log_sig(uint32_t tick, uint32_t chunkid, uint8_t* pubkey, uint8_t* signature) {
-    if (!g_redis) {
-        return false;
-    }
-    try {
-        const std::string key = "log_sig:" + std::to_string(tick) + ":" + std::to_string(chunkid);
-        auto val = g_redis->get(key);
-        if (!val) {
-            return false;
-        }
-        if (val->size() != (32 + 64)) {
-            Logger::get()->warn("db_get_log_sig: size mismatch for key {}: got {}, expected {}", key, val->size(), 96);
-            return false;
-        }
-        const uint8_t* data = reinterpret_cast<const uint8_t*>(val->data());
-        std::memcpy(pubkey, data, 32);
-        std::memcpy(signature, data + 32, 64);
-    } catch (const sw::redis::Error& e) {
-        Logger::get()->error("Redis error in db_get_log_sig: {}\n", e.what());
-    }
-    return true;
-}
-
-void db_insert_log_range_sig(uint32_t tick, uint8_t* pubkey, const uint8_t* signature) {
-    if (!g_redis) return;
-    try {
-        const std::string key = "log_range_sig:" + std::to_string(tick);
-        uint8_t buf[32 + 64];
-        std::memcpy(buf, pubkey, 32);
-        std::memcpy(buf + 32, signature, 64);
-        sw::redis::StringView val(reinterpret_cast<const char*>(buf), sizeof(buf));
-        g_redis->set(key, val, std::chrono::milliseconds(0), sw::redis::UpdateType::NOT_EXIST);
-    } catch (const sw::redis::Error& e) {
-        Logger::get()->error("Redis error in db_insert_log_range_sig: {}\n", e.what());
-    }
-}
-
-bool db_insert_bootstrap_info(uint16_t epoch, const BootstrapInfo &info) {
-    if (!g_redis) return false;
-    try {
-        const std::string key = "bootstrap:" + std::to_string(epoch);
-        sw::redis::StringView val(reinterpret_cast<const char *>(&info), sizeof(BootstrapInfo));
-        g_redis->set(key, val);
-        return true;
-    } catch (const sw::redis::Error &e) {
-        Logger::get()->error("Redis error in db_insert_bootstrap_info: {}\n", e.what());
-        return false;
-    }
-}
-
-bool db_get_bootstrap_info(uint16_t epoch, BootstrapInfo &info) {
-    if (!g_redis) return false;
-    try {
-        const std::string key = "bootstrap:" + std::to_string(epoch);
-        auto val = g_redis->get(key);
-        if (!val) {
-            return false;
-        }
-        if (val->size() != sizeof(BootstrapInfo)) {
-            Logger::get()->warn("BootstrapInfo size mismatch for key {}: got {}, expected {}",
-                                key.c_str(), val->size(), sizeof(BootstrapInfo));
-            return false;
-        }
-        memcpy(&info, val->data(), sizeof(BootstrapInfo));
-        return true;
-    } catch (const sw::redis::Error &e) {
-        Logger::get()->error("Redis error in db_get_bootstrap_info: {}\n", e.what());
-        return false;
-    }
-}
-
-bool db_get_log_range_sig(uint32_t tick, uint8_t* pubkey, uint8_t* signature) {
-    if (!g_redis) return false;
-    try {
-        const std::string key = "log_range_sig:" + std::to_string(tick);
-        auto val = g_redis->get(key);
-        if (!val) {
-            return false;
-        }
-        if (val->size() != (32 + 64)) {
-            Logger::get()->warn("db_get_log_range_sig: size mismatch for key {}: got {}, expected {}", key, val->size(), 96);
-            return false;
-        }
-        const uint8_t* data = reinterpret_cast<const uint8_t*>(val->data());
-        std::memcpy(pubkey, data, 32);
-        std::memcpy(signature, data + 32, 64);
-    } catch (const sw::redis::Error& e) {
-        Logger::get()->error("Redis error in db_get_log_range_sig: {}\n", e.what());
-    }
-    return true;
-}
-
 bool db_update_field(const std::string key, const std::string field, const std::string value) {
     if (!g_redis) return false;
     try {
@@ -1428,6 +1264,7 @@ bool db_move_log_to_kvrocks(uint16_t epoch, uint64_t logId) {
     try {
         const std::string key = "log:" + std::to_string(epoch) + ":" + std::to_string(logId);
 
+        if (!g_redis->exists(key)) return false;
         // Read log data from KeyDB
         auto val = g_redis->get(key);
         if (!val) {
@@ -1557,11 +1394,11 @@ bool db_insert_TickLogRange_to_kvrocks(uint32_t tick, long long& logStart, long 
 }
 
 // Compress and insert ResponseAllLogIdRangesFromTick under key "cLogRange:<tick>"
-bool db_insert_cLogRange_to_kvrocks(uint32_t tick, const ResponseAllLogIdRangesFromTick& logRange)
+bool db_insert_cLogRange_to_kvrocks(uint32_t tick, const LogRangesPerTxInTick& logRange)
 {
     if (!g_kvrocks) return false;
     try {
-        const size_t srcSize = sizeof(ResponseAllLogIdRangesFromTick);
+        const size_t srcSize = sizeof(LogRangesPerTxInTick);
         const size_t maxCompressed = ZSTD_compressBound(srcSize);
 
         std::string compressed;
@@ -1594,7 +1431,7 @@ bool db_insert_cLogRange_to_kvrocks(uint32_t tick, const ResponseAllLogIdRangesF
 }
 
 // Get and decompress ResponseAllLogIdRangesFromTick stored at "cLogRange:<tick>"
-bool db_get_cLogRange_from_kvrocks(uint32_t tick, ResponseAllLogIdRangesFromTick& outLogRange)
+bool db_get_cLogRange_from_kvrocks(uint32_t tick, LogRangesPerTxInTick& outLogRange)
 {
     if (!g_kvrocks) return false;
     try {
@@ -1604,7 +1441,7 @@ bool db_get_cLogRange_from_kvrocks(uint32_t tick, ResponseAllLogIdRangesFromTick
             return false;
         }
 
-        const size_t dstSize = sizeof(ResponseAllLogIdRangesFromTick);
+        const size_t dstSize = sizeof(LogRangesPerTxInTick);
         size_t const dSize = ZSTD_decompress(
                 reinterpret_cast<void*>(&outLogRange),
                 dstSize,
