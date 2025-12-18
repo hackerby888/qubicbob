@@ -598,7 +598,7 @@ namespace {
                 .setThreadNum(std::max(2, gMaxThreads))
                 .setIdleConnectionTimeout(10)
                 .setKeepaliveRequestsNumber(200)
-                .setMaxConnectionNum(1000)          // Limit max concurrent connections
+                .setMaxConnectionNum(676)          // Limit max concurrent connections
                 .setMaxConnectionNumPerIP(100)      // Limit per-IP connections (prevents single client abuse)
                 .disableSigtermHandling()
                 .reusePort()                        // Enable SO_REUSEADDR to avoid "Address already in use" errors
