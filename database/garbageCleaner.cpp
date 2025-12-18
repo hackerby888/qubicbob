@@ -62,7 +62,7 @@ void compressTickAndMoveToKVRocks(uint32_t tick)
         return;
     }
     LogRangesPerTxInTick lr{};
-    if (db_get_log_ranges(tick, lr))
+    if (db_try_get_log_ranges(tick, lr))
     {
         db_insert_cLogRange_to_kvrocks(tick, lr);
     }

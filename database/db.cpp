@@ -212,7 +212,7 @@ bool db_log_exists(uint16_t epoch, uint64_t logId) {
     return false;
 }
 
-bool db_get_log_ranges(uint32_t tick, LogRangesPerTxInTick &logRange) {
+bool _db_get_log_ranges(uint32_t tick, LogRangesPerTxInTick &logRange) {
     if (!g_redis) return false;
     try {
         // Default to -1s
@@ -256,7 +256,7 @@ bool db_delete_log_ranges(uint32_t tick) {
 
 bool db_try_get_log_ranges(uint32_t tick, LogRangesPerTxInTick &logRange)
 {
-    if (db_get_log_ranges(tick, logRange))
+    if (_db_get_log_ranges(tick, logRange))
     {
         return true;
     }

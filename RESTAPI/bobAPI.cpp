@@ -495,7 +495,7 @@ std::string getQuTransfersForIdentity(uint32_t fromTick, uint32_t toTick, const 
 
     for (auto tick : outgoingTicks)
     {
-        db_get_log_ranges(tick, lr);
+        db_try_get_log_ranges(tick, lr);
         db_try_get_tick_data(tick, td);
         if (td.epoch == 0) continue;
         for (int i = 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK + NUMBER_OF_SPECIAL_EVENT_PER_TICK; i++)
@@ -524,6 +524,7 @@ std::string getQuTransfersForIdentity(uint32_t fromTick, uint32_t toTick, const 
                             if (i == SC_END_TICK_TX) outArray.append("SC_END_TICK_TX");
                             if (i == SC_END_EPOCH_TX) outArray.append("SC_END_EPOCH_TX");
                         }
+                        break;
                     }
                 }
             }
@@ -532,7 +533,7 @@ std::string getQuTransfersForIdentity(uint32_t fromTick, uint32_t toTick, const 
 
     for (auto tick : incomingTicks)
     {
-        db_get_log_ranges(tick, lr);
+        db_try_get_log_ranges(tick, lr);
         db_try_get_tick_data(tick, td);
         if (td.epoch == 0) continue;
         for (int i = 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK + NUMBER_OF_SPECIAL_EVENT_PER_TICK; i++)
@@ -561,6 +562,7 @@ std::string getQuTransfersForIdentity(uint32_t fromTick, uint32_t toTick, const 
                             if (i == SC_END_TICK_TX) inArray.append("SC_END_TICK_TX");
                             if (i == SC_END_EPOCH_TX) inArray.append("SC_END_EPOCH_TX");
                         }
+                        break;
                     }
                 }
             }
@@ -613,7 +615,7 @@ std::string getAssetTransfersForIdentity(uint32_t fromTick, uint32_t toTick, con
     getPublicKeyFromIdentity(identity.data(), requester.m256i_u8);
     for (auto tick : outgoingTicks)
     {
-        db_get_log_ranges(tick, lr);
+        db_try_get_log_ranges(tick, lr);
         db_try_get_tick_data(tick, td);
         if (td.epoch == 0) continue;
         for (int i = 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK + NUMBER_OF_SPECIAL_EVENT_PER_TICK; i++)
@@ -642,6 +644,7 @@ std::string getAssetTransfersForIdentity(uint32_t fromTick, uint32_t toTick, con
                             if (i == SC_END_TICK_TX) outArray.append("SC_END_TICK_TX");
                             if (i == SC_END_EPOCH_TX) outArray.append("SC_END_EPOCH_TX");
                         }
+                        break;
                     }
                 }
             }
@@ -650,7 +653,7 @@ std::string getAssetTransfersForIdentity(uint32_t fromTick, uint32_t toTick, con
 
     for (auto tick : incomingTicks)
     {
-        db_get_log_ranges(tick, lr);
+        db_try_get_log_ranges(tick, lr);
         db_try_get_tick_data(tick, td);
         if (td.epoch == 0) continue;
         for (int i = 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK + NUMBER_OF_SPECIAL_EVENT_PER_TICK; i++)
@@ -679,6 +682,7 @@ std::string getAssetTransfersForIdentity(uint32_t fromTick, uint32_t toTick, con
                             if (i == SC_END_TICK_TX) inArray.append("SC_END_TICK_TX");
                             if (i == SC_END_EPOCH_TX) inArray.append("SC_END_EPOCH_TX");
                         }
+                        break;
                     }
                 }
             }
@@ -726,7 +730,7 @@ std::string getAllAssetTransfers(uint32_t fromTick, uint32_t toTick, const std::
 
     for (auto tick : outgoingTicks)
     {
-        db_get_log_ranges(tick, lr);
+        db_try_get_log_ranges(tick, lr);
         db_try_get_tick_data(tick, td);
         if (td.epoch == 0) continue;
         for (int i = 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK + NUMBER_OF_SPECIAL_EVENT_PER_TICK; i++)
@@ -752,6 +756,7 @@ std::string getAllAssetTransfers(uint32_t fromTick, uint32_t toTick, const std::
                         if (i == SC_END_TICK_TX) outArray.append("SC_END_TICK_TX");
                         if (i == SC_END_EPOCH_TX) outArray.append("SC_END_EPOCH_TX");
                     }
+                    break;
                 }
             }
         }
