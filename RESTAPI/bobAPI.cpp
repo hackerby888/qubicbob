@@ -465,7 +465,7 @@ std::string bobGetEpochInfo(uint16_t epoch)
     return writer.write(root);
 }
 
-std::string getQuTransferForIdentity(uint32_t fromTick, uint32_t toTick, const std::string& identity)
+std::string getQuTransfersForIdentity(uint32_t fromTick, uint32_t toTick, const std::string& identity)
 {
     // Validate tick range
     if (toTick < fromTick) {
@@ -574,8 +574,8 @@ std::string getQuTransferForIdentity(uint32_t fromTick, uint32_t toTick, const s
     return writer.write(result);
 }
 
-std::string getAssetTransferForIdentity(uint32_t fromTick, uint32_t toTick, const std::string& identity,
-                                              const std::string& assetIssuer, const std::string& assetName)
+std::string getAssetTransfersForIdentity(uint32_t fromTick, uint32_t toTick, const std::string& identity,
+                                         const std::string& assetIssuer, const std::string& assetName)
 {
     // Validate tick range
     if (toTick < fromTick) {
@@ -692,7 +692,7 @@ std::string getAssetTransferForIdentity(uint32_t fromTick, uint32_t toTick, cons
     return writer.write(result);
 }
 
-std::string getAllAssetTransfer(uint32_t fromTick, uint32_t toTick, const std::string& assetIssuer, const std::string& assetName)
+std::string getAllAssetTransfers(uint32_t fromTick, uint32_t toTick, const std::string& assetIssuer, const std::string& assetName)
 {
     // Validate tick range
     if (toTick < fromTick) {

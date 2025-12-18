@@ -279,7 +279,7 @@ namespace {
 
         // POST /getQuTransferForIdentity
         app().registerHandler(
-            "/getQuTransferForIdentity",
+            "/getQuTransfersForIdentity",
             [](const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback) {
                 try {
                     auto jsonPtr = req->getJsonObject();
@@ -298,10 +298,10 @@ namespace {
                     uint32_t toTick = json["toTick"].asUInt();
                     std::string identity = json["identity"].asString();
                     
-                    std::string result = getQuTransferForIdentity(fromTick, toTick, identity);
+                    std::string result = getQuTransfersForIdentity(fromTick, toTick, identity);
                     callback(makeJsonResponse(result));
                 } catch (const std::exception& ex) {
-                    callback(makeError(std::string("getQuTransferForIdentity error: ") + ex.what(), k500InternalServerError));
+                    callback(makeError(std::string("getQuTransfersForIdentity error: ") + ex.what(), k500InternalServerError));
                 }
             },
             {Post}
@@ -309,7 +309,7 @@ namespace {
 
         // POST /getAssetTransferForIdentity
         app().registerHandler(
-            "/getAssetTransferForIdentity",
+            "/getAssetTransfersForIdentity",
             [](const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback) {
                 try {
                     auto jsonPtr = req->getJsonObject();
@@ -331,10 +331,11 @@ namespace {
                     std::string assetIssuer = json["assetIssuer"].asString();
                     std::string assetName = json["assetName"].asString();
                     
-                    std::string result = getAssetTransferForIdentity(fromTick, toTick, identity, assetIssuer, assetName);
+                    std::string result = getAssetTransfersForIdentity(fromTick, toTick, identity, assetIssuer,
+                                                                      assetName);
                     callback(makeJsonResponse(result));
                 } catch (const std::exception& ex) {
-                    callback(makeError(std::string("getAssetTransferForIdentity error: ") + ex.what(), k500InternalServerError));
+                    callback(makeError(std::string("getAssetTransfersForIdentity error: ") + ex.what(), k500InternalServerError));
                 }
             },
             {Post}
@@ -342,7 +343,7 @@ namespace {
 
         // POST /getAllAssetTransfer
         app().registerHandler(
-            "/getAllAssetTransfer",
+            "/getAllAssetTransfers",
             [](const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback) {
                 try {
                     auto jsonPtr = req->getJsonObject();
@@ -363,10 +364,10 @@ namespace {
                     std::string assetIssuer = json["assetIssuer"].asString();
                     std::string assetName = json["assetName"].asString();
                     
-                    std::string result = getAllAssetTransfer(fromTick, toTick, assetIssuer, assetName);
+                    std::string result = getAllAssetTransfers(fromTick, toTick, assetIssuer, assetName);
                     callback(makeJsonResponse(result));
                 } catch (const std::exception& ex) {
-                    callback(makeError(std::string("getAllAssetTransfer error: ") + ex.what(), k500InternalServerError));
+                    callback(makeError(std::string("getAllAssetTransfers error: ") + ex.what(), k500InternalServerError));
                 }
             },
             {Post}
