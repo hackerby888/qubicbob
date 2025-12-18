@@ -52,6 +52,7 @@ namespace sw { namespace redis { class Redis; }}
 #define SIGNATURE_SIZE 64
 #define NUMBER_OF_TRANSACTIONS_PER_TICK 1024
 #define MAX_NUMBER_OF_CONTRACTS 1024
+#define WILDCARD "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaafxib"
 
 // ---- Database Interface ----
 

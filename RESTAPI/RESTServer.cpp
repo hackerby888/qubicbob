@@ -297,7 +297,6 @@ namespace {
                     uint32_t fromTick = json["fromTick"].asUInt();
                     uint32_t toTick = json["toTick"].asUInt();
                     std::string identity = json["identity"].asString();
-                    
                     std::string result = getQuTransfersForIdentity(fromTick, toTick, identity);
                     callback(makeJsonResponse(result));
                 } catch (const std::exception& ex) {
@@ -330,7 +329,6 @@ namespace {
                     std::string identity = json["identity"].asString();
                     std::string assetIssuer = json["assetIssuer"].asString();
                     std::string assetName = json["assetName"].asString();
-                    
                     std::string result = getAssetTransfersForIdentity(fromTick, toTick, identity, assetIssuer,
                                                                       assetName);
                     callback(makeJsonResponse(result));

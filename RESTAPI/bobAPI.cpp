@@ -477,12 +477,16 @@ std::string getQuTransfersForIdentity(uint32_t fromTick, uint32_t toTick, const 
     if (identity.length() != 60) {
         return "{\"error\":\"Invalid identity length\"}";
     }
+    m256i requester;
+    getPublicKeyFromIdentity(identity.data(), requester.m256i_u8);
+    std::string lcIdentity = identity;
+    std::transform(lcIdentity.begin(), lcIdentity.end(), lcIdentity.begin(), ::tolower);
 
     // Get ticks for outgoing transfers (identity is sender - topic1)
-    std::vector<uint32_t> outgoingTicks = db_search_log(0, 0, fromTick, toTick, identity, "ANY", "ANY");
+    std::vector<uint32_t> outgoingTicks = db_search_log(0, 0, fromTick, toTick, lcIdentity, WILDCARD, WILDCARD);
 
     // Get ticks for incoming transfers (identity is receiver - topic2)
-    std::vector<uint32_t> incomingTicks = db_search_log(0, 0, fromTick, toTick, "ANY", identity, "ANY");
+    std::vector<uint32_t> incomingTicks = db_search_log(0, 0, fromTick, toTick, WILDCARD, lcIdentity, WILDCARD);
 
     Json::Value result;
     Json::Value inArray(Json::arrayValue);
@@ -490,8 +494,6 @@ std::string getQuTransfersForIdentity(uint32_t fromTick, uint32_t toTick, const 
 
     LogRangesPerTxInTick lr{};
     TickData td{};
-    m256i requester;
-    getPublicKeyFromIdentity(identity.data(), requester.m256i_u8);
 
     for (auto tick : outgoingTicks)
     {
@@ -507,7 +509,7 @@ std::string getQuTransfersForIdentity(uint32_t fromTick, uint32_t toTick, const 
             auto vle = db_try_get_logs(td.epoch, s, e);
             for (auto& le : vle)
             {
-                if (le.getType() == ASSET_OWNERSHIP_CHANGE || le.getType() == ASSET_POSSESSION_CHANGE)
+                if (le.getType() == QU_TRANSFER)
                 {
                     auto qt = le.getStruct<QuTransfer>();
                     if (qt->sourcePublicKey == requester)
@@ -518,11 +520,11 @@ std::string getQuTransfersForIdentity(uint32_t fromTick, uint32_t toTick, const 
                         }
                         else
                         {
-                            if (i == SC_INITIALIZE_TX) outArray.append("SC_INITIALIZE_TX");
-                            if (i == SC_BEGIN_EPOCH_TX) outArray.append("SC_BEGIN_EPOCH_TX");
-                            if (i == SC_BEGIN_TICK_TX) outArray.append("SC_BEGIN_TICK_TX");
-                            if (i == SC_END_TICK_TX) outArray.append("SC_END_TICK_TX");
-                            if (i == SC_END_EPOCH_TX) outArray.append("SC_END_EPOCH_TX");
+                            if (i == SC_INITIALIZE_TX) outArray.append("SC_INITIALIZE_TX_" + std::to_string(tick));
+                            if (i == SC_BEGIN_EPOCH_TX) outArray.append("SC_BEGIN_EPOCH_TX_" + std::to_string(tick));
+                            if (i == SC_BEGIN_TICK_TX) outArray.append("SC_BEGIN_TICK_TX_" + std::to_string(tick));
+                            if (i == SC_END_TICK_TX) outArray.append("SC_END_TICK_TX_" + std::to_string(tick));
+                            if (i == SC_END_EPOCH_TX) outArray.append("SC_END_EPOCH_TX_" + std::to_string(tick));
                         }
                         break;
                     }
@@ -545,7 +547,7 @@ std::string getQuTransfersForIdentity(uint32_t fromTick, uint32_t toTick, const 
             auto vle = db_try_get_logs(td.epoch, s, e);
             for (auto& le : vle)
             {
-                if (le.getType() == ASSET_OWNERSHIP_CHANGE || le.getType() == ASSET_POSSESSION_CHANGE)
+                if (le.getType() == QU_TRANSFER)
                 {
                     auto qt = le.getStruct<QuTransfer>();
                     if (qt->destinationPublicKey == requester)
@@ -556,11 +558,11 @@ std::string getQuTransfersForIdentity(uint32_t fromTick, uint32_t toTick, const 
                         }
                         else
                         {
-                            if (i == SC_INITIALIZE_TX) inArray.append("SC_INITIALIZE_TX");
-                            if (i == SC_BEGIN_EPOCH_TX) inArray.append("SC_BEGIN_EPOCH_TX");
-                            if (i == SC_BEGIN_TICK_TX) inArray.append("SC_BEGIN_TICK_TX");
-                            if (i == SC_END_TICK_TX) inArray.append("SC_END_TICK_TX");
-                            if (i == SC_END_EPOCH_TX) inArray.append("SC_END_EPOCH_TX");
+                            if (i == SC_INITIALIZE_TX) inArray.append("SC_INITIALIZE_TX_" + std::to_string(tick));
+                            if (i == SC_BEGIN_EPOCH_TX) inArray.append("SC_BEGIN_EPOCH_TX_" + std::to_string(tick));
+                            if (i == SC_BEGIN_TICK_TX) inArray.append("SC_BEGIN_TICK_TX_" + std::to_string(tick));
+                            if (i == SC_END_TICK_TX) inArray.append("SC_END_TICK_TX_" + std::to_string(tick));
+                            if (i == SC_END_EPOCH_TX) inArray.append("SC_END_EPOCH_TX_" + std::to_string(tick));
                         }
                         break;
                     }
@@ -602,8 +604,13 @@ std::string getAssetTransfersForIdentity(uint32_t fromTick, uint32_t toTick, con
     getIdentityFromPublicKey(out, hash, true);
     std::string assetHashStr(hash);
 
-    std::vector<uint32_t> outgoingTicks = db_search_log(0, ASSET_OWNERSHIP_CHANGE, fromTick, toTick, identity, "ANY", assetHashStr);
-    std::vector<uint32_t> incomingTicks = db_search_log(0, ASSET_OWNERSHIP_CHANGE, fromTick, toTick, "ANY", identity, assetHashStr);
+    m256i requester;
+    getPublicKeyFromIdentity(identity.data(), requester.m256i_u8);
+    std::string lcIdentity = identity;
+    std::transform(lcIdentity.begin(), lcIdentity.end(), lcIdentity.begin(), ::tolower);
+
+    std::vector<uint32_t> outgoingTicks = db_search_log(0, ASSET_OWNERSHIP_CHANGE, fromTick, toTick, lcIdentity, WILDCARD, assetHashStr);
+    std::vector<uint32_t> incomingTicks = db_search_log(0, ASSET_OWNERSHIP_CHANGE, fromTick, toTick, WILDCARD, lcIdentity, assetHashStr);
 
     Json::Value result;
     Json::Value inArray(Json::arrayValue);
@@ -611,8 +618,7 @@ std::string getAssetTransfersForIdentity(uint32_t fromTick, uint32_t toTick, con
 
     LogRangesPerTxInTick lr{};
     TickData td{};
-    m256i requester;
-    getPublicKeyFromIdentity(identity.data(), requester.m256i_u8);
+
     for (auto tick : outgoingTicks)
     {
         db_try_get_log_ranges(tick, lr);
@@ -638,11 +644,11 @@ std::string getAssetTransfersForIdentity(uint32_t fromTick, uint32_t toTick, con
                         }
                         else
                         {
-                            if (i == SC_INITIALIZE_TX) outArray.append("SC_INITIALIZE_TX");
-                            if (i == SC_BEGIN_EPOCH_TX) outArray.append("SC_BEGIN_EPOCH_TX");
-                            if (i == SC_BEGIN_TICK_TX) outArray.append("SC_BEGIN_TICK_TX");
-                            if (i == SC_END_TICK_TX) outArray.append("SC_END_TICK_TX");
-                            if (i == SC_END_EPOCH_TX) outArray.append("SC_END_EPOCH_TX");
+                            if (i == SC_INITIALIZE_TX) outArray.append("SC_INITIALIZE_TX_" + std::to_string(tick));
+                            if (i == SC_BEGIN_EPOCH_TX) outArray.append("SC_BEGIN_EPOCH_TX_" + std::to_string(tick));
+                            if (i == SC_BEGIN_TICK_TX) outArray.append("SC_BEGIN_TICK_TX_" + std::to_string(tick));
+                            if (i == SC_END_TICK_TX) outArray.append("SC_END_TICK_TX_" + std::to_string(tick));
+                            if (i == SC_END_EPOCH_TX) outArray.append("SC_END_EPOCH_TX_" + std::to_string(tick));
                         }
                         break;
                     }
@@ -676,11 +682,11 @@ std::string getAssetTransfersForIdentity(uint32_t fromTick, uint32_t toTick, con
                         }
                         else
                         {
-                            if (i == SC_INITIALIZE_TX) inArray.append("SC_INITIALIZE_TX");
-                            if (i == SC_BEGIN_EPOCH_TX) inArray.append("SC_BEGIN_EPOCH_TX");
-                            if (i == SC_BEGIN_TICK_TX) inArray.append("SC_BEGIN_TICK_TX");
-                            if (i == SC_END_TICK_TX) inArray.append("SC_END_TICK_TX");
-                            if (i == SC_END_EPOCH_TX) inArray.append("SC_END_EPOCH_TX");
+                            if (i == SC_INITIALIZE_TX) inArray.append("SC_INITIALIZE_TX_" + std::to_string(tick));
+                            if (i == SC_BEGIN_EPOCH_TX) inArray.append("SC_BEGIN_EPOCH_TX_" + std::to_string(tick));
+                            if (i == SC_BEGIN_TICK_TX) inArray.append("SC_BEGIN_TICK_TX_" + std::to_string(tick));
+                            if (i == SC_END_TICK_TX) inArray.append("SC_END_TICK_TX_" + std::to_string(tick));
+                            if (i == SC_END_EPOCH_TX) inArray.append("SC_END_EPOCH_TX_" + std::to_string(tick));
                         }
                         break;
                     }
@@ -721,7 +727,7 @@ std::string getAllAssetTransfers(uint32_t fromTick, uint32_t toTick, const std::
     getIdentityFromPublicKey(out, hash, true);
     std::string assetHashStr(hash);
 
-    std::vector<uint32_t> outgoingTicks = db_search_log(0, ASSET_OWNERSHIP_CHANGE, fromTick, toTick, "ANY", "ANY", assetHashStr);
+    std::vector<uint32_t> outgoingTicks = db_search_log(0, ASSET_OWNERSHIP_CHANGE, fromTick, toTick, WILDCARD, WILDCARD, assetHashStr);
 
     Json::Value result;
     Json::Value outArray(Json::arrayValue);
@@ -750,11 +756,11 @@ std::string getAllAssetTransfers(uint32_t fromTick, uint32_t toTick, const std::
                     }
                     else
                     {
-                        if (i == SC_INITIALIZE_TX) outArray.append("SC_INITIALIZE_TX");
-                        if (i == SC_BEGIN_EPOCH_TX) outArray.append("SC_BEGIN_EPOCH_TX");
-                        if (i == SC_BEGIN_TICK_TX) outArray.append("SC_BEGIN_TICK_TX");
-                        if (i == SC_END_TICK_TX) outArray.append("SC_END_TICK_TX");
-                        if (i == SC_END_EPOCH_TX) outArray.append("SC_END_EPOCH_TX");
+                        if (i == SC_INITIALIZE_TX) outArray.append("SC_INITIALIZE_TX_" + std::to_string(tick));
+                        if (i == SC_BEGIN_EPOCH_TX) outArray.append("SC_BEGIN_EPOCH_TX_" + std::to_string(tick));
+                        if (i == SC_BEGIN_TICK_TX) outArray.append("SC_BEGIN_TICK_TX_" + std::to_string(tick));
+                        if (i == SC_END_TICK_TX) outArray.append("SC_END_TICK_TX_" + std::to_string(tick));
+                        if (i == SC_END_EPOCH_TX) outArray.append("SC_END_EPOCH_TX_" + std::to_string(tick));
                     }
                     break;
                 }
