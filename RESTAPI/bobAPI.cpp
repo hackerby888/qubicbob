@@ -68,7 +68,7 @@ std::string bobGetBalance(const char* identity)
            ",\"latestIncomingTransferTick\":" + std::to_string(e.latestIncomingTransferTick) +
            ",\"latestOutgoingTransferTick\":" + std::to_string(e.latestOutgoingTransferTick) +
             ",\"currentBobTick:\":" + std::to_string(gCurrentVerifyLoggingTick - 1) +
-            ",\"error:\":" + error +
+            ",\"error:\":\"" + error + +"\""
            "}";
 }
 
