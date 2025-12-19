@@ -2,6 +2,7 @@
 #include "database/db.h"
 #include "Logger.h"
 #include "shim.h"
+#include "structs.h"
 
 #include <json/json.h>
 #include <sstream>
@@ -65,6 +66,15 @@ void LogSubscriptionManager::setClientLastLogId(const drogon::WebSocketConnectio
     auto it = clients_.find(conn);
     if (it != clients_.end()) {
         it->second.lastLogId = lastLogId;
+    }
+}
+
+void LogSubscriptionManager::setClientTransferMinAmount(const drogon::WebSocketConnectionPtr& conn, int64_t minAmount) {
+    std::unique_lock lock(mutex_);
+
+    auto it = clients_.find(conn);
+    if (it != clients_.end()) {
+        it->second.transferMinAmount = minAmount;
     }
 }
 
@@ -223,6 +233,15 @@ void LogSubscriptionManager::pushVerifiedLogs(uint32_t tick, uint16_t epoch, con
             // Get log ID for this event
             int64_t logId = static_cast<int64_t>(log.getLogId());
 
+            // Get transfer amount if this is a QU_TRANSFER event
+            int64_t transferAmount = 0;
+            if (log.getType() == QU_TRANSFER) {
+                const QuTransfer* t = const_cast<LogEvent&>(log).getStruct<QuTransfer>();
+                if (t) {
+                    transferAmount = t->amount;
+                }
+            }
+
             // Collect subscribers to send to
             for (const auto& conn : subIt->second) {
                 // Skip clients in catch-up to avoid duplicate/out-of-order messages
@@ -238,6 +257,11 @@ void LogSubscriptionManager::pushVerifiedLogs(uint32_t tick, uint16_t epoch, con
                     }
                     // Skip if client's lastLogId is >= current log ID (client is ahead of system)
                     if (clientIt->second.lastLogId >= 0 && clientIt->second.lastLogId >= logId) {
+                        continue;
+                    }
+                    // Skip QU_TRANSFER events below client's minimum amount threshold
+                    if (log.getType() == QU_TRANSFER && clientIt->second.transferMinAmount > 0 &&
+                        transferAmount < clientIt->second.transferMinAmount) {
                         continue;
                     }
                 }

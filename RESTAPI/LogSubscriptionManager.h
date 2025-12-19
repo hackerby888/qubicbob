@@ -37,6 +37,7 @@ struct ClientState {
     int64_t lastLogId{-1};          // For catch-up tracking by log ID (-1 = not set)
     bool catchUpInProgress{false};  // True while catch-up is running
     std::chrono::steady_clock::time_point connectedAt;
+    int64_t transferMinAmount{0};   // Minimum amount for QU_TRANSFER events (0 = no filter)
 };
 
 // Singleton manager for WebSocket log subscriptions
@@ -53,6 +54,9 @@ public:
 
     // Set lastLogId for catch-up by log ID
     void setClientLastLogId(const drogon::WebSocketConnectionPtr& conn, int64_t lastLogId);
+
+    // Set minimum transfer amount filter for QU_TRANSFER events
+    void setClientTransferMinAmount(const drogon::WebSocketConnectionPtr& conn, int64_t minAmount);
 
     // Subscription management
     bool subscribe(const drogon::WebSocketConnectionPtr& conn, uint32_t scIndex, uint32_t logType);

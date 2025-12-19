@@ -99,6 +99,14 @@ void LogWebSocket::handleSubscribe(const drogon::WebSocketConnectionPtr& conn, c
         manager.setClientLastTick(conn, gCurrentVerifyLoggingTick.load());
     }
 
+    // Set transfer minimum amount filter (default 0 = no filter)
+    if (msg.isMember("transferMinAmount") && !msg["transferMinAmount"].isNull()) {
+        if (msg["transferMinAmount"].isInt64() || msg["transferMinAmount"].isUInt64() ||
+            msg["transferMinAmount"].isInt() || msg["transferMinAmount"].isUInt()) {
+            manager.setClientTransferMinAmount(conn, msg["transferMinAmount"].asInt64());
+        }
+    }
+
     // Handle batch subscriptions
     if (msg.isMember("subscriptions") && msg["subscriptions"].isArray()) {
         const auto& subs = msg["subscriptions"];
