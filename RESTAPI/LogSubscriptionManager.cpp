@@ -220,12 +220,26 @@ void LogSubscriptionManager::pushVerifiedLogs(uint32_t tick, uint16_t epoch, con
             Json::FastWriter writer;
             std::string jsonStr = writer.write(msg);
 
+            // Get log ID for this event
+            int64_t logId = static_cast<int64_t>(log.getLogId());
+
             // Collect subscribers to send to
             for (const auto& conn : subIt->second) {
                 // Skip clients in catch-up to avoid duplicate/out-of-order messages
                 auto clientIt = clients_.find(conn);
-                if (clientIt != clients_.end() && clientIt->second.catchUpInProgress) {
-                    continue;
+                if (clientIt != clients_.end()) {
+                    // Skip if catch-up is in progress
+                    if (clientIt->second.catchUpInProgress) {
+                        continue;
+                    }
+                    // Skip if client's lastTick is >= current tick (client is ahead of system)
+                    if (clientIt->second.lastTick >= tick) {
+                        continue;
+                    }
+                    // Skip if client's lastLogId is >= current log ID (client is ahead of system)
+                    if (clientIt->second.lastLogId >= 0 && clientIt->second.lastLogId >= logId) {
+                        continue;
+                    }
                 }
                 pendingSends.emplace_back(conn, jsonStr);
             }
