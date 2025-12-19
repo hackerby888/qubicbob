@@ -604,8 +604,11 @@ std::string getAssetTransfersForIdentity(uint32_t fromTick, uint32_t toTick, con
     getIdentityFromPublicKey(out, hash, true);
     std::string assetHashStr(hash);
 
-    m256i requester;
+    m256i requester{};
+    m256i issuerPubkey{};
     getPublicKeyFromIdentity(identity.data(), requester.m256i_u8);
+    getPublicKeyFromIdentity(assetIssuer.c_str(), issuerPubkey.m256i_u8);
+
     std::string lcIdentity = identity;
     std::transform(lcIdentity.begin(), lcIdentity.end(), lcIdentity.begin(), ::tolower);
 
@@ -636,7 +639,9 @@ std::string getAssetTransfersForIdentity(uint32_t fromTick, uint32_t toTick, con
                 if (le.getType() == ASSET_OWNERSHIP_CHANGE || le.getType() == ASSET_POSSESSION_CHANGE)
                 {
                     auto aoc = le.getStruct<AssetOwnershipChange>();
-                    if (aoc->sourcePublicKey == requester)
+                    char name[8] = {0};
+                    memcpy(name, aoc->name, 7);
+                    if (aoc->sourcePublicKey == requester && aoc->issuerPublicKey == issuerPubkey && std::string(name) == assetName)
                     {
                         if (i < NUMBER_OF_TRANSACTIONS_PER_TICK)
                         {
@@ -674,7 +679,9 @@ std::string getAssetTransfersForIdentity(uint32_t fromTick, uint32_t toTick, con
                 if (le.getType() == ASSET_OWNERSHIP_CHANGE || le.getType() == ASSET_POSSESSION_CHANGE)
                 {
                     auto aoc = le.getStruct<AssetOwnershipChange>();
-                    if (aoc->destinationPublicKey == requester)
+                    char name[8] = {0};
+                    memcpy(name, aoc->name, 7);
+                    if (aoc->destinationPublicKey == requester  && aoc->issuerPublicKey == issuerPubkey && std::string(name) == assetName)
                     {
                         if (i < NUMBER_OF_TRANSACTIONS_PER_TICK)
                         {
@@ -718,6 +725,9 @@ std::string getAllAssetTransfers(uint32_t fromTick, uint32_t toTick, const std::
     if (assetName.length() > 7) {
         return "{\"error\":\"Invalid assetName length\"}";
     }
+    m256i issuerPubkey{};
+    getPublicKeyFromIdentity(assetIssuer.c_str(), issuerPubkey.m256i_u8);
+
     uint8_t assetHash[39] = {0};
     getPublicKeyFromIdentity(assetIssuer.c_str(), assetHash);
     memcpy(assetHash + 32, assetName.data(), assetName.size());
@@ -750,19 +760,25 @@ std::string getAllAssetTransfers(uint32_t fromTick, uint32_t toTick, const std::
             {
                 if (le.getType() == ASSET_OWNERSHIP_CHANGE || le.getType() == ASSET_POSSESSION_CHANGE)
                 {
-                    if (i < NUMBER_OF_TRANSACTIONS_PER_TICK)
+                    auto aoc = le.getStruct<AssetOwnershipChange>(); // both ownership/possesion using same struct at the moment
+                    char name[8] = {0};
+                    memcpy(name, aoc->name, 7);
+                    if (aoc->issuerPublicKey == issuerPubkey && std::string(name) == assetName)
                     {
-                        outArray.append(td.transactionDigests[i].toQubicHash());
+                        if (i < NUMBER_OF_TRANSACTIONS_PER_TICK)
+                        {
+                            outArray.append(td.transactionDigests[i].toQubicHash());
+                        }
+                        else
+                        {
+                            if (i == SC_INITIALIZE_TX) outArray.append("SC_INITIALIZE_TX_" + std::to_string(tick));
+                            if (i == SC_BEGIN_EPOCH_TX) outArray.append("SC_BEGIN_EPOCH_TX_" + std::to_string(tick));
+                            if (i == SC_BEGIN_TICK_TX) outArray.append("SC_BEGIN_TICK_TX_" + std::to_string(tick));
+                            if (i == SC_END_TICK_TX) outArray.append("SC_END_TICK_TX_" + std::to_string(tick));
+                            if (i == SC_END_EPOCH_TX) outArray.append("SC_END_EPOCH_TX_" + std::to_string(tick));
+                        }
+                        break;
                     }
-                    else
-                    {
-                        if (i == SC_INITIALIZE_TX) outArray.append("SC_INITIALIZE_TX_" + std::to_string(tick));
-                        if (i == SC_BEGIN_EPOCH_TX) outArray.append("SC_BEGIN_EPOCH_TX_" + std::to_string(tick));
-                        if (i == SC_BEGIN_TICK_TX) outArray.append("SC_BEGIN_TICK_TX_" + std::to_string(tick));
-                        if (i == SC_END_TICK_TX) outArray.append("SC_END_TICK_TX_" + std::to_string(tick));
-                        if (i == SC_END_EPOCH_TX) outArray.append("SC_END_EPOCH_TX_" + std::to_string(tick));
-                    }
-                    break;
                 }
             }
         }
