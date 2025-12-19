@@ -339,6 +339,7 @@ int runBob(int argc, char *argv[])
     Logger::get()->info("Exited data threads");
     if (cfg.tick_storage_mode != TickStorageMode::Free)
     {
+        Logger::get()->info("Exiting garbage cleaner");
         garbage_thread.join();
     }
     if (gIsEndEpoch)
