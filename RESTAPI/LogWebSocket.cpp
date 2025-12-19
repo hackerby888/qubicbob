@@ -89,6 +89,9 @@ void LogWebSocket::handleSubscribe(const drogon::WebSocketConnectionPtr& conn, c
             lastLogId = msg["lastLogId"].asInt64();
             manager.setClientLastLogId(conn, lastLogId);
             useLogIdCatchUp = true;
+        }else{
+            manager.setClientLastLogId(conn, -1);
+            useLogIdCatchUp = false;  
         }
     } else if (msg.isMember("lastTick") && !msg["lastTick"].isNull()) {
         if (msg["lastTick"].isUInt() || msg["lastTick"].isUInt64()) {

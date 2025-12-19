@@ -430,12 +430,22 @@ void LogSubscriptionManager::performCatchUpByLogId(const drogon::WebSocketConnec
             return;
         }
 
+        // If lastLogId is not set (< 0), skip catch-up entirely
+        if (it->second.lastLogId < 0) {
+            Json::Value msg;
+            msg["type"] = "catchUpComplete";
+            msg["fromLogId"] = Json::Int64(0);
+            msg["toLogId"] = Json::Int64(toLogId);
+            msg["logsDelivered"] = 0;
+            Json::FastWriter writer;
+            sendJson(conn, writer.write(msg));
+            return;
+        }
+
         fromLogId = it->second.lastLogId + 1;
         subscriptions = it->second.subscriptions;
         it->second.catchUpInProgress = true;
     }
-
-    if (fromLogId < 0) fromLogId = 0;
 
     if (fromLogId > toLogId) {
         // Already up to date
