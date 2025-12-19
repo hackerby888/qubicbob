@@ -152,19 +152,8 @@ void LogSubscriptionManager::unsubscribeAll(const drogon::WebSocketConnectionPtr
 bool LogSubscriptionManager::extractSubscriptionKey(const LogEvent& log, SubscriptionKey& key) const {
     uint32_t type = log.getType();
 
-    // Core events (SC_index = 0)
+    // Smart contract messages have scIndex and logType embedded in body
     switch (type) {
-        case QU_TRANSFER:
-        case ASSET_ISSUANCE:
-        case ASSET_OWNERSHIP_CHANGE:
-        case ASSET_POSSESSION_CHANGE:
-        case BURNING:
-        case ASSET_OWNERSHIP_MANAGING_CONTRACT_CHANGE:
-        case ASSET_POSSESSION_MANAGING_CONTRACT_CHANGE:
-            key.scIndex = 0;
-            key.logType = type;
-            return true;
-
         case CONTRACT_ERROR_MESSAGE:
         case CONTRACT_WARNING_MESSAGE:
         case CONTRACT_INFORMATION_MESSAGE:
@@ -183,12 +172,11 @@ bool LogSubscriptionManager::extractSubscriptionKey(const LogEvent& log, Subscri
             return false;
         }
 
-        case SPECTRUM_STATS:
-        case DUST_BURNING:
-        case CUSTOM_MESSAGE:
         default:
-            // Not indexed / not subscribable
-            return false;
+            // All other event types use scIndex=0 and type as logType
+            key.scIndex = 0;
+            key.logType = type;
+            return true;
     }
 }
 
