@@ -313,6 +313,7 @@ void QubicConnection::getBootstrapTickInfo(uint32_t& tick, uint16_t& epoch)
 void QubicConnection::disconnect()
 {
     if (mSocket >= 0) {
+        shutdown(mSocket, SHUT_RDWR);
         close(mSocket);
         mSocket = -1;
     }
