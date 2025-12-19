@@ -143,6 +143,8 @@ SET(FILES
 		${CMAKE_SOURCE_DIR}/RESTAPI/bobAPI.cpp
 		${CMAKE_SOURCE_DIR}/RESTAPI/querySmartContract.cpp
 		${CMAKE_SOURCE_DIR}/RESTAPI/RESTServer.cpp
+		${CMAKE_SOURCE_DIR}/RESTAPI/LogSubscriptionManager.cpp
+		${CMAKE_SOURCE_DIR}/RESTAPI/LogWebSocket.cpp
 )
 
 add_library(XKCP_avx2 STATIC XKCP/KangarooTwelve.c
@@ -180,4 +182,12 @@ add_custom_command(
 		COMMAND ${CMAKE_COMMAND} -E copy_if_different
 		${CMAKE_SOURCE_DIR}/default_config_bob.json
 		${CMAKE_BINARY_DIR}/bob.json
+)
+
+# Copy OpenAPI spec to build directory
+add_custom_command(
+		TARGET bob POST_BUILD
+		COMMAND ${CMAKE_COMMAND} -E copy_if_different
+		${CMAKE_SOURCE_DIR}/RESTAPI/openapi.json
+		${CMAKE_BINARY_DIR}/openapi.json
 )

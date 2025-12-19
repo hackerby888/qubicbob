@@ -3,6 +3,9 @@
 #include "drogon/HttpResponse.h"
 #include "drogon/utils/Utilities.h"
 
+// Include WebSocket controller to trigger auto-registration
+#include "LogWebSocket.h"
+
 #include <string>
 #include <thread>
 #include <mutex>
@@ -10,10 +13,16 @@
 #include <cstdint>
 #include <iomanip>
 #include <chrono>
+#include <fstream>
+#include <sstream>
 
 #include "bob.h"
 #include "Logger.h"
 #include "shim.h"
+
+// OpenAPI spec - embedded at compile time or loaded from file
+static std::string g_openApiSpec;
+static std::once_flag g_openApiLoadOnce;
 
 namespace {
     std::once_flag g_startOnce;
@@ -38,6 +47,79 @@ namespace {
 
     void registerRoutes() {
         using namespace drogon;
+
+        // Load OpenAPI spec once
+        std::call_once(g_openApiLoadOnce, []() {
+            // Try to load from file first (for development)
+            std::ifstream file("RESTAPI/openapi.json");
+            if (!file.is_open()) {
+                file.open("openapi.json");
+            }
+            if (file.is_open()) {
+                std::stringstream buffer;
+                buffer << file.rdbuf();
+                g_openApiSpec = buffer.str();
+            } else {
+                // Minimal fallback spec
+                g_openApiSpec = R"({"openapi":"3.0.3","info":{"title":"QubicBob API","version":"1.0.0"},"paths":{}})";
+            }
+        });
+
+        // GET /swagger - Swagger UI
+        app().registerHandler(
+            "/swagger",
+            [](const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback) {
+                const std::string html = R"(<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QubicBob API - Swagger UI</title>
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui.css">
+</head>
+<body>
+    <div id="swagger-ui"></div>
+    <script src="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-bundle.js"></script>
+    <script>
+        window.onload = function() {
+            SwaggerUIBundle({
+                url: "/openapi.json",
+                dom_id: '#swagger-ui',
+                presets: [
+                    SwaggerUIBundle.presets.apis,
+                    SwaggerUIBundle.SwaggerUIStandalonePreset
+                ],
+                layout: "BaseLayout",
+                deepLinking: true,
+                showExtensions: true,
+                showCommonExtensions: true
+            });
+        };
+    </script>
+</body>
+</html>)";
+                auto resp = HttpResponse::newHttpResponse();
+                resp->setStatusCode(k200OK);
+                resp->setContentTypeCode(CT_TEXT_HTML);
+                resp->setBody(html);
+                callback(resp);
+            },
+            {Get}
+        );
+
+        // GET /openapi.json - OpenAPI specification
+        app().registerHandler(
+            "/openapi.json",
+            [](const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback) {
+                auto resp = HttpResponse::newHttpResponse();
+                resp->setStatusCode(k200OK);
+                resp->setContentTypeCode(CT_APPLICATION_JSON);
+                resp->setBody(g_openApiSpec);
+                resp->addHeader("Access-Control-Allow-Origin", "*");
+                callback(resp);
+            },
+            {Get}
+        );
 
         // GET /balance/{identity}
         app().registerHandler(
@@ -595,7 +677,7 @@ namespace {
                 .setLogLevel(trantor::Logger::kInfo)
                 .addListener("0.0.0.0", 40420)  // listen at port 40420
                 .setThreadNum(std::max(2, gMaxThreads))
-                .setIdleConnectionTimeout(10)
+                .setIdleConnectionTimeout(120)      // Increased for WebSocket connections
                 .setKeepaliveRequestsNumber(200)
                 .setMaxConnectionNum(676)          // Limit max concurrent connections
                 .setMaxConnectionNumPerIP(100)      // Limit per-IP connections (prevents single client abuse)
