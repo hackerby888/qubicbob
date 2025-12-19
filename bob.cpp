@@ -58,6 +58,7 @@ void printVersionInfo() {
 int runBob(int argc, char *argv[])
 {
     // Ignore SIGPIPE so write/send on a closed socket doesn't terminate the process.
+    stopFlag.store(false);
     struct sigaction sa;
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = 0;
@@ -157,6 +158,7 @@ int runBob(int argc, char *argv[])
     uint32_t endEpochTick = 0;
     std::string key = "end_epoch_tick:" + std::to_string(gCurrentProcessingEpoch);
     bool isThisEpochAlreadyEnd = db_get_u32(key, endEpochTick);
+    int retryCount = 0;
     while (initTick == 0 ||
             ( (initEpoch < gCurrentProcessingEpoch && !isThisEpochAlreadyEnd) ||
               (initEpoch <= gCurrentProcessingEpoch && isThisEpochAlreadyEnd)
@@ -167,6 +169,11 @@ int runBob(int argc, char *argv[])
         if (isThisEpochAlreadyEnd) Logger::get()->info("Waiting for new epoch info from peers | PeerInitTick: {} PeerInitEpoch {}...", initTick, initEpoch);
         else Logger::get()->info("Doing handshakes and ask for bootstrap info | PeerInitTick: {} PeerInitEpoch {}...", initTick, initEpoch);
         if (initTick == 0 || initEpoch <= gCurrentProcessingEpoch) SLEEP(1000);
+        if (retryCount++ > 300)
+        {
+            Logger::get()->info("No meaningful response after 5 minutes. Exiting bob to get new peers");
+            stopFlag = true;
+        }
     }
     db_insert_u32("init_tick:"+std::to_string(initEpoch), initTick);
     gInitialTick = initTick;
@@ -193,7 +200,7 @@ int runBob(int argc, char *argv[])
         }
     }
 
-    stopFlag.store(false);
+
     auto request_thread = std::thread(
             [&](){
                 set_this_thread_name("io-req");
