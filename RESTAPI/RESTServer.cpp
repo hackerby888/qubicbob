@@ -53,12 +53,14 @@ namespace {
             // Try to load from file first (for development)
             std::ifstream file("RESTAPI/openapi.json");
             if (!file.is_open()) {
+                file.close();  // Close before reopening
                 file.open("openapi.json");
             }
             if (file.is_open()) {
                 std::stringstream buffer;
                 buffer << file.rdbuf();
                 g_openApiSpec = buffer.str();
+                file.close();  // Explicitly close the file
             } else {
                 // Minimal fallback spec
                 g_openApiSpec = R"({"openapi":"3.0.3","info":{"title":"QubicBob API","version":"1.0.0"},"paths":{}})";
@@ -555,6 +557,7 @@ namespace {
         // 3) Use Drogon's event loop timer instead of detached thread
         auto sharedCallback = std::make_shared<std::function<void(const HttpResponsePtr&)>>(std::move(callback));
         auto attemptCount = std::make_shared<int>(0);
+        auto startTime = std::make_shared<std::chrono::steady_clock::time_point>(std::chrono::steady_clock::now());
         
         auto loop = drogon::app().getIOLoop(0);  // Get an event loop
 
@@ -562,7 +565,7 @@ namespace {
         auto pollResultPtr = std::make_shared<std::function<void()>>();
         std::weak_ptr<std::function<void()>> pollResultWeak = pollResultPtr;
         
-        *pollResultPtr = [nonce, sharedCallback, attemptCount, loop, pollResultWeak]() {
+        *pollResultPtr = [nonce, sharedCallback, attemptCount, startTime, loop, pollResultWeak]() {
             std::vector<uint8_t> out;
             if (responseSCData.get(nonce, out)) {
                 Json::Value root;
@@ -576,8 +579,13 @@ namespace {
                 return;
             }
             
+            // Add timeout check to prevent infinite polling
+            auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+                std::chrono::steady_clock::now() - *startTime
+            ).count();
+            
             (*attemptCount)++;
-            if (*attemptCount >= 20) {
+            if (*attemptCount >= 20 || elapsed >= 3) {  // Max 2 seconds or 20 attempts
                 Json::Value root;
                 root["error"] = "pending";
                 root["message"] = "Query enqueued; try again with the same nonce";
@@ -679,8 +687,8 @@ namespace {
                 .setThreadNum(std::max(2, gMaxThreads))
                 .setIdleConnectionTimeout(120)      // Increased for WebSocket connections
                 .setKeepaliveRequestsNumber(200)
-                .setMaxConnectionNum(676)          // Limit max concurrent connections
-                .setMaxConnectionNumPerIP(100)      // Limit per-IP connections (prevents single client abuse)
+                .setMaxConnectionNum(128)          // Limit max concurrent connections
+                .setMaxConnectionNumPerIP(25)      // Limit per-IP connections (prevents single client abuse)
                 .disableSigtermHandling()
                 .reusePort()                        // Enable SO_REUSEADDR to avoid "Address already in use" errors
                 ;
