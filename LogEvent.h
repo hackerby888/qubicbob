@@ -3,7 +3,7 @@
 #include "Logger.h"
 #include "stdint.h"
 #include "GlobalVar.h"
-
+#include <json/json.h>
 // ---- Data Structures to be Stored ----
 
 struct LogEvent {
@@ -145,8 +145,10 @@ public:
         return 0;
     }
 
-    std::string parseToJson();
+    std::string parseToJsonWithExtraData(const TickData& td, const int txIndex);
 private:
+    Json::Value parseToJson();
+    std::string parseToJsonStr();
     // Map known event types to the minimum body size we expect for safe decoding.
     // Unknown types return 0 (no constraint here; callers should still be defensive).
     static constexpr uint32_t expectedMinBodySizeForType(uint32_t t) {

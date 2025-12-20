@@ -183,6 +183,27 @@ bool LogSubscriptionManager::extractSubscriptionKey(const LogEvent& log, Subscri
 void LogSubscriptionManager::pushVerifiedLogs(uint32_t tick, uint16_t epoch, const std::vector<LogEvent>& logs) {
     // Prepare messages under lock, then dispatch asynchronously
     std::vector<std::pair<drogon::WebSocketConnectionPtr, std::string>> pendingSends;
+    TickData td{0};
+    LogRangesPerTxInTick lr{-1};
+    if (!db_try_get_tick_data(tick, td))
+    {
+        Logger::get()->warn("LogSubscriptionManager: Trying to get deleted tick data");
+    }
+
+    if (!db_try_get_log_ranges(tick, lr))
+    {
+        Logger::get()->warn("LogSubscriptionManager: Trying to get deleted log range");
+    }
+    int logTxOrderIndex = 0;
+    std::vector<int> logTxOrder;
+    // we need to sort the special event, INIT, BEGIN_EPOCH, BEGIN_TICK will be in front, END_TICK, END_EPOCH last
+    if (!logs.empty())
+    {
+        logTxOrder = lr.sort();
+        auto log0Id = logs[0].getLogId();
+        // scan to find the first cursor
+        logTxOrderIndex = lr.scanTxId(logTxOrder, 0, log0Id);
+    }
 
     {
         std::shared_lock lock(mutex_);
@@ -192,13 +213,22 @@ void LogSubscriptionManager::pushVerifiedLogs(uint32_t tick, uint16_t epoch, con
         for (const auto& log : logs) {
             SubscriptionKey key;
             if (!extractSubscriptionKey(log, key)) continue;
-
+            auto logId = log.getLogId();
             // Find subscribers for this key
             auto subIt = subscriptionIndex_.find(key);
             if (subIt == subscriptionIndex_.end() || subIt->second.empty()) continue;
 
+            int txIndex = logTxOrder[logTxOrderIndex];
+            auto s = lr.fromLogId[txIndex];
+            auto e = s + lr.length[txIndex] - 1;
+            if (logId > e)
+            {
+                logTxOrderIndex = lr.scanTxId(logTxOrder, logTxOrderIndex + 1, logId);
+                txIndex = logTxOrder[logTxOrderIndex];
+            }
+
             // Parse log to JSON using same format as REST API
-            std::string parsedJson = const_cast<LogEvent&>(log).parseToJson();
+            std::string parsedJson = const_cast<LogEvent&>(log).parseToJsonWithExtraData(td, txIndex);
 
             // Parse the JSON string to embed it in our message
             Json::Value parsedLog;
@@ -334,11 +364,17 @@ void LogSubscriptionManager::performCatchUp(const drogon::WebSocketConnectionPtr
     // Process in batches to avoid blocking too long
     const uint32_t BATCH_SIZE = 100;
 
+    TickData td{0};
+    LogRangesPerTxInTick lr{-1};
+    int logTxOrderIndex = 0;
+    std::vector<int> logTxOrder;
+
     for (uint32_t tick = fromTick; tick <= toTick; tick += BATCH_SIZE) {
         uint32_t batchEnd = std::min(tick + BATCH_SIZE - 1, toTick);
 
         bool success;
         auto logs = db_get_logs_by_tick_range(epoch, tick, batchEnd, success);
+        if (logs.empty()) continue;
 
         if (!success) {
             Logger::get()->warn("Catch-up: failed to fetch logs for ticks {}-{}", tick, batchEnd);
@@ -348,12 +384,40 @@ void LogSubscriptionManager::performCatchUp(const drogon::WebSocketConnectionPtr
         for (auto& log : logs) {
             SubscriptionKey key;
             if (!extractSubscriptionKey(log, key)) continue;
-
             // Check if client is subscribed to this key
             if (subscriptions.find(key) == subscriptions.end()) continue;
+            auto id = log.getLogId();
+
+            if (td.tick != log.getTick())
+            {
+                if (!db_try_get_tick_data(log.getTick(), td))
+                {
+                    Logger::get()->warn("LogSubscriptionManager: Trying to get deleted tick data");
+                }
+
+                if (!db_try_get_log_ranges(log.getTick(), lr))
+                {
+                    Logger::get()->warn("LogSubscriptionManager: Trying to get deleted log range");
+                }
+
+                {
+                    logTxOrder = lr.sort();
+                    logTxOrderIndex = lr.scanTxId(logTxOrder, 0, id);// scan to find the first cursor
+                }
+            }
+
+            int txIndex = logTxOrder[logTxOrderIndex];
+            auto s = lr.fromLogId[txIndex];
+            auto e = s + lr.length[txIndex] - 1;
+            if (id > e) // processed all, move the cursor to next tx
+            {
+                // rescan to find next cursor
+                logTxOrderIndex = lr.scanTxId(logTxOrder, logTxOrderIndex + 1, id);
+                txIndex = logTxOrder[logTxOrderIndex];
+            }
 
             // Parse log to JSON using same format as REST API
-            std::string parsedJson = log.parseToJson();
+            std::string parsedJson = log.parseToJsonWithExtraData(td, txIndex);
 
             // Parse the JSON string to embed it in our message
             Json::Value parsedLog;
@@ -472,6 +536,11 @@ void LogSubscriptionManager::performCatchUpByLogId(const drogon::WebSocketConnec
     // Process in batches to avoid blocking too long
     const int64_t BATCH_SIZE = 1000;
 
+    TickData td{0};
+    LogRangesPerTxInTick lr{-1};
+    int logTxOrderIndex = 0;
+    std::vector<int> logTxOrder;
+
     for (int64_t id = fromLogId; id <= toLogId; id += BATCH_SIZE) {
         int64_t batchEnd = std::min(id + BATCH_SIZE - 1, toLogId);
 
@@ -484,8 +553,26 @@ void LogSubscriptionManager::performCatchUpByLogId(const drogon::WebSocketConnec
             // Check if client is subscribed to this key
             if (subscriptions.find(key) == subscriptions.end()) continue;
 
+            if (log.getTick() != td.tick)
+            {
+                db_try_get_tick_data(log.getTick(), td);
+                db_try_get_log_ranges(log.getTick(), lr);
+                logTxOrderIndex = 0;
+                logTxOrder = lr.sort();
+                // scan to find the first cursor
+                logTxOrderIndex = lr.scanTxId(logTxOrder, 0, id);
+            }
+            int txIndex = logTxOrder[logTxOrderIndex];
+            auto s = lr.fromLogId[txIndex];
+            auto e = s + lr.length[txIndex] - 1;
+            if (id > e)
+            {
+                // rescan to find the next cursor
+                logTxOrderIndex = lr.scanTxId(logTxOrder, logTxOrderIndex + 1, id);
+                txIndex = logTxOrder[logTxOrderIndex];
+            }
             // Parse log to JSON using same format as REST API
-            std::string parsedJson = log.parseToJson();
+            std::string parsedJson = log.parseToJsonWithExtraData(td, txIndex);
 
             // Parse the JSON string to embed it in our message
             Json::Value parsedLog;

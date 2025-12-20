@@ -160,11 +160,32 @@ std::string bobGetLog(uint16_t epoch, int64_t start, int64_t end)
     std::string result;
     result.push_back('[');
     bool first = true;
+    TickData td{0};
+    LogRangesPerTxInTick lr{-1};
+    int logTxOrderIndex = 0;
+    std::vector<int> logTxOrder;
 
     for (int64_t id = start; id <= end; ++id) {
         LogEvent log;
         if (db_try_get_log(epoch, static_cast<uint64_t>(id), log)) {
-            std::string js = log.parseToJson();
+            if (log.getTick() != td.tick)
+            {
+                db_try_get_tick_data(log.getTick(), td);
+                db_try_get_log_ranges(log.getTick(), lr);
+                logTxOrderIndex = 0;
+                logTxOrder = lr.sort();
+                // scan to find the first cursor
+                logTxOrderIndex = lr.scanTxId(logTxOrder, logTxOrderIndex + 1, log.getLogId());
+            }
+            int txIndex = logTxOrder[logTxOrderIndex];
+            auto s = lr.fromLogId[txIndex];
+            auto e = s + lr.length[txIndex] - 1;
+            if (id > e) // processed all, move the cursor to next tx
+            {
+                logTxOrderIndex++; // continous log, don't need to scan
+                txIndex = logTxOrder[logTxOrderIndex];
+            }
+            std::string js = log.parseToJsonWithExtraData(td, txIndex);
             if (!first) result.push_back(',');
             result += js;
             first = false;
@@ -339,13 +360,37 @@ std::string getCustomLog(uint32_t scIndex, uint32_t logType,
     bool success;
     auto logs = db_get_logs_by_tick_range(epoch, startTick, endTick, success);
     std::string result = "[";
+    TickData td{0};
+    LogRangesPerTxInTick lr{-1};
+    int logTxOrderIndex = 0;
+    std::vector<int> logTxOrder;
     for (auto& le : logs)
     {
+        auto id = le.getLogId();
+        if (le.getTick() != td.tick)
+        {
+            db_try_get_tick_data(le.getTick(), td);
+            db_try_get_log_ranges(le.getTick(), lr);
+            logTxOrderIndex = 0;
+            logTxOrder = lr.sort();
+            // scan to find the first cursor
+            logTxOrderIndex = lr.scanTxId(logTxOrder, logTxOrderIndex + 1, le.getLogId());
+        }
+
+        int txIndex = logTxOrder[logTxOrderIndex];
+        auto s = lr.fromLogId[txIndex];
+        auto e = s + lr.length[txIndex] - 1;
+        if (id > e) // processed all, move the cursor to next tx
+        {
+            logTxOrderIndex++; // continous log, don't need to scan
+            txIndex = logTxOrder[logTxOrderIndex];
+        }
+
         if (scIndex == 0 && !le.isSCType()) // protocol log
         {
             if (le.getType() == logType)
             {
-                result += le.parseToJson() + ",";
+                result += le.parseToJsonWithExtraData(td, txIndex) + ",";
             }
         }
         else if (le.isSCType()) // smart contract
@@ -365,7 +410,7 @@ std::string getCustomLog(uint32_t scIndex, uint32_t logType,
                     if (topic[2] != m256i::zero() && le_sz >= 96) match_topic &= (memcmp(topic[2].m256i_u8, logBody + 72, 32) == 0);
                     if (match_topic)
                     {
-                        result += le.parseToJson() + ",";
+                        result += le.parseToJsonWithExtraData(td, txIndex) + ",";
                     }
                 }
             }

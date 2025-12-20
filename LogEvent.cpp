@@ -1,7 +1,6 @@
 #include "LogEvent.h"
-#include <json/json.h>
 
-std::string LogEvent::parseToJson()
+Json::Value LogEvent::parseToJson()
 {
     auto hex_encode = [](const uint8_t* data, size_t len) -> std::string {
         static const char* hexdigits = "0123456789abcdef";
@@ -199,8 +198,46 @@ std::string LogEvent::parseToJson()
     }
 
     root["body"] = body;
-
+    return root;
+}
+std::string LogEvent::parseToJsonStr()
+{
+    auto root = parseToJson();
     Json::StreamWriterBuilder wb;
     wb["indentation"] = ""; // compact output
+    return Json::writeString(wb, root);
+}
+
+std::string LogEvent::parseToJsonWithExtraData(const TickData& td, const int txIndex)
+{
+    auto root = parseToJson();
+    Json::StreamWriterBuilder wb;
+    wb["indentation"] = "";
+
+    char timestampBuffer[20];
+    snprintf(timestampBuffer, sizeof(timestampBuffer), "%02d-%02d-%02d %02d:%02d:%02d",
+             td.year, td.month, td.day, td.hour, td.minute, td.second);
+    std::string timestamp(timestampBuffer);
+    root["timestamp"] = timestamp;
+
+    if (txIndex>= 0)
+    {
+        std::string txHash = "";
+        if (txIndex < NUMBER_OF_TRANSACTIONS_PER_TICK)
+        {
+            txHash = td.transactionDigests[txIndex].toQubicHash();
+        }
+        else if (txIndex <= SC_END_EPOCH_TX)
+        {
+            if (txIndex == SC_INITIALIZE_TX) txHash = ("SC_INITIALIZE_TX_" + std::to_string(td.tick));
+            if (txIndex == SC_BEGIN_EPOCH_TX) txHash = ("SC_BEGIN_EPOCH_TX_" + std::to_string(td.tick));
+            if (txIndex == SC_BEGIN_TICK_TX) txHash = ("SC_BEGIN_TICK_TX_" + std::to_string(td.tick));
+            if (txIndex == SC_END_TICK_TX) txHash = ("SC_END_TICK_TX_" + std::to_string(td.tick));
+            if (txIndex == SC_END_EPOCH_TX) txHash = ("SC_END_EPOCH_TX_" + std::to_string(td.tick));
+        }
+        root["txHash"] = txHash;
+        return Json::writeString(wb, root);
+    }
+    root["txHash"] = "null";
     return Json::writeString(wb, root);
 }
