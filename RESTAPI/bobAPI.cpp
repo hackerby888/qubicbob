@@ -175,7 +175,7 @@ std::string bobGetLog(uint16_t epoch, int64_t start, int64_t end)
                 logTxOrderIndex = 0;
                 logTxOrder = lr.sort();
                 // scan to find the first cursor
-                logTxOrderIndex = lr.scanTxId(logTxOrder, logTxOrderIndex + 1, log.getLogId());
+                logTxOrderIndex = lr.scanTxId(logTxOrder, 0, log.getLogId());
             }
             int txIndex = logTxOrder[logTxOrderIndex];
             auto s = lr.fromLogId[txIndex];
@@ -374,7 +374,7 @@ std::string getCustomLog(uint32_t scIndex, uint32_t logType,
             logTxOrderIndex = 0;
             logTxOrder = lr.sort();
             // scan to find the first cursor
-            logTxOrderIndex = lr.scanTxId(logTxOrder, logTxOrderIndex + 1, le.getLogId());
+            logTxOrderIndex = lr.scanTxId(logTxOrder, 0, le.getLogId());
         }
 
         int txIndex = logTxOrder[logTxOrderIndex];

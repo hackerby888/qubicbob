@@ -309,7 +309,7 @@ struct LogRangesPerTxInTick
             auto e = s + length[index] - 1;
             if (logId >= s && logId <= e)
             {
-                return index;
+                return i;
             }
         }
         return 0;
