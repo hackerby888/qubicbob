@@ -78,8 +78,11 @@ else()
 endif()
 
 find_package(jsoncpp REQUIRED)
+get_target_property(JSONCPP_INCLUDE_DIRS jsoncpp_lib INTERFACE_INCLUDE_DIRECTORIES)
+if(JSONCPP_INCLUDE_DIRS)
+	include_directories(${JSONCPP_INCLUDE_DIRS})
+endif()
 set(JSONCPP_TARGET jsoncpp_lib)
-include_directories(${JSONCPP_INCLUDE_DIRS})
 
 # drogon
 FetchContent_Declare(
