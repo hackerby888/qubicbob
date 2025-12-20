@@ -633,56 +633,41 @@ std::vector<LogEvent> db_get_logs_by_tick_range(uint16_t epoch, uint32_t start_t
             // Fetch in chunks to avoid oversized commands.
             const uint64_t startId = static_cast<uint64_t>(fromLogId);
             const uint64_t endId = static_cast<uint64_t>(fromLogId + length - 1);
-
-            uint64_t cur = startId;
-            while (cur <= endId) {
-                // Build a chunk of keys
-                std::vector<std::string> keys;
-                keys.reserve(kChunkSize);
-                for (std::size_t i = 0; i < kChunkSize && cur <= endId; ++i, ++cur) {
-                    keys.emplace_back("log:" + std::to_string(epoch) + ":" + std::to_string(cur));
+            auto logs = db_try_get_logs(epoch, startId, endId);
+            // Convert to LogEvent and filter by header
+            int i = 0;
+            for (const auto& le: logs) {
+                // Basic header validation and range filter
+                if (!le.hasPackedHeader())
+                {
+                    Logger::get()->critical("Log event {} has broken header", startId + i);
+                    out.clear();
+                    return out;
+                }
+                if (le.getEpoch() != epoch)
+                {
+                    Logger::get()->critical("Log event {} has broken epoch {}", startId + i, le.getEpoch());
+                    out.clear();
+                    return out;
                 }
 
-                // Bulk-get
-                std::vector<sw::redis::Optional<std::string>> vals;
-                g_redis->mget(keys.begin(), keys.end(), std::back_inserter(vals));
-
-                // Convert to LogEvent and filter by header
-                for (std::size_t i = 0; i < vals.size(); ++i) {
-                    if (!vals[i]) continue;
-
-                    const auto& s = *vals[i];
-                    LogEvent le;
-                    le.updateContent(reinterpret_cast<const uint8_t*>(s.data()), static_cast<int>(s.size()));
-
-                    // Basic header validation and range filter
-                    if (!le.hasPackedHeader())
-                    {
-                        Logger::get()->critical("Log event {} has broken header", startId + i);
-                        return out;
-                    }
-                    if (le.getEpoch() != epoch)
-                    {
-                        Logger::get()->critical("Log event {} has broken epoch {}", startId + i, le.getEpoch());
-                        return out;
-                    }
-
-                    const auto t = le.getTick();
-                    if (t < start_tick || t > end_tick)
-                    {
-                        Logger::get()->critical("Log event {} has wrong tick {}", startId + i, le.getTick());
-                        return out;
-                    }
-
-                    // Optional strict self-check against expected tick
-                    if (!le.selfCheck(epoch))
-                    {
-                        Logger::get()->critical("Log event {} failed the selfcheck", startId + i);
-                        return out;
-                    }
-
-                    out.emplace_back(std::move(le));
+                const auto t = le.getTick();
+                if (t < start_tick || t > end_tick)
+                {
+                    Logger::get()->critical("Log event {} has wrong tick {}", startId + i, le.getTick());
+                    out.clear();
+                    return out;
                 }
+
+                // Optional strict self-check against expected tick
+                if (!le.selfCheck(epoch))
+                {
+                    Logger::get()->critical("Log event {} failed the selfcheck", startId + i);
+                    out.clear();
+                    return out;
+                }
+                i++;
+                out.emplace_back(std::move(le));
             }
         }
     } catch (const sw::redis::Error& e) {
