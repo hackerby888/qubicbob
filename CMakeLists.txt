@@ -77,11 +77,9 @@ else()
   message(FATAL_ERROR "zstd target not found; expected libzstd_static or zstd::libzstd_static")
 endif()
 
-find_package(JsonCpp CONFIG QUIET)
-if (JsonCpp_FOUND)
-	set(JSONCPP_TARGET JsonCpp::JsonCpp)
-else()
-endif()
+find_package(jsoncpp REQUIRED)
+set(JSONCPP_TARGET jsoncpp_lib)
+include_directories(${JSONCPP_INCLUDE_DIRS})
 
 # drogon
 FetchContent_Declare(
