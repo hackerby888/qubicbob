@@ -249,7 +249,7 @@ void LogSubscriptionManager::pushVerifiedLogs(uint32_t tick, uint16_t epoch, con
             std::string jsonStr = writer.write(msg);
 
             // Get log ID for this event
-            int64_t logId = static_cast<int64_t>(log.getLogId());
+            logId = static_cast<int64_t>(log.getLogId());
 
             // Get transfer amount if this is a QU_TRANSFER event
             int64_t transferAmount = 0;
