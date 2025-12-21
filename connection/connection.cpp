@@ -102,11 +102,11 @@ QubicConnection::~QubicConnection()
     // Proactively interrupt any blocking send() to let the thread exit promptly
     if (mSocket >= 0) {
         shutdown(mSocket, SHUT_RDWR);
+        close(mSocket);
     }
     if (sendThreadHDL.joinable()) {
         sendThreadHDL.join();
     }
-    close(mSocket);
 }
 
 int QubicConnection::receiveData(uint8_t* buffer, int sz)

@@ -53,7 +53,6 @@ namespace {
             // Try to load from file first (for development)
             std::ifstream file("RESTAPI/openapi.json");
             if (!file.is_open()) {
-                file.close();  // Close before reopening
                 file.open("openapi.json");
             }
             if (file.is_open()) {
