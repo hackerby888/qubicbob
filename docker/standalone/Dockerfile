@@ -38,7 +38,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /build
 RUN git clone --depth 1 --branch v2.9.0 https://github.com/apache/kvrocks.git && \
     cd kvrocks && \
-    ./x.py build -j$(nproc)
+    ./x.py build -DPORTABLE=haswell -j$(nproc)
 
 # Runtime stage - standalone with Redis and Kvrocks
 FROM ubuntu:24.04
