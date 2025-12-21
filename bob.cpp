@@ -159,10 +159,11 @@ int runBob(int argc, char *argv[])
     std::string key = "end_epoch_tick:" + std::to_string(gCurrentProcessingEpoch);
     bool isThisEpochAlreadyEnd = db_get_u32(key, endEpochTick);
     int retryCount = 0;
-    while (initTick == 0 ||
+    while ((initTick == 0 ||
             ( (initEpoch < gCurrentProcessingEpoch && !isThisEpochAlreadyEnd) ||
               (initEpoch <= gCurrentProcessingEpoch && isThisEpochAlreadyEnd)
-            )
+            ))
+            && (!stopFlag.load())
     )
     {
         doHandshakeAndGetBootstrapInfo(connPool, true, initTick, initEpoch);
