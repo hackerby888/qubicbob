@@ -186,7 +186,6 @@ static void indexTick(uint32_t tick, const TickData &td) {
             {
                 SC_index = 0; logType = type;
                 auto e = le.getStruct<ContractReserveDeduction>();
-                Logger::get()->info("!!!!! DEDUCTION MESSAGE {0} SC {1} !!!!", tick, e->contractIndex);
                 topic1 = m256i(0,0,0,e->contractIndex);
                 topic2 = m256i::zero();
                 topic3 = m256i::zero();
