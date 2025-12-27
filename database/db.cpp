@@ -9,7 +9,7 @@
 #include "Logger.h"
 #include "K12AndKeyUtil.h"
 #include <cstdlib> // std::exit
-
+#include "shim.h"
 // Global Redis client handle
 static std::unique_ptr<sw::redis::Redis> g_redis = nullptr;
 static std::unique_ptr<sw::redis::Redis> g_kvrocks = nullptr;
@@ -1186,7 +1186,8 @@ bool db_copy_transaction_to_kvrocks(const std::string &tx_hash) {
 
         // Write to Kvrocks
         sw::redis::StringView view(val->data(), val->size());
-        g_kvrocks->set(key, view);
+
+        g_kvrocks->set(key, view, std::chrono::seconds(gKvrocksTTL));
 
         return true;
     } catch (const sw::redis::Error &e) {
@@ -1290,7 +1291,7 @@ bool db_move_log_to_kvrocks(uint16_t epoch, uint64_t logId) {
 
         // Write to Kvrocks
         sw::redis::StringView view(val->data(), val->size());
-        g_kvrocks->set(key, view);
+        g_kvrocks->set(key, view, std::chrono::seconds(gKvrocksTTL));
 
         return true;
     } catch (const sw::redis::Error &e) {
@@ -1347,7 +1348,7 @@ bool db_insert_vtick_to_kvrocks(uint32_t tick, const FullTickStruct& fullTick)
 
         const std::string key = "vtick:" + std::to_string(tick);
         sw::redis::StringView val(compressed.data(), compressed.size());
-        g_kvrocks->set(key, val);
+        g_kvrocks->set(key, val, std::chrono::seconds(gKvrocksTTL));
         return true;
     } catch (const sw::redis::Error& e) {
         Logger::get()->error("KVROCKS error in db_insert_vtick: %s\n", e.what());
@@ -1402,6 +1403,7 @@ bool db_insert_TickLogRange_to_kvrocks(uint32_t tick, long long& logStart, long 
         fields["fromLogId"] = std::to_string(logStart);
         fields["length"] = std::to_string(logLen);
         g_kvrocks->hmset(key_summary, fields.begin(), fields.end());
+        g_kvrocks->expire(key_summary, std::chrono::seconds(gKvrocksTTL));
         return true;
     } catch (const sw::redis::Error& e) {
         Logger::get()->error("KVROCKS error in db_insert_TickLogRange_to_kvrocks: %s\n", e.what());
@@ -1439,7 +1441,7 @@ bool db_insert_cLogRange_to_kvrocks(uint32_t tick, const LogRangesPerTxInTick& l
 
         const std::string key = "cLogRange:" + std::to_string(tick);
         sw::redis::StringView val(compressed.data(), compressed.size());
-        g_kvrocks->set(key, val);
+        g_kvrocks->set(key, val, std::chrono::seconds(gKvrocksTTL));
         return true;
     } catch (const sw::redis::Error& e) {
         Logger::get()->error("KVROCKS error in db_insert_cLogRange_to_kvrocks: %s\n", e.what());
