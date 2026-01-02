@@ -319,9 +319,16 @@ int runBob(int argc, char *argv[])
     sc_thread.join();
     if (log_event_verifier_thread.joinable())
     {
-        Logger::get()->info("Exiting verifyLoggingEvent thread");
         log_event_verifier_thread.join();
         Logger::get()->info("Exited verifyLoggingEvent thread");
+    }
+
+    if (gIsEndEpoch)
+    {
+        // exit all requesters
+        // serve slower nodes 30 more minutes before officially switching epoch
+        Logger::get()->info("Received END_EPOCH message. Serving 30 minutes and then closing BOB");
+        SLEEP(1000ULL * 60 * 30); // 30 minutes
     }
 
     // Now the receivers can drain and exit.
@@ -350,10 +357,6 @@ int runBob(int argc, char *argv[])
     {
         Logger::get()->info("Exiting garbage cleaner");
         garbage_thread.join();
-    }
-    if (gIsEndEpoch)
-    {
-        Logger::get()->info("Received END_EPOCH message. Closing BOB");
     }
 
     if (run_server)
