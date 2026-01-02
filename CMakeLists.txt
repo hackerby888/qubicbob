@@ -77,11 +77,12 @@ else()
   message(FATAL_ERROR "zstd target not found; expected libzstd_static or zstd::libzstd_static")
 endif()
 
-find_package(JsonCpp CONFIG QUIET)
-if (JsonCpp_FOUND)
-	set(JSONCPP_TARGET JsonCpp::JsonCpp)
-else()
+find_package(jsoncpp REQUIRED)
+get_target_property(JSONCPP_INCLUDE_DIRS jsoncpp_lib INTERFACE_INCLUDE_DIRECTORIES)
+if(JSONCPP_INCLUDE_DIRS)
+	include_directories(${JSONCPP_INCLUDE_DIRS})
 endif()
+set(JSONCPP_TARGET jsoncpp_lib)
 
 # drogon
 FetchContent_Declare(
@@ -143,6 +144,8 @@ SET(FILES
 		${CMAKE_SOURCE_DIR}/RESTAPI/bobAPI.cpp
 		${CMAKE_SOURCE_DIR}/RESTAPI/querySmartContract.cpp
 		${CMAKE_SOURCE_DIR}/RESTAPI/RESTServer.cpp
+		${CMAKE_SOURCE_DIR}/RESTAPI/LogSubscriptionManager.cpp
+		${CMAKE_SOURCE_DIR}/RESTAPI/LogWebSocket.cpp
 )
 
 add_library(XKCP_avx2 STATIC XKCP/KangarooTwelve.c
@@ -180,4 +183,12 @@ add_custom_command(
 		COMMAND ${CMAKE_COMMAND} -E copy_if_different
 		${CMAKE_SOURCE_DIR}/default_config_bob.json
 		${CMAKE_BINARY_DIR}/bob.json
+)
+
+# Copy OpenAPI spec to build directory
+add_custom_command(
+		TARGET bob POST_BUILD
+		COMMAND ${CMAKE_COMMAND} -E copy_if_different
+		${CMAKE_SOURCE_DIR}/RESTAPI/openapi.json
+		${CMAKE_BINARY_DIR}/openapi.json
 )

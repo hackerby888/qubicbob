@@ -47,16 +47,6 @@ bool verifyQuorum(uint32_t tick, TickData& td, std::vector<TickVote>& votes)
         m256i transactionDigest;
 
         bool operator<(const ConsensusData &other) const {
-            if (prevResourceTestingDigest != other.prevResourceTestingDigest)
-                return prevResourceTestingDigest < other.prevResourceTestingDigest;
-            if (prevTransactionBodyDigest != other.prevTransactionBodyDigest)
-                return prevTransactionBodyDigest < other.prevTransactionBodyDigest;
-            if (memcmp(prevSpectrumDigest.m256i_u8, other.prevSpectrumDigest.m256i_u8, 32) != 0)
-                return memcmp(prevSpectrumDigest.m256i_u8, other.prevSpectrumDigest.m256i_u8, 32) < 0;
-            if (memcmp(prevUniverseDigest.m256i_u8, other.prevUniverseDigest.m256i_u8, 32) != 0)
-                return memcmp(prevUniverseDigest.m256i_u8, other.prevUniverseDigest.m256i_u8, 32) < 0;
-            if (memcmp(prevComputerDigest.m256i_u8, other.prevComputerDigest.m256i_u8, 32) != 0)
-                return memcmp(prevComputerDigest.m256i_u8, other.prevComputerDigest.m256i_u8, 32) < 0;
             return memcmp(transactionDigest.m256i_u8, other.transactionDigest.m256i_u8, 32) < 0;
         }
     };
@@ -305,7 +295,7 @@ void connReceiver(QCPtr& conn, const bool isTrustedNode, std::atomic_bool& stopF
 {
     using namespace std::chrono_literals;
 
-    const auto errorBackoff = 500ms;
+    const auto errorBackoff = 1000ms;
 
     std::vector<uint8_t> packet;
     packet.reserve(64 * 1024); // Optional: initial capacity to minimize reallocations
@@ -319,6 +309,7 @@ void connReceiver(QCPtr& conn, const bool isTrustedNode, std::atomic_bool& stopF
                 if (!conn->isReconnectable()) return;
                 Logger::get()->trace("connReceiver error on : {}. Disconnecting", conn->getNodeIp());
                 conn->disconnect();
+                SLEEP(errorBackoff);
                 conn->reconnect();
                 continue;
             }

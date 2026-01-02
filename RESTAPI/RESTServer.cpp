@@ -3,6 +3,9 @@
 #include "drogon/HttpResponse.h"
 #include "drogon/utils/Utilities.h"
 
+// Include WebSocket controller to trigger auto-registration
+#include "LogWebSocket.h"
+
 #include <string>
 #include <thread>
 #include <mutex>
@@ -10,10 +13,16 @@
 #include <cstdint>
 #include <iomanip>
 #include <chrono>
+#include <fstream>
+#include <sstream>
 
 #include "bob.h"
 #include "Logger.h"
 #include "shim.h"
+
+// OpenAPI spec - embedded at compile time or loaded from file
+static std::string g_openApiSpec;
+static std::once_flag g_openApiLoadOnce;
 
 namespace {
     std::once_flag g_startOnce;
@@ -38,6 +47,80 @@ namespace {
 
     void registerRoutes() {
         using namespace drogon;
+
+        // Load OpenAPI spec once
+        std::call_once(g_openApiLoadOnce, []() {
+            // Try to load from file first (for development)
+            std::ifstream file("RESTAPI/openapi.json");
+            if (!file.is_open()) {
+                file.open("openapi.json");
+            }
+            if (file.is_open()) {
+                std::stringstream buffer;
+                buffer << file.rdbuf();
+                g_openApiSpec = buffer.str();
+                file.close();  // Explicitly close the file
+            } else {
+                // Minimal fallback spec
+                g_openApiSpec = R"({"openapi":"3.0.3","info":{"title":"QubicBob API","version":"1.0.0"},"paths":{}})";
+            }
+        });
+
+        // GET /swagger - Swagger UI
+        app().registerHandler(
+            "/swagger",
+            [](const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback) {
+                const std::string html = R"(<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QubicBob API - Swagger UI</title>
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui.css">
+</head>
+<body>
+    <div id="swagger-ui"></div>
+    <script src="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-bundle.js"></script>
+    <script>
+        window.onload = function() {
+            SwaggerUIBundle({
+                url: "/openapi.json",
+                dom_id: '#swagger-ui',
+                presets: [
+                    SwaggerUIBundle.presets.apis,
+                    SwaggerUIBundle.SwaggerUIStandalonePreset
+                ],
+                layout: "BaseLayout",
+                deepLinking: true,
+                showExtensions: true,
+                showCommonExtensions: true
+            });
+        };
+    </script>
+</body>
+</html>)";
+                auto resp = HttpResponse::newHttpResponse();
+                resp->setStatusCode(k200OK);
+                resp->setContentTypeCode(CT_TEXT_HTML);
+                resp->setBody(html);
+                callback(resp);
+            },
+            {Get}
+        );
+
+        // GET /openapi.json - OpenAPI specification
+        app().registerHandler(
+            "/openapi.json",
+            [](const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback) {
+                auto resp = HttpResponse::newHttpResponse();
+                resp->setStatusCode(k200OK);
+                resp->setContentTypeCode(CT_APPLICATION_JSON);
+                resp->setBody(g_openApiSpec);
+                resp->addHeader("Access-Control-Allow-Origin", "*");
+                callback(resp);
+            },
+            {Get}
+        );
 
         // GET /balance/{identity}
         app().registerHandler(
@@ -279,7 +362,7 @@ namespace {
 
         // POST /getQuTransferForIdentity
         app().registerHandler(
-            "/getQuTransferForIdentity",
+            "/getQuTransfersForIdentity",
             [](const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback) {
                 try {
                     auto jsonPtr = req->getJsonObject();
@@ -297,11 +380,10 @@ namespace {
                     uint32_t fromTick = json["fromTick"].asUInt();
                     uint32_t toTick = json["toTick"].asUInt();
                     std::string identity = json["identity"].asString();
-                    
-                    std::string result = getQuTransferForIdentity(fromTick, toTick, identity);
+                    std::string result = getQuTransfersForIdentity(fromTick, toTick, identity);
                     callback(makeJsonResponse(result));
                 } catch (const std::exception& ex) {
-                    callback(makeError(std::string("getQuTransferForIdentity error: ") + ex.what(), k500InternalServerError));
+                    callback(makeError(std::string("getQuTransfersForIdentity error: ") + ex.what(), k500InternalServerError));
                 }
             },
             {Post}
@@ -309,7 +391,7 @@ namespace {
 
         // POST /getAssetTransferForIdentity
         app().registerHandler(
-            "/getAssetTransferForIdentity",
+            "/getAssetTransfersForIdentity",
             [](const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback) {
                 try {
                     auto jsonPtr = req->getJsonObject();
@@ -330,11 +412,11 @@ namespace {
                     std::string identity = json["identity"].asString();
                     std::string assetIssuer = json["assetIssuer"].asString();
                     std::string assetName = json["assetName"].asString();
-                    
-                    std::string result = getAssetTransferForIdentity(fromTick, toTick, identity, assetIssuer, assetName);
+                    std::string result = getAssetTransfersForIdentity(fromTick, toTick, identity, assetIssuer,
+                                                                      assetName);
                     callback(makeJsonResponse(result));
                 } catch (const std::exception& ex) {
-                    callback(makeError(std::string("getAssetTransferForIdentity error: ") + ex.what(), k500InternalServerError));
+                    callback(makeError(std::string("getAssetTransfersForIdentity error: ") + ex.what(), k500InternalServerError));
                 }
             },
             {Post}
@@ -342,7 +424,7 @@ namespace {
 
         // POST /getAllAssetTransfer
         app().registerHandler(
-            "/getAllAssetTransfer",
+            "/getAllAssetTransfers",
             [](const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback) {
                 try {
                     auto jsonPtr = req->getJsonObject();
@@ -363,10 +445,10 @@ namespace {
                     std::string assetIssuer = json["assetIssuer"].asString();
                     std::string assetName = json["assetName"].asString();
                     
-                    std::string result = getAllAssetTransfer(fromTick, toTick, assetIssuer, assetName);
+                    std::string result = getAllAssetTransfers(fromTick, toTick, assetIssuer, assetName);
                     callback(makeJsonResponse(result));
                 } catch (const std::exception& ex) {
-                    callback(makeError(std::string("getAllAssetTransfer error: ") + ex.what(), k500InternalServerError));
+                    callback(makeError(std::string("getAllAssetTransfers error: ") + ex.what(), k500InternalServerError));
                 }
             },
             {Post}
@@ -474,6 +556,7 @@ namespace {
         // 3) Use Drogon's event loop timer instead of detached thread
         auto sharedCallback = std::make_shared<std::function<void(const HttpResponsePtr&)>>(std::move(callback));
         auto attemptCount = std::make_shared<int>(0);
+        auto startTime = std::make_shared<std::chrono::steady_clock::time_point>(std::chrono::steady_clock::now());
         
         auto loop = drogon::app().getIOLoop(0);  // Get an event loop
 
@@ -481,7 +564,7 @@ namespace {
         auto pollResultPtr = std::make_shared<std::function<void()>>();
         std::weak_ptr<std::function<void()>> pollResultWeak = pollResultPtr;
         
-        *pollResultPtr = [nonce, sharedCallback, attemptCount, loop, pollResultWeak]() {
+        *pollResultPtr = [nonce, sharedCallback, attemptCount, startTime, loop, pollResultWeak]() {
             std::vector<uint8_t> out;
             if (responseSCData.get(nonce, out)) {
                 Json::Value root;
@@ -495,8 +578,13 @@ namespace {
                 return;
             }
             
+            // Add timeout check to prevent infinite polling
+            auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+                std::chrono::steady_clock::now() - *startTime
+            ).count();
+            
             (*attemptCount)++;
-            if (*attemptCount >= 20) {
+            if (*attemptCount >= 20 || elapsed >= 3) {  // Max 2 seconds or 20 attempts
                 Json::Value root;
                 root["error"] = "pending";
                 root["message"] = "Query enqueued; try again with the same nonce";
@@ -596,10 +684,10 @@ namespace {
                 .setLogLevel(trantor::Logger::kInfo)
                 .addListener("0.0.0.0", 40420)  // listen at port 40420
                 .setThreadNum(std::max(2, gMaxThreads))
-                .setIdleConnectionTimeout(10)
+                .setIdleConnectionTimeout(120)      // Increased for WebSocket connections
                 .setKeepaliveRequestsNumber(200)
-                .setMaxConnectionNum(1000)          // Limit max concurrent connections
-                .setMaxConnectionNumPerIP(100)      // Limit per-IP connections (prevents single client abuse)
+                .setMaxConnectionNum(128)          // Limit max concurrent connections
+                .setMaxConnectionNumPerIP(25)      // Limit per-IP connections (prevents single client abuse)
                 .disableSigtermHandling()
                 .reusePort()                        // Enable SO_REUSEADDR to avoid "Address already in use" errors
                 ;

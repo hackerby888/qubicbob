@@ -283,6 +283,37 @@ struct LogRangesPerTxInTick
     {
         return 51;
     }
+    // return a sorted indice array by logId
+    std::vector<int> sort()
+    {
+        std::vector<int> logTxOrder;
+        if (fromLogId[SC_INITIALIZE_TX] != -1) logTxOrder.push_back(SC_INITIALIZE_TX);
+        if (fromLogId[SC_BEGIN_EPOCH_TX] != -1) logTxOrder.push_back(SC_BEGIN_EPOCH_TX);
+        if (fromLogId[SC_BEGIN_TICK_TX] != -1) logTxOrder.push_back(SC_BEGIN_TICK_TX);
+        for (int i = 0; i < NUMBER_OF_TRANSACTIONS_PER_TICK; i++)
+        {
+            if (fromLogId[i] != -1) logTxOrder.push_back(i);
+        }
+        if (fromLogId[SC_END_TICK_TX] != -1) logTxOrder.push_back(SC_END_TICK_TX);
+        if (fromLogId[SC_END_EPOCH_TX] != -1) logTxOrder.push_back(SC_END_EPOCH_TX);
+        return logTxOrder;
+    }
+
+    // given the logId, find the indice in logTxOrder that has the segment contain logId
+    int scanTxId(const std::vector<int>& logTxOrder, const int startFrom, long long logId)
+    {
+        for (int i = startFrom; i < logTxOrder.size(); i++)
+        {
+            int index = logTxOrder[i];
+            auto s = fromLogId[index];
+            auto e = s + length[index] - 1;
+            if (logId >= s && logId <= e)
+            {
+                return i;
+            }
+        }
+        return 0;
+    }
 };
 
 
@@ -422,6 +453,12 @@ struct Burning
     unsigned int contractIndexBurnedFor;
 };
 
+struct ContractReserveDeduction
+{
+    unsigned long long deductedAmount;
+    long long remainingAmount;
+    unsigned int contractIndex;
+};
 
 struct Computors
 {

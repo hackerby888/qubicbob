@@ -9,7 +9,7 @@
 #include "Logger.h"
 #include "K12AndKeyUtil.h"
 #include <cstdlib> // std::exit
-
+#include "shim.h"
 // Global Redis client handle
 static std::unique_ptr<sw::redis::Redis> g_redis = nullptr;
 static std::unique_ptr<sw::redis::Redis> g_kvrocks = nullptr;
@@ -212,7 +212,7 @@ bool db_log_exists(uint16_t epoch, uint64_t logId) {
     return false;
 }
 
-bool db_get_log_ranges(uint32_t tick, LogRangesPerTxInTick &logRange) {
+bool _db_get_log_ranges(uint32_t tick, LogRangesPerTxInTick &logRange) {
     if (!g_redis) return false;
     try {
         // Default to -1s
@@ -256,7 +256,7 @@ bool db_delete_log_ranges(uint32_t tick) {
 
 bool db_try_get_log_ranges(uint32_t tick, LogRangesPerTxInTick &logRange)
 {
-    if (db_get_log_ranges(tick, logRange))
+    if (_db_get_log_ranges(tick, logRange))
     {
         return true;
     }
@@ -475,6 +475,22 @@ return 0
     return true;
 }
 
+long long db_get_latest_log_id(uint16_t epoch) {
+    if (!g_redis) return -1;
+    try {
+        const std::string key = "db_status:epoch:" + std::to_string(epoch);
+        auto result = g_redis->hget(key, "latest_log_id");
+        if (result) {
+            return std::stoll(*result);
+        }
+    } catch (const sw::redis::Error &e) {
+        Logger::get()->error("Redis error in db_get_latest_log_id: {}\n", e.what());
+    } catch (const std::exception &e) {
+        Logger::get()->error("Exception in db_get_latest_log_id: {}\n", e.what());
+    }
+    return -1;
+}
+
 bool db_update_latest_verified_tick(uint32_t tick) {
     if (!g_redis) return false;
     try {
@@ -617,56 +633,41 @@ std::vector<LogEvent> db_get_logs_by_tick_range(uint16_t epoch, uint32_t start_t
             // Fetch in chunks to avoid oversized commands.
             const uint64_t startId = static_cast<uint64_t>(fromLogId);
             const uint64_t endId = static_cast<uint64_t>(fromLogId + length - 1);
-
-            uint64_t cur = startId;
-            while (cur <= endId) {
-                // Build a chunk of keys
-                std::vector<std::string> keys;
-                keys.reserve(kChunkSize);
-                for (std::size_t i = 0; i < kChunkSize && cur <= endId; ++i, ++cur) {
-                    keys.emplace_back("log:" + std::to_string(epoch) + ":" + std::to_string(cur));
+            auto logs = db_try_get_logs(epoch, startId, endId);
+            // Convert to LogEvent and filter by header
+            int i = 0;
+            for (const auto& le: logs) {
+                // Basic header validation and range filter
+                if (!le.hasPackedHeader())
+                {
+                    Logger::get()->critical("Log event {} has broken header", startId + i);
+                    out.clear();
+                    return out;
+                }
+                if (le.getEpoch() != epoch)
+                {
+                    Logger::get()->critical("Log event {} has broken epoch {}", startId + i, le.getEpoch());
+                    out.clear();
+                    return out;
                 }
 
-                // Bulk-get
-                std::vector<sw::redis::Optional<std::string>> vals;
-                g_redis->mget(keys.begin(), keys.end(), std::back_inserter(vals));
-
-                // Convert to LogEvent and filter by header
-                for (std::size_t i = 0; i < vals.size(); ++i) {
-                    if (!vals[i]) continue;
-
-                    const auto& s = *vals[i];
-                    LogEvent le;
-                    le.updateContent(reinterpret_cast<const uint8_t*>(s.data()), static_cast<int>(s.size()));
-
-                    // Basic header validation and range filter
-                    if (!le.hasPackedHeader())
-                    {
-                        Logger::get()->critical("Log event {} has broken header", startId + i);
-                        return out;
-                    }
-                    if (le.getEpoch() != epoch)
-                    {
-                        Logger::get()->critical("Log event {} has broken epoch {}", startId + i, le.getEpoch());
-                        return out;
-                    }
-
-                    const auto t = le.getTick();
-                    if (t < start_tick || t > end_tick)
-                    {
-                        Logger::get()->critical("Log event {} has wrong tick {}", startId + i, le.getTick());
-                        return out;
-                    }
-
-                    // Optional strict self-check against expected tick
-                    if (!le.selfCheck(epoch))
-                    {
-                        Logger::get()->critical("Log event {} failed the selfcheck", startId + i);
-                        return out;
-                    }
-
-                    out.emplace_back(std::move(le));
+                const auto t = le.getTick();
+                if (t < start_tick || t > end_tick)
+                {
+                    Logger::get()->critical("Log event {} has wrong tick {}", startId + i, le.getTick());
+                    out.clear();
+                    return out;
                 }
+
+                // Optional strict self-check against expected tick
+                if (!le.selfCheck(epoch))
+                {
+                    Logger::get()->critical("Log event {} failed the selfcheck", startId + i);
+                    out.clear();
+                    return out;
+                }
+                i++;
+                out.emplace_back(std::move(le));
             }
         }
     } catch (const sw::redis::Error& e) {
@@ -1090,7 +1091,23 @@ std::vector<uint32_t> db_search_log(uint32_t scIndex, uint32_t scLogType, uint32
 {
     std::vector<uint32_t> result;
     if (!g_redis) return result;
-
+    if (topic1.size() != 60) {
+        Logger::get()->error("db_search_log: Error topic1 size, expect 60 but get {}", topic1.size());
+        return result;
+    }
+    if (topic2.size() != 60) {
+        Logger::get()->error("db_search_log: Error topic2 size, expect 60 but get {}", topic2.size());
+        return result;
+    }
+    if (topic3.size() != 60) {
+        Logger::get()->error("db_search_log: Error topic3 size, expect 60 but get {}", topic3.size());
+        return result;
+    }
+    if (std::any_of(topic1.begin(), topic1.end(), ::isupper) ||
+        std::any_of(topic2.begin(), topic2.end(), ::isupper) ||
+        std::any_of(topic3.begin(), topic3.end(), ::isupper)) {
+        Logger::get()->warn("db_search_log: Topics cannot contain uppercase characters");
+    }
     try {
         auto toPart = [](const std::string& t) -> std::string {
             return (t == "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaafxib") ? std::string("ANY") : t;
@@ -1169,7 +1186,8 @@ bool db_copy_transaction_to_kvrocks(const std::string &tx_hash) {
 
         // Write to Kvrocks
         sw::redis::StringView view(val->data(), val->size());
-        g_kvrocks->set(key, view);
+
+        g_kvrocks->set(key, view, std::chrono::seconds(gKvrocksTTL));
 
         return true;
     } catch (const sw::redis::Error &e) {
@@ -1273,7 +1291,7 @@ bool db_move_log_to_kvrocks(uint16_t epoch, uint64_t logId) {
 
         // Write to Kvrocks
         sw::redis::StringView view(val->data(), val->size());
-        g_kvrocks->set(key, view);
+        g_kvrocks->set(key, view, std::chrono::seconds(gKvrocksTTL));
 
         return true;
     } catch (const sw::redis::Error &e) {
@@ -1330,7 +1348,7 @@ bool db_insert_vtick_to_kvrocks(uint32_t tick, const FullTickStruct& fullTick)
 
         const std::string key = "vtick:" + std::to_string(tick);
         sw::redis::StringView val(compressed.data(), compressed.size());
-        g_kvrocks->set(key, val);
+        g_kvrocks->set(key, val, std::chrono::seconds(gKvrocksTTL));
         return true;
     } catch (const sw::redis::Error& e) {
         Logger::get()->error("KVROCKS error in db_insert_vtick: %s\n", e.what());
@@ -1385,6 +1403,7 @@ bool db_insert_TickLogRange_to_kvrocks(uint32_t tick, long long& logStart, long 
         fields["fromLogId"] = std::to_string(logStart);
         fields["length"] = std::to_string(logLen);
         g_kvrocks->hmset(key_summary, fields.begin(), fields.end());
+        g_kvrocks->expire(key_summary, std::chrono::seconds(gKvrocksTTL));
         return true;
     } catch (const sw::redis::Error& e) {
         Logger::get()->error("KVROCKS error in db_insert_TickLogRange_to_kvrocks: %s\n", e.what());
@@ -1422,7 +1441,7 @@ bool db_insert_cLogRange_to_kvrocks(uint32_t tick, const LogRangesPerTxInTick& l
 
         const std::string key = "cLogRange:" + std::to_string(tick);
         sw::redis::StringView val(compressed.data(), compressed.size());
-        g_kvrocks->set(key, val);
+        g_kvrocks->set(key, val, std::chrono::seconds(gKvrocksTTL));
         return true;
     } catch (const sw::redis::Error& e) {
         Logger::get()->error("KVROCKS error in db_insert_cLogRange_to_kvrocks: %s\n", e.what());
