@@ -222,14 +222,19 @@ std::string bobGetLog(uint16_t epoch, int64_t start, int64_t end)
                     std::string js = Json::writeString(wb, err);
                     if (!first) result.push_back(',');
                     result += js;
-                    first = false;
-                    continue; // solve seamless transition case
+                    result.push_back(']');
+                    return result; // solve seamless transition case
                 }
                 db_try_get_log_ranges(log.getTick(), lr);
                 logTxOrderIndex = 0;
                 logTxOrder = lr.sort();
                 // scan to find the first cursor
                 logTxOrderIndex = lr.scanTxId(logTxOrder, 0, log.getLogId());
+                if (logTxOrderIndex == -1)
+                {
+                    result.push_back(']');
+                    return result;
+                }
             }
             int txIndex = logTxOrder[logTxOrderIndex];
             auto s = lr.fromLogId[txIndex];
@@ -429,6 +434,11 @@ std::string getCustomLog(uint32_t scIndex, uint32_t logType,
             logTxOrder = lr.sort();
             // scan to find the first cursor
             logTxOrderIndex = lr.scanTxId(logTxOrder, 0, le.getLogId());
+            if (logTxOrderIndex == -1)
+            {
+                result.push_back(']');
+                return result;
+            }
         }
 
         int txIndex = logTxOrder[logTxOrderIndex];
