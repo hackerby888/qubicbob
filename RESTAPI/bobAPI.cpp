@@ -171,6 +171,23 @@ std::string bobGetLog(uint16_t epoch, int64_t start, int64_t end)
             if (log.getTick() != td.tick)
             {
                 db_try_get_tick_data(log.getTick(), td);
+                if (td.epoch != epoch)
+                {
+                    Json::Value err(Json::objectValue);
+                    err["ok"] = false;
+                    err["error"] = "This tick is owned by epoch" + std::to_string(td.epoch)
+                            + ", if you want to query log from epoch " + std::to_string(epoch)
+                            + " use endpoint /getEndEpochLog instead";
+                    err["epoch"] = epoch;
+                    err["logId"] = Json::UInt64(static_cast<uint64_t>(id));
+                    Json::StreamWriterBuilder wb;
+                    wb["indentation"] = "";
+                    std::string js = Json::writeString(wb, err);
+                    if (!first) result.push_back(',');
+                    result += js;
+                    first = false;
+                    continue; // solve seamless transition case
+                }
                 db_try_get_log_ranges(log.getTick(), lr);
                 logTxOrderIndex = 0;
                 logTxOrder = lr.sort();
