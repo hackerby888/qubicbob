@@ -1318,6 +1318,39 @@ bool db_move_logs_to_kvrocks_by_range(uint16_t epoch, long long fromLogId, long 
     }
 }
 
+bool db_get_endepoch_log_range_info(const uint16_t epoch, long long &start, long long &length, LogRangesPerTxInTick &lr) {
+    if (!g_redis) return false;
+    try {
+        // Get start and length from end_epoch:tick_log_range:<epoch>
+        const std::string key_range = "end_epoch:tick_log_range:" + std::to_string(epoch);
+        std::vector<sw::redis::Optional<std::string>> vals;
+        g_redis->hmget(key_range, {"fromLogId", "length"}, std::back_inserter(vals));
+
+        if (vals.size() != 2 || !vals[0] || !vals[1]) {
+            return false;
+        }
+
+        start = std::stoll(*vals[0]);
+        length = std::stoll(*vals[1]);
+
+        // Get log ranges from end_epoch:log_ranges:<epoch>
+        const std::string key_lr = "end_epoch:log_ranges:" + std::to_string(epoch);
+        auto val = g_redis->get(key_lr);
+        if (!val || val->size() != sizeof(LogRangesPerTxInTick)) {
+            return false;
+        }
+        memcpy(&lr, val->data(), sizeof(LogRangesPerTxInTick));
+
+        return true;
+    } catch (const sw::redis::Error &e) {
+        Logger::get()->error("Redis error in db_get_endepoch_log_range_info: {}\n", e.what());
+        return false;
+    } catch (const std::exception &e) {
+        Logger::get()->error("Error in db_get_endepoch_log_range_info: {}\n", e.what());
+        return false;
+    }
+}
+
 // Insert FullTickStruct compressed with zstd under key "vtick:<tick>"
 bool db_insert_vtick_to_kvrocks(uint32_t tick, const FullTickStruct& fullTick)
 {

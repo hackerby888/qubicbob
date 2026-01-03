@@ -150,6 +150,43 @@ std::string bobGetTransaction(const char* txHash)
     }
 }
 
+std::string bobGetEndEpochLog(uint16_t epoch)
+{
+    std::string result;
+    result.push_back('[');
+    bool first = true;
+    LogRangesPerTxInTick lr{-1};
+    int logTxOrderIndex = 0;
+    std::vector<int> logTxOrder;
+    long long start, length, end;
+    db_get_endepoch_log_range_info(epoch, start, length, lr);
+    end = start + length - 1;
+    for (int64_t id = start; id <= end; ++id) {
+        LogEvent log;
+        if (db_try_get_log(epoch, static_cast<uint64_t>(id), log)) {
+            std::string js = log.parseToJsonStr();
+            if (!first) result.push_back(',');
+            result += js;
+            first = false;
+        } else {
+            Json::Value err(Json::objectValue);
+            err["ok"] = false;
+            err["error"] = "not_found";
+            err["epoch"] = epoch;
+            err["logId"] = Json::UInt64(static_cast<uint64_t>(id));
+            Json::StreamWriterBuilder wb;
+            wb["indentation"] = "";
+            std::string js = Json::writeString(wb, err);
+            if (!first) result.push_back(',');
+            result += js;
+            first = false;
+        }
+    }
+
+    result.push_back(']');
+    return result;
+}
+
 std::string bobGetLog(uint16_t epoch, int64_t start, int64_t end)
 {
 
