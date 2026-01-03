@@ -205,7 +205,7 @@ std::string bobGetLog(uint16_t epoch, int64_t start, int64_t end)
     for (int64_t id = start; id <= end; ++id) {
         LogEvent log;
         if (db_try_get_log(epoch, static_cast<uint64_t>(id), log)) {
-            if (log.getTick() != td.tick)
+            if (log.getTick() != td.tick || log.getEpoch() != td.epoch)
             {
                 db_try_get_tick_data(log.getTick(), td);
                 if (td.epoch != epoch)
