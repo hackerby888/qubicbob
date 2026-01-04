@@ -219,9 +219,14 @@ void LogSubscriptionManager::pushVerifiedLogs(uint32_t tick, uint16_t epoch, con
             SubscriptionKey key;
             if (!extractSubscriptionKey(log, key)) continue;
             auto logId = log.getLogId();
-            // Find subscribers for this key
+            // Find subscribers for this key and also those subscribed to all log types for this scIndex
             auto subIt = subscriptionIndex_.find(key);
-            if (subIt == subscriptionIndex_.end() || subIt->second.empty()) continue;
+            auto allIt = subscriptionIndex_.find({key.scIndex, ANY_LOG_TYPE});
+
+            if ((subIt == subscriptionIndex_.end() && allIt == subscriptionIndex_.end()) || (subIt->second.empty() && allIt->second.empty())) {
+                // No subscribers for this log
+                continue;
+            }
 
             int txIndex = logTxOrder[logTxOrderIndex];
             auto s = lr.fromLogId[txIndex];
@@ -271,30 +276,34 @@ void LogSubscriptionManager::pushVerifiedLogs(uint32_t tick, uint16_t epoch, con
             }
 
             // Collect subscribers to send to
-            for (const auto& conn : subIt->second) {
-                // Skip clients in catch-up to avoid duplicate/out-of-order messages
-                auto clientIt = clients_.find(conn);
-                if (clientIt != clients_.end()) {
-                    // Skip if catch-up is in progress
-                    if (clientIt->second.catchUpInProgress) {
-                        continue;
+            auto sender = [&](std::unordered_set<drogon::WebSocketConnectionPtr> &subs) {
+                for (const auto& conn : subs) {
+                    // Skip clients in catch-up to avoid duplicate/out-of-order messages
+                    auto clientIt = clients_.find(conn);
+                    if (clientIt != clients_.end()) {
+                        // Skip if catch-up is in progress
+                        if (clientIt->second.catchUpInProgress) {
+                            continue;
+                        }
+                        // Skip if client's lastTick is >= current tick (client is ahead of system)
+                        if (clientIt->second.lastTick >= tick) {
+                            continue;
+                        }
+                        // Skip if client's lastLogId is >= current log ID (client is ahead of system)
+                        if (clientIt->second.lastLogId >= 0 && clientIt->second.lastLogId >= logId) {
+                            continue;
+                        }
+                        // Skip QU_TRANSFER events below client's minimum amount threshold
+                        if (log.getType() == QU_TRANSFER && clientIt->second.transferMinAmount > 0 &&
+                            transferAmount < clientIt->second.transferMinAmount) {
+                            continue;
+                            }
                     }
-                    // Skip if client's lastTick is >= current tick (client is ahead of system)
-                    if (clientIt->second.lastTick >= tick) {
-                        continue;
-                    }
-                    // Skip if client's lastLogId is >= current log ID (client is ahead of system)
-                    if (clientIt->second.lastLogId >= 0 && clientIt->second.lastLogId >= logId) {
-                        continue;
-                    }
-                    // Skip QU_TRANSFER events below client's minimum amount threshold
-                    if (log.getType() == QU_TRANSFER && clientIt->second.transferMinAmount > 0 &&
-                        transferAmount < clientIt->second.transferMinAmount) {
-                        continue;
-                    }
+                    pendingSends.emplace_back(conn, jsonStr);
                 }
-                pendingSends.emplace_back(conn, jsonStr);
-            }
+            };
+            sender(subIt->second);
+            sender(allIt->second);
         }
     }
 
@@ -394,8 +403,10 @@ void LogSubscriptionManager::performCatchUp(const drogon::WebSocketConnectionPtr
         for (auto& log : logs) {
             SubscriptionKey key;
             if (!extractSubscriptionKey(log, key)) continue;
-            // Check if client is subscribed to this key
-            if (subscriptions.find(key) == subscriptions.end()) continue;
+            // Check if client is subscribed to this key or all log types for this scIndex
+            if (subscriptions.find(key) == subscriptions.end() &&
+                subscriptions.find({key.scIndex, ANY_LOG_TYPE}) == subscriptions.end())
+              continue;
             auto id = log.getLogId();
 
             if (td.tick != log.getTick())
@@ -570,8 +581,10 @@ void LogSubscriptionManager::performCatchUpByLogId(const drogon::WebSocketConnec
             SubscriptionKey key;
             if (!extractSubscriptionKey(log, key)) continue;
 
-            // Check if client is subscribed to this key
-            if (subscriptions.find(key) == subscriptions.end()) continue;
+            // Check if client is subscribed to this key or all log types for this scIndex
+            if (subscriptions.find(key) == subscriptions.end() &&
+                subscriptions.find({key.scIndex, ANY_LOG_TYPE}) == subscriptions.end())
+              continue;
 
             if (log.getTick() != td.tick)
             {

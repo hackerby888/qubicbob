@@ -1,5 +1,7 @@
 #pragma once
 
+#define ANY_LOG_TYPE UINT32_MAX
+
 #include <cstdint>
 #include <string>
 #include <vector>
